@@ -1,0 +1,40 @@
+{
+  "name": "baraja",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Baraja.cards — Premium card decks, printed locally, on demand.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "npm run build && wrangler dev",
+    "deploy:prod": "npm run build && wrangler deploy --env production",
+    "db:migrate": "wrangler d1 execute baraja-db --file=migrations/0001_initial.sql",
+    "db:migrate:remote": "wrangler d1 execute baraja-db --remote --file=migrations/0001_initial.sql"
+  },
+  "dependencies": {
+    "@eb-packages/deck-engine": "*",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-router-dom": "^7.13.1"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.28.0",
+    "@cloudflare/workers-types": "^4.20250620.0",
+    "@eslint/js": "^9.39.4",
+    "@types/node": "^24.12.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "dotenv": "^17.4.0",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.4.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.57.0",
+    "vite": "^8.0.1",
+    "wrangler": "^4.77.0"
+  }
+}

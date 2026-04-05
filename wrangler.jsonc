@@ -1,0 +1,44 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "baraja",
+	"main": "./src/worker.ts",
+	"compatibility_date": "2025-09-27",
+	"observability": {
+		"enabled": true
+	},
+	"assets": {
+		"not_found_handling": "none",
+		"binding": "ASSETS"
+	},
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "baraja-db",
+			"database_id": "1be18d08-7120-4df6-9892-bfd1938aa37c"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "PRINT_FILES",
+			"bucket_name": "baraja-print-files"
+		}
+	],
+	"env": {
+		"production": {
+			"name": "baraja",
+			"routes": [
+				{
+					"pattern": "baraja.cards",
+					"custom_domain": true
+				},
+				{
+					"pattern": "*.baraja.cards",
+					"custom_domain": true
+				}
+			]
+		}
+	}
+}
