@@ -1,12 +1,12 @@
 // src/components/admin/GalleryHero.tsx
 import React, { useState } from 'react';
-import { Card, Deck } from '@eb-packages/deck-engine';
+import type { Card, Edition } from '@eb-packages/deck-engine';
 import { CardCanvas } from './CardCanvas';
 import styles from './GalleryHero.module.css';
 
 interface GalleryHeroProps {
   card: Card;
-  deck: Deck;
+  deck: Edition;
   onEdit: (card: Card) => void;
   onGenerateArt: (cardId: string) => void;
   onRestoreVersion: (cardId: string, url: string) => void;

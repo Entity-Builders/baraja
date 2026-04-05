@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { DECKS } from '@eb-packages/deck-engine';
 import type { Card } from '@eb-packages/deck-engine';
-import AdminPrintPreviewCard from './AdminPrintPreviewCard';
 
 // Modular Admin Components
 import { GalleryHero } from '../../components/admin/GalleryHero';
 import { GalleryDock } from '../../components/admin/GalleryDock';
 import { EditorSidebar } from '../../components/admin/EditorSidebar';
+import { CardCanvas } from '../../components/admin/CardCanvas';
 
 export default function AdminEditionEditor() {
   const { deckId } = useParams();
@@ -300,16 +300,28 @@ export default function AdminEditionEditor() {
           /* STANDARD GRID (Print or Original Modes) */
           <div style={{ display: 'grid', gridTemplateColumns: viewMode === 'original' ? 'repeat(auto-fill, minmax(280px, 1fr))' : 'repeat(auto-fill, minmax(220px, 1fr))', gap: '2rem' }}>
             {cards.map((card) => (
-              <AdminPrintPreviewCard
-                key={card.id}
-                card={card}
-                deck={deck}
-                onEdit={setEditingCard}
-                onGenerateArt={(cardId) => handleGenerateArt(cardId)}
-                onRestoreVersion={handleRestoreVersion}
-                isGeneratingArt={!!generatingArt[card.id]}
-                viewMode={viewMode}
-              />
+               <div key={card.id} style={{ position: 'relative' }}>
+                 <div style={{ position: 'absolute', zIndex: 50, top: 10, right: 10, display: 'flex', gap: '0.5rem' }}>
+                    <button 
+                       onClick={() => setEditingCard(card)}
+                       style={{ background: 'rgba(0,0,0,0.7)', border: '1px solid rgba(255,255,255,0.2)', padding: '0.2rem 0.5rem', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem' }}
+                    >
+                       Edit
+                    </button>
+                    <button 
+                       onClick={() => handleGenerateArt(card.id)}
+                       disabled={!!generatingArt[card.id]}
+                       style={{ background: 'rgba(0,0,0,0.7)', border: '1px solid #4ade80', padding: '0.2rem 0.5rem', color: '#4ade80', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem', opacity: generatingArt[card.id] ? 0.5 : 1 }}
+                    >
+                       Regen
+                    </button>
+                 </div>
+                 <CardCanvas
+                   card={card}
+                   deck={deck}
+                   forceOriginalMode={viewMode === 'original'}
+                 />
+               </div>
             ))}
           </div>
         )}
