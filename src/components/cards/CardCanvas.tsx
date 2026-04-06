@@ -24,8 +24,10 @@ export function CardCanvas({ card, deck, previewUrl, flipped = false, onFlip, fo
   const fontHeading = design.font_heading || 'Cormorant Garamond';
   const fontBody = design.font_body || 'Inter';
 
-  const width = deck.print_specs?.dimensions?.width || 88;
-  const height = deck.print_specs?.dimensions?.height || 138;
+  const parsedWidth = Number(deck.print_specs?.dimensions?.width);
+  const parsedHeight = Number(deck.print_specs?.dimensions?.height);
+  const width = parsedWidth > 0 ? parsedWidth : 88;
+  const height = parsedHeight > 0 ? parsedHeight : 138;
   const aspectRatioDecimal = width / height;
 
   const finalAspectRatio = forceOriginalMode ? (88 / 63) : aspectRatioDecimal;
