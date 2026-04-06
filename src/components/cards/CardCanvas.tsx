@@ -56,8 +56,11 @@ export function CardCanvas({ card, deck, previewUrl, flipped = false, onFlip, fo
   }, [card, deck.name, displayArtUrl]);
 
   // Geometry
-  const parsedWidth = Number(deck.print_specs?.dimensions?.width) || 88;
-  const parsedHeight = Number(deck.print_specs?.dimensions?.height) || 63;
+  // We MUST use the basePdf dimensions so the aspect ratio matches the template EXACTLY,
+  // preventing @pdfme/ui from squishing or dropping elements if the template is 127x102 but the deck says 88x63.
+  const basePdfMeta = baseTemplate.basePdf as { width?: number; height?: number };
+  const parsedWidth = basePdfMeta.width || Number(deck.print_specs?.dimensions?.width) || 88;
+  const parsedHeight = basePdfMeta.height || Number(deck.print_specs?.dimensions?.height) || 63;
   const aspectRatioDecimal = parsedWidth / parsedHeight;
   const finalAspectRatio = forceOriginalMode ? (88 / 63) : aspectRatioDecimal;
   const paddingRatio = (1 / finalAspectRatio) * 100;

@@ -21,14 +21,14 @@ export function useDeck(deckId: string | undefined): UseDeckResult {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  function fetchDeck() {
+  function fetchDeck(isBackgroundRefetch = false) {
     if (!deckId) {
       setLoading(false);
       setError('No deck ID provided');
       return;
     }
 
-    setLoading(true);
+    if (!isBackgroundRefetch) setLoading(true);
     setError(null);
 
     repo.getDeckById(deckId)
@@ -45,13 +45,27 @@ export function useDeck(deckId: string | undefined): UseDeckResult {
         console.error('[useDeck]', err);
         setError(String(err));
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (!isBackgroundRefetch) setLoading(false);
+      });
   }
 
   useEffect(() => {
     fetchDeck();
+    
+    // Listen for template updates from other components/tabs
+    const channel = new BroadcastChannel('baraja_template_updates');
+    channel.onmessage = (event) => {
+      if (event.data?.type === 'TEMPLATE_UPDATED') {
+        fetchDeck(true); // background fetch to prevent UI flicker
+      }
+    };
+
+    return () => {
+      channel.close();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deckId]);
 
-  return { deck, loading, error, refetch: fetchDeck };
+  return { deck, loading, error, refetch: () => fetchDeck() };
 }

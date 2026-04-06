@@ -403,6 +403,10 @@ export default function AdminTemplates() {
     await repo.create(input);
     setCreating(false);
     await loadTemplates();
+
+    const channel = new BroadcastChannel('baraja_template_updates');
+    channel.postMessage({ type: 'TEMPLATE_UPDATED', id: input.id });
+    channel.close();
   }
 
   async function handleUpdate(pdfmeTemplate: Template, meta: Partial<DesignTemplateInput>) {
@@ -414,6 +418,10 @@ export default function AdminTemplates() {
     });
     setEditingId(null);
     await loadTemplates();
+
+    const channel = new BroadcastChannel('baraja_template_updates');
+    channel.postMessage({ type: 'TEMPLATE_UPDATED', id: editingId });
+    channel.close();
   }
 
   async function handleDelete(id: string) {

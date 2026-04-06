@@ -13,12 +13,45 @@ function getSheetDimensions(size: 'A3' | 'A4') {
 }
 
 /**
+ * Helper to convert any browser-supported image (WebP, PNG, etc) 
+ * into a base64 JPEG to avoid "SOI not found in JPEG" errors in pdfme.
+ */
+async function toJpegDataUrl(url: string): Promise<string> {
+  if (!url) return '';
+  if (url.startsWith('data:image/jpeg')) return url;
+  
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/jpeg', 0.95));
+      } else {
+        resolve(url);
+      }
+    };
+    img.onerror = () => {
+      console.warn('Failed to convert image to JPEG for PDF:', url);
+      resolve(url); // Fallback to original
+    };
+    img.src = url;
+  });
+}
+
+/**
  * Creates an imposition template (grid of cards) from a single-card template.
  */
-function buildImpositionTemplateAndInputs(
+async function buildImpositionTemplateAndInputs(
   deck: DeckSchema,
   sheetSize: 'A3' | 'A4'
-): { template: Template; inputs: Record<string, string>[] } {
+): Promise<{ template: Template; inputs: Record<string, string>[] }> {
   // 1. Get the base single-card template
   const cardTemplate = getTemplateForDeck(deck);
   const cardSchemas = cardTemplate.schemas; // [0] = front, [1] = back
@@ -103,6 +136,17 @@ function buildImpositionTemplateAndInputs(
     schemas: [newFrontSchema, newBackSchema],
   };
 
+  // Pre-fetch all unique image URLs to JPEG DataURIs to prevent "SOI not found in JPEG"
+  const uniqueUrls = new Set<string>();
+  deck.cards.forEach(c => {
+    if (c.front.art_url) uniqueUrls.add(c.front.art_url);
+  });
+  
+  const urlToDataUrl: Record<string, string> = {};
+  for (const url of Array.from(uniqueUrls)) {
+    urlToDataUrl[url] = await toJpegDataUrl(url);
+  }
+
   // 4. Build Input Data
   const pagesData: Record<string, string>[] = [];
   
@@ -119,7 +163,7 @@ function buildImpositionTemplateAndInputs(
         if (card) {
           // Map front
           pageInputs[`bg_${suffix}`] = '';
-          pageInputs[`art_${suffix}`] = card.front.art_url || '';
+          pageInputs[`art_${suffix}`] = card.front.art_url ? urlToDataUrl[card.front.art_url] : '';
           pageInputs[`number_${suffix}`] = `#${String(card.front.number).padStart(2, '0')}`;
           pageInputs[`title_${suffix}`] = card.front.title;
 
@@ -143,7 +187,7 @@ function buildImpositionTemplateAndInputs(
 }
 
 export async function generatePrintPdf(deck: DeckSchema, options: PrintOptions): Promise<Uint8Array> {
-  const { template, inputs } = buildImpositionTemplateAndInputs(deck, options.sheetSize);
+  const { template, inputs } = await buildImpositionTemplateAndInputs(deck, options.sheetSize);
 
   const pdf = await generate({
     template,
