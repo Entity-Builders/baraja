@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
-import { DECKS } from '@eb-packages/deck-engine';
+import { useAllDecks } from '../hooks/useAllDecks';
 
-// ── Data ─────────────────────────────────────────────────────────
-
-const deck = DECKS['cable-a-tierra'];
+// ── Static Data (not from DB) ───────────────────────────────
 
 const EDITIONS = [
   {
@@ -11,8 +9,8 @@ const EDITIONS = [
     name: 'Cable a Tierra',
     slug: 'cable-a-tierra',
     badge: 'Primera Edición',
-    desc: deck.description,
-    cards: deck.card_count,
+    desc: '30 cartas para los días que se sienten demasiado. Una por día. Sin app. Sin rutina.',
+    cards: 30,
     available: true,
   },
   {
@@ -53,9 +51,6 @@ const STEPS = [
   },
 ];
 
-// Grab 3 sample cards from the real deck
-const SAMPLE_CARDS = deck.cards.slice(0, 3);
-
 // ── Components ────────────────────────────────────────────────────
 
 function Navbar() {
@@ -73,12 +68,12 @@ function Navbar() {
   );
 }
 
-function CardPreview({ card, index }: { card: typeof SAMPLE_CARDS[0]; index: number }) {
+function CardPreview({ card, index, totalCards }: { card: { id: string; front: { number: number; title: string }; back: { when_to_use: string; phrase: string; instruction: string }; tags?: string[] }; index: number; totalCards: number }) {
   return (
     <div className="card-3d" style={{ animationDelay: `${index * 0.15}s` }}>
       <div className="card-face card-front">
         <div className="card-face-label">
-          {String(card.front.number).padStart(2, '0')} / {deck.card_count}
+          {String(card.front.number).padStart(2, '0')} / {totalCards}
         </div>
         <div>
           <div className="card-face-title">{card.front.title}</div>
@@ -102,6 +97,11 @@ function CardPreview({ card, index }: { card: typeof SAMPLE_CARDS[0]; index: num
 }
 
 function Hero() {
+  const { decks, loading } = useAllDecks();
+  const cableATierra = decks.find(d => d.id === 'cable-a-tierra');
+  const sampleCards = cableATierra ? cableATierra.deck.cards.slice(0, 3) : [];
+  const totalCards = cableATierra ? cableATierra.deck.card_count : 30;
+
   return (
     <section className="hero">
       <div className="hero-bg" />
@@ -119,9 +119,13 @@ function Hero() {
           <a href="#como-funciona" className="btn-ghost">Cómo funciona</a>
         </div>
         <div className="card-deck fade-up fade-up-delay-4">
-          {SAMPLE_CARDS.map((card, i) => (
-            <CardPreview key={card.id} card={card} index={i} />
-          ))}
+          {loading ? (
+            <p style={{ opacity: 0.5 }}>Cargando cartas...</p>
+          ) : (
+            sampleCards.map((card, i) => (
+              <CardPreview key={card.id} card={card} index={i} totalCards={totalCards} />
+            ))
+          )}
         </div>
       </div>
     </section>

@@ -10,6 +10,42 @@ import type {
 import { CardCanvas } from '../cards/CardCanvas';
 import { SupabaseDeckRepository } from '../../lib/deckRepository';
 
+// ── Extracted outside component to maintain stable identity across renders ──
+function InputRow({ label, value, onChange, type = 'text', hint }: {
+  label: string;
+  value: string | number | undefined;
+  onChange: (val: string) => void;
+  type?: string;
+  hint?: string;
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+      <label style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>
+        {label}
+      </label>
+      <input
+        type={type}
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value)}
+        style={{
+          background: 'rgba(0,0,0,0.5)',
+          color: 'white',
+          border: '1px solid rgba(255,255,255,0.1)',
+          padding: '0.5rem',
+          borderRadius: '4px',
+          fontSize: '0.9rem',
+          width: '100%',
+        }}
+      />
+      {hint && (
+        <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>
+          {hint}
+        </span>
+      )}
+    </div>
+  );
+}
+
 const deckRepo = new SupabaseDeckRepository();
 
 interface DeckSettingsModalProps {
@@ -65,25 +101,12 @@ export function DeckSettingsModal({ deck, onClose }: DeckSettingsModalProps) {
     e.preventDefault();
     setSaving(true);
 
-    const settingsPayload = {
-      design_template_id: designTemplateId as DesignTemplateId,
-      print_spec_id: printSpecId as PrintSpecId,
-      print_specs_overrides: printOverrides,
-      design_template_overrides: designOverrides,
-    };
-
     try {
-      // 1. Write to Supabase (persistent DB)
-      await deckRepo.updateDeckSettings(deck.slug || deck.id, settingsPayload);
-
-      // 2. Write to local JSON (drives DECKS static + Vite HMR)
-      await fetch('/api/admin/save-deck-settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          deckId: deck.slug || deck.id,
-          updates: settingsPayload,
-        }),
+      await deckRepo.updateDeckSettings(deck.slug || deck.id, {
+        design_template_id: designTemplateId as DesignTemplateId,
+        print_spec_id: printSpecId as PrintSpecId,
+        print_specs_overrides: printOverrides,
+        design_template_overrides: designOverrides,
       });
 
       window.location.reload();
@@ -95,39 +118,7 @@ export function DeckSettingsModal({ deck, onClose }: DeckSettingsModalProps) {
     }
   }
 
-  // Helper for generating standard inputs
-  const InputRow = ({ label, value, onChange, type = 'text', hint }: any) => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-      <label style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>
-        {label}
-      </label>
-      <input
-        type={type}
-        value={value || ''}
-        onChange={(e) => onChange(e.target.value)}
-        style={{
-          background: 'rgba(0,0,0,0.5)',
-          color: 'white',
-          border: '1px solid rgba(255,255,255,0.1)',
-          padding: '0.5rem',
-          borderRadius: '4px',
-          fontSize: '0.9rem',
-          width: '100%',
-        }}
-      />
-      {hint && (
-        <span
-          style={{
-            fontSize: '0.7rem',
-            color: 'rgba(255,255,255,0.4)',
-            marginTop: 2,
-          }}
-        >
-          {hint}
-        </span>
-      )}
-    </div>
-  );
+
 
   const sampleCard = deck.cards?.[0] || {
     id: 'sample',

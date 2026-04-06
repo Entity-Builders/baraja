@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { DECKS } from '@eb-packages/deck-engine';
 import type { Card, DeckSchema } from '@eb-packages/deck-engine';
 import { Document, Page, View, PDFViewer, PDFDownloadLink, StyleSheet } from '@react-pdf/renderer';
 import { PdfCardFace } from '../../components/cards/PdfCard';
+import { useDeck } from '../../hooks/useDeck';
 
 const styles = StyleSheet.create({
   page: {
@@ -80,25 +80,21 @@ const CardsPdfDocument = ({ deck, sheetSize }: { deck: DeckSchema, sheetSize: 'A
   return (
     <Document title={`Impresion_${deck.name}_${sheetSize}`} author="Baraja by Entity Builders">
       {sheets.map((sheetCards, sheetIndex) => {
-        // chunk sheetCards into rows
         const frontRows: (Card | null)[][] = [];
         const backRows: (Card | null)[][] = [];
         
         for (let r = 0; r < rows; r++) {
           const rowStart = r * cols;
-          // if we exceed available cards, slice returns what's left
           const rowCards = sheetCards.slice(rowStart, rowStart + cols);
           
           if (rowCards.length === 0) continue;
           
-          // Pad row to columns size so that reversing pushes empty slots to the left (which physically aligns with right-aligned fronts)
           const paddedRow: (Card | null)[] = [...rowCards];
           while (paddedRow.length < cols) {
             paddedRow.push(null);
           }
           
           frontRows.push([...paddedRow]);
-          // For the backs to align perfectly (Duplex), we must reverse the layout horizontally
           backRows.push([...paddedRow].reverse());
         }
 
@@ -152,10 +148,16 @@ const CardsPdfDocument = ({ deck, sheetSize }: { deck: DeckSchema, sheetSize: 'A
 
 export default function AdminPrintView() {
   const { deckId } = useParams();
-  const deck = deckId ? DECKS[deckId as keyof typeof DECKS] : null;
+  const { deck, loading, error } = useDeck(deckId);
   const [sheetSize, setSheetSize] = useState<'A3' | 'A4'>('A3');
 
-  if (!deck) return <div style={{ color: 'white', padding: '2rem' }}>Deck not found.</div>;
+  if (loading) {
+    return <div style={{ color: 'white', padding: '2rem', textAlign: 'center' }}>Cargando deck...</div>;
+  }
+
+  if (error || !deck) {
+    return <div style={{ color: 'white', padding: '2rem' }}>Deck not found. {error}</div>;
+  }
 
   const widthMm = deck.print_specs.dimensions.width || 88;
   const heightMm = deck.print_specs.dimensions.height || 138;

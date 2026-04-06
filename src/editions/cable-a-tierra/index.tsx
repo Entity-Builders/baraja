@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
-import { DECKS } from '@eb-packages/deck-engine';
 import { PublicShowcase } from '../../components/cards/PublicShowcase';
-
-const deck = DECKS['cable-a-tierra'];
+import { useDeck } from '../../hooks/useDeck';
 
 // ── Email capture ─────────────────────────────────────────────
 
@@ -58,6 +56,11 @@ function EmailCapture({ id }: { id: string }) {
 // ── Page ──────────────────────────────────────────────────────
 
 export default function CableATierraLanding() {
+  const { deck, loading, error } = useDeck('cable-a-tierra');
+
+  if (loading) return <div style={{ color: 'white', padding: '4rem', textAlign: 'center' }}>Cargando...</div>;
+  if (error || !deck) return <div style={{ color: 'white', padding: '4rem' }}>Error cargando edición.</div>;
+
   const themeStyles = {
     '--color-bg': deck.design.background || 'var(--color-bg)',
     '--color-text': deck.design.text_color || 'var(--color-text)',

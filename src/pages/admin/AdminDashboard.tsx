@@ -1,21 +1,42 @@
 import { Link } from 'react-router-dom';
-import { DECKS } from '@eb-packages/deck-engine';
+import { useAllDecks } from '../../hooks/useAllDecks';
 
 export default function AdminDashboard() {
-  const decks = Object.entries(DECKS);
+  const { decks, loading, error } = useAllDecks();
+
+  if (loading) {
+    return (
+      <div style={{ padding: '2rem', color: 'white', textAlign: 'center' }}>
+        <p style={{ opacity: 0.7, fontSize: '1.1rem' }}>Cargando ediciones...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: '2rem', color: 'white' }}>
+        <p style={{ color: '#ff6b6b' }}>Error loading decks: {error}</p>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto', color: 'white' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
         <h1>Baraja Admin</h1>
-        <Link to="/admin/generate" className="btn-primary" style={{ textDecoration: 'none', fontSize: '0.8rem' }}>
-          🃏 Generate New Edition
-        </Link>
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <Link to="/admin/templates" className="btn-ghost" style={{ textDecoration: 'none', fontSize: '0.8rem' }}>
+            🎨 Templates
+          </Link>
+          <Link to="/admin/generate" className="btn-primary" style={{ textDecoration: 'none', fontSize: '0.8rem' }}>
+            🃏 Generate New Edition
+          </Link>
+        </div>
       </div>
       <p style={{ opacity: 0.7 }}>Manage your decks and generate print-ready PDFs.</p>
       
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '2rem' }}>
-        {decks.map(([id, deck]) => (
+        {decks.map(({ id, deck }) => (
           <div key={id} style={{ 
             padding: '1.5rem', 
             border: '1px solid rgba(255,255,255,0.1)', 

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { DECKS } from '@eb-packages/deck-engine';
 import type { Card } from '@eb-packages/deck-engine';
+import { useDeck } from '../../hooks/useDeck';
 
 // Modular Admin Components
 import { GalleryHero } from '../../components/cards/GalleryHero';
@@ -13,17 +13,27 @@ import { DeckSettingsModal } from '../../components/admin/DeckSettingsModal';
 export default function AdminEditionEditor() {
   const { deckId } = useParams();
   const navigate = useNavigate();
-  const deck = deckId ? DECKS[deckId as keyof typeof DECKS] : null;
+  const { deck, loading, error } = useDeck(deckId);
   
   // Local state to see edits instantly before full page reload
-  const [cards, setCards] = useState<Card[]>(deck ? deck.cards : []);
+  const [cards, setCards] = useState<Card[]>([]);
   const [editingCard, setEditingCard] = useState<Card | null>(null);
   const [, setSaving] = useState(false);
   const [generatingArt, setGeneratingArt] = useState<Record<string, boolean>>({});
   const [batchGenerating, setBatchGenerating] = useState(false);
-  const [viewMode, setViewMode] = useState<'print' | 'original' | 'gallery'>('gallery'); // Set as default for now to show off the new layout!
-  const [activeCardId, setActiveCardId] = useState<string | null>(deck ? deck.cards[0]?.id : null);
+  const [viewMode, setViewMode] = useState<'print' | 'original' | 'gallery'>('gallery');
+  const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+
+  // Sync local cards state when deck loads from Supabase
+  useEffect(() => {
+    if (deck) {
+      setCards(deck.cards);
+      if (!activeCardId && deck.cards.length > 0) {
+        setActiveCardId(deck.cards[0].id);
+      }
+    }
+  }, [deck]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleGenerateArt(cardId: string, force = true) {
     setGeneratingArt(prev => ({ ...prev, [cardId]: true }));
@@ -37,7 +47,6 @@ export default function AdminEditionEditor() {
       if (result.success && result.art_url) {
         setCards(prev => prev.map(c => {
           if (c.id !== cardId) return c;
-          // Reload the full card data from the server response
           return { ...c, front: { ...c.front, art_url: result.art_url, ...(result.art_versions ? { art_versions: result.art_versions } : {}) } };
         }));
         if (editingCard?.id === cardId) {
@@ -67,14 +76,12 @@ export default function AdminEditionEditor() {
   async function handleRestoreVersion(cardId: string, versionUrl: string) {
     setSaving(true);
     try {
-      // Find the current card
       const card = cards.find(c => c.id === cardId);
       if (!card) return;
 
       const currentUrl = card.front.art_url;
       const currentVersions = card.front.art_versions || [];
 
-      // New versions: remove the restored one, add the current one
       const newVersions = currentVersions.filter(v => v !== versionUrl);
       if (currentUrl) newVersions.unshift(currentUrl);
 
@@ -84,7 +91,6 @@ export default function AdminEditionEditor() {
         art_versions: newVersions,
       };
 
-      // Save to disk
       const response = await fetch('/api/admin/save-edition', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -110,7 +116,8 @@ export default function AdminEditionEditor() {
     }
   }
 
-  if (!deck) return <div style={{ color: 'white', padding: '2rem' }}>Deck not found.</div>;
+  if (loading) return <div style={{ color: 'white', padding: '2rem', textAlign: 'center' }}>Cargando deck...</div>;
+  if (error || !deck) return <div style={{ color: 'white', padding: '2rem' }}>Deck not found. {error}</div>;
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -133,7 +140,6 @@ export default function AdminEditionEditor() {
       });
       
       if (response.ok) {
-        // Update local state
         setCards(cards.map(c => c.id === editingCard.id ? editingCard : c));
         setEditingCard(null);
       } else {

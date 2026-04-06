@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
-import { DECKS } from '@eb-packages/deck-engine';
 import { PublicShowcase } from '../../components/cards/PublicShowcase';
+import { useDeck } from '../../hooks/useDeck';
 
-// Grab barometro
-const deck = DECKS['barometro'];
 // ── Email capture ─────────────────────────────────────────────
 
 function EmailCapture({ id }: { id: string }) {
@@ -58,6 +56,11 @@ function EmailCapture({ id }: { id: string }) {
 // ── Page ──────────────────────────────────────────────────────
 
 export default function BarometroLanding() {
+  const { deck, loading, error } = useDeck('barometro');
+
+  if (loading) return <div style={{ color: 'white', padding: '4rem', textAlign: 'center' }}>Cargando...</div>;
+  if (error || !deck) return <div style={{ color: 'white', padding: '4rem' }}>Error cargando edición.</div>;
+
   const themeStyles = {
     '--color-bg': deck.design.background || 'var(--color-bg)',
     '--color-text': deck.design.text_color || 'var(--color-text)',
@@ -82,7 +85,6 @@ export default function BarometroLanding() {
 
       {/* ── Hero ───────────────────────────────────────────── */}
       <section className="cat-hero">
-        {/* Inject dark aesthetic or full image background logic if needed */}
         <div className="hero-bg" style={{ opacity: 0.1, backgroundImage: 'linear-gradient(to bottom, #111, var(--color-bg))' }} />
         <div className="cat-hero-content">
           <p className="hero-eyebrow fade-up">Herramienta de Regulación</p>

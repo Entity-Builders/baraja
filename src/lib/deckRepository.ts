@@ -97,6 +97,13 @@ export class SupabaseDeckRepository implements IDeckRepository {
   async updateDeckSettings(id: string, updates: Partial<RawDeckContent>): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const payload: Record<string, any> = {};
+
+    if (updates.print_spec_id !== undefined) {
+      payload.print_spec_id = updates.print_spec_id;
+    }
+    if (updates.design_template_id !== undefined) {
+      payload.design_template_id = updates.design_template_id;
+    }
     if (updates.print_specs_overrides !== undefined) {
       payload.print_specs_overrides = updates.print_specs_overrides;
     }
@@ -117,3 +124,128 @@ export class SupabaseDeckRepository implements IDeckRepository {
     }
   }
 }
+
+// ── Design Template types & repository ─────────────────────────
+
+export interface LayoutConfig {
+  /** Back face element visibility & order */
+  back_elements?: {
+    show_when_to_use?: boolean;
+    show_phrase?: boolean;
+    show_instruction?: boolean;
+    show_answer?: boolean;
+    show_fun_fact?: boolean;
+    show_qr?: boolean;
+    show_brand?: boolean;
+  };
+  /** Font size overrides (rem) */
+  font_sizes?: {
+    phrase?: number;
+    when_to_use?: number;
+    instruction?: number;
+    brand?: number;
+  };
+  /** Back face padding (%) */
+  back_padding?: number;
+  /** Border style for back face inner frame */
+  back_border_style?: 'solid' | 'dashed' | 'dotted' | 'none';
+  /** Content alignment */
+  content_align?: 'center' | 'left' | 'right';
+}
+
+export interface DesignTemplateRow {
+  id: string;
+  name: string;
+  primary_color: string;
+  accent_color: string;
+  font_heading: string;
+  font_body: string;
+  background: string | null;
+  text_color: string | null;
+  surface_color: string | null;
+  card_width: number;
+  card_height: number;
+  card_unit: string;
+  layout_config: LayoutConfig;
+  created_at: string;
+  updated_at: string;
+}
+
+export type DesignTemplateInput = Omit<DesignTemplateRow, 'created_at' | 'updated_at'>;
+
+export class DesignTemplateRepository {
+  private client: SupabaseClient;
+
+  constructor() {
+    this.client = supabase;
+  }
+
+  async getAll(): Promise<DesignTemplateRow[]> {
+    const { data, error } = await this.client
+      .from('baraja_design_templates')
+      .select('*')
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('[DesignTemplateRepository] getAll error:', error);
+      throw error;
+    }
+    return data || [];
+  }
+
+  async getById(id: string): Promise<DesignTemplateRow | null> {
+    const { data, error } = await this.client
+      .from('baraja_design_templates')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      console.warn('[DesignTemplateRepository] getById error:', error);
+      return null;
+    }
+    return data;
+  }
+
+  async create(template: DesignTemplateInput): Promise<DesignTemplateRow> {
+    const { data, error } = await this.client
+      .from('baraja_design_templates')
+      .insert(template)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[DesignTemplateRepository] create error:', error);
+      throw error;
+    }
+    return data;
+  }
+
+  async update(id: string, updates: Partial<DesignTemplateInput>): Promise<DesignTemplateRow> {
+    const { data, error } = await this.client
+      .from('baraja_design_templates')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[DesignTemplateRepository] update error:', error);
+      throw error;
+    }
+    return data;
+  }
+
+  async delete(id: string): Promise<void> {
+    const { error } = await this.client
+      .from('baraja_design_templates')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('[DesignTemplateRepository] delete error:', error);
+      throw error;
+    }
+  }
+}
+
