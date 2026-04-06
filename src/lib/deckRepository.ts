@@ -43,6 +43,19 @@ export class SupabaseDeckRepository implements IDeckRepository {
       console.warn(`[SupabaseDeckRepository] getDeckById cards error for slug ${id}:`, cardsError);
     }
 
+    let dbDesignOverrides: Record<string, string> = {};
+    if (edition.design_template_id) {
+      const { data: dt, error: dtError } = await this.client
+        .from('baraja_design_templates')
+        .select('primary_color, accent_color, text_color, background, font_heading, font_body, layout_config')
+        .eq('id', edition.design_template_id)
+        .single();
+        
+      if (!dtError && dt) {
+        dbDesignOverrides = dt;
+      }
+    }
+
     return {
       id: edition.slug, // The legacy ID was the slug
       edition: edition.slug,
@@ -60,7 +73,11 @@ export class SupabaseDeckRepository implements IDeckRepository {
       print_spec_id: edition.print_spec_id,
       design_template_id: edition.design_template_id,
       print_specs_overrides: edition.print_specs_overrides || {},
-      design_template_overrides: edition.design_template_overrides || {},
+      // Combine DB template schema with local edition overrides
+      design_template_overrides: {
+        ...dbDesignOverrides,
+        ...(edition.design_template_overrides || {})
+      },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       cards: (cards || []).map((card: any) => ({
         id: card.id,

@@ -1,155 +1,48 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import type { Card, DeckSchema } from '@eb-packages/deck-engine';
-import { Document, Page, View, PDFViewer, PDFDownloadLink, StyleSheet } from '@react-pdf/renderer';
-import { PdfCardFace } from '../../components/cards/PdfCard';
 import { useDeck } from '../../hooks/useDeck';
-
-const styles = StyleSheet.create({
-  page: {
-    backgroundColor: '#ffffff',
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  grid: {
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  row: {
-    display: 'flex',
-    flexDirection: 'row',
-  },
-  cardWrapper: {
-    position: 'relative',
-    boxSizing: 'border-box',
-  },
-  cropMarkView: {
-    position: 'absolute',
-  }
-});
-
-const getCropMarkStyles = (bleedStr: string) => StyleSheet.create({
-  tlH: { top: bleedStr, left: 0, width: bleedStr, height: 0, borderTopWidth: 0.5, borderStyle: 'solid', borderColor: 'black' },
-  tlV: { top: 0, left: bleedStr, width: 0, height: bleedStr, borderLeftWidth: 0.5, borderStyle: 'solid', borderColor: 'black' },
-  trH: { top: bleedStr, right: 0, width: bleedStr, height: 0, borderTopWidth: 0.5, borderStyle: 'solid', borderColor: 'black' },
-  trV: { top: 0, right: bleedStr, width: 0, height: bleedStr, borderRightWidth: 0.5, borderStyle: 'solid', borderColor: 'black' },
-  blH: { bottom: bleedStr, left: 0, width: bleedStr, height: 0, borderBottomWidth: 0.5, borderStyle: 'solid', borderColor: 'black' },
-  blV: { bottom: 0, left: bleedStr, width: 0, height: bleedStr, borderLeftWidth: 0.5, borderStyle: 'solid', borderColor: 'black' },
-  brH: { bottom: bleedStr, right: 0, width: bleedStr, height: 0, borderBottomWidth: 0.5, borderStyle: 'solid', borderColor: 'black' },
-  brV: { bottom: 0, right: bleedStr, width: 0, height: bleedStr, borderRightWidth: 0.5, borderStyle: 'solid', borderColor: 'black' },
-});
-
-const PdfCropMarks = ({ bleedMm }: { bleedMm: number }) => {
-  const bleed = `${bleedMm}mm`;
-  const cm = getCropMarkStyles(bleed);
-  return (
-    <>
-      <View style={[styles.cropMarkView, cm.tlH]} />
-      <View style={[styles.cropMarkView, cm.tlV]} />
-      <View style={[styles.cropMarkView, cm.trH]} />
-      <View style={[styles.cropMarkView, cm.trV]} />
-      <View style={[styles.cropMarkView, cm.blH]} />
-      <View style={[styles.cropMarkView, cm.blV]} />
-      <View style={[styles.cropMarkView, cm.brH]} />
-      <View style={[styles.cropMarkView, cm.brV]} />
-    </>
-  );
-};
-
-const CardsPdfDocument = ({ deck, sheetSize }: { deck: DeckSchema, sheetSize: 'A3' | 'A4' }) => {
-  const widthMm = deck.print_specs.dimensions.width || 88;
-  const heightMm = deck.print_specs.dimensions.height || 138;
-  const bleedMm = deck.print_specs.bleed || 3;
-  const totalWidthMm = widthMm + bleedMm * 2;
-  const totalHeightMm = heightMm + bleedMm * 2;
-
-  const sheetWidthMm = sheetSize === 'A3' ? 420 : 297;
-  const sheetHeightMm = sheetSize === 'A3' ? 297 : 210;
-
-  const cols = Math.floor(sheetWidthMm / totalWidthMm);
-  const rows = Math.floor(sheetHeightMm / totalHeightMm);
-  const cardsPerSheet = cols * rows;
-
-  const sheets: Card[][] = [];
-  for (let i = 0; i < deck.cards.length; i += cardsPerSheet) {
-    sheets.push(deck.cards.slice(i, i + cardsPerSheet));
-  }
-  
-  return (
-    <Document title={`Impresion_${deck.name}_${sheetSize}`} author="Baraja by Entity Builders">
-      {sheets.map((sheetCards, sheetIndex) => {
-        const frontRows: (Card | null)[][] = [];
-        const backRows: (Card | null)[][] = [];
-        
-        for (let r = 0; r < rows; r++) {
-          const rowStart = r * cols;
-          const rowCards = sheetCards.slice(rowStart, rowStart + cols);
-          
-          if (rowCards.length === 0) continue;
-          
-          const paddedRow: (Card | null)[] = [...rowCards];
-          while (paddedRow.length < cols) {
-            paddedRow.push(null);
-          }
-          
-          frontRows.push([...paddedRow]);
-          backRows.push([...paddedRow].reverse());
-        }
-
-        return (
-          <React.Fragment key={sheetIndex}>
-            {/* Front Page */}
-            <Page size={sheetSize} orientation="landscape" style={styles.page}>
-              <View style={[styles.grid, { width: `${cols * totalWidthMm}mm`, height: `${rows * totalHeightMm}mm` }]}>
-                {frontRows.map((row, rI) => (
-                  <View key={`front-row-${rI}`} style={styles.row}>
-                    {row.map((card, cI) => (
-                      <View key={`front-card-${rI}-${cI}`} style={[styles.cardWrapper, { width: `${totalWidthMm}mm`, height: `${totalHeightMm}mm` }]}>
-                        {card ? (
-                          <>
-                             <PdfCropMarks bleedMm={bleedMm} />
-                             <PdfCardFace card={card} deck={deck} face="front" />
-                          </>
-                        ) : null}
-                      </View>
-                    ))}
-                  </View>
-                ))}
-              </View>
-            </Page>
-
-            {/* Back Page */}
-            <Page size={sheetSize} orientation="landscape" style={styles.page}>
-              <View style={[styles.grid, { width: `${cols * totalWidthMm}mm`, height: `${rows * totalHeightMm}mm` }]}>
-                {backRows.map((row, rI) => (
-                  <View key={`back-row-${rI}`} style={styles.row}>
-                    {row.map((card, cI) => (
-                      <View key={`back-card-${rI}-${cI}`} style={[styles.cardWrapper, { width: `${totalWidthMm}mm`, height: `${totalHeightMm}mm` }]}>
-                        {card ? (
-                          <>
-                             <PdfCropMarks bleedMm={bleedMm} />
-                             <PdfCardFace card={card} deck={deck} face="back" />
-                          </>
-                        ) : null}
-                      </View>
-                    ))}
-                  </View>
-                ))}
-              </View>
-            </Page>
-          </React.Fragment>
-        );
-      })}
-    </Document>
-  );
-};
+import { generatePrintPdf } from '../../lib/PrintEngine';
 
 export default function AdminPrintView() {
   const { deckId } = useParams();
   const { deck, loading, error } = useDeck(deckId);
+  
   const [sheetSize, setSheetSize] = useState<'A3' | 'A4'>('A3');
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  useEffect(() => {
+    if (!deck) return;
+
+    let isActive = true;
+
+    async function build() {
+      if (!deck) return;
+      setIsGenerating(true);
+      try {
+        const uint8Array = await generatePrintPdf(deck, { sheetSize });
+        if (!isActive) return;
+        
+        const blob = new Blob([new Uint8Array(uint8Array)], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        setPdfUrl(url);
+      } catch (err) {
+        console.error('Failed to generate PDF', err);
+      } finally {
+        if (isActive) setIsGenerating(false);
+      }
+    }
+
+    build();
+
+    return () => {
+      isActive = false;
+      if (pdfUrl) {
+        URL.revokeObjectURL(pdfUrl);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deck, sheetSize]); // Re-run if deck or sheetSize changes
 
   if (loading) {
     return <div style={{ color: 'white', padding: '2rem', textAlign: 'center' }}>Cargando deck...</div>;
@@ -159,9 +52,9 @@ export default function AdminPrintView() {
     return <div style={{ color: 'white', padding: '2rem' }}>Deck not found. {error}</div>;
   }
 
-  const widthMm = deck.print_specs.dimensions.width || 88;
-  const heightMm = deck.print_specs.dimensions.height || 138;
-  const bleedMm = deck.print_specs.bleed || 3;
+  const widthMm = deck.print_specs?.dimensions?.width || 88;
+  const heightMm = deck.print_specs?.dimensions?.height || 63;
+  const bleedMm = deck.print_specs?.bleed || 3;
   const totalWidthMm = widthMm + bleedMm * 2;
   const totalHeightMm = heightMm + bleedMm * 2;
 
@@ -185,10 +78,8 @@ export default function AdminPrintView() {
             <h4 style={{ margin: '0 0 0.5rem 0', color: '#d4af64', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>📌 Instructivo para Imprenta</h4>
             <ul style={{ margin: '0', paddingLeft: '1.2rem', fontSize: '13px', color: 'white', opacity: 0.9, lineHeight: '1.5' }}>
               <li><strong>Medida de cada carta:</strong> {widthMm} × {heightMm} mm {widthMm > heightMm ? '(horizontal / landscape)' : '(vertical / portrait)'}</li>
-              <li><strong>Sangría (bleed):</strong> {bleedMm} mm por lado → Medida total con sangría: {totalWidthMm} × {totalHeightMm} mm</li>
-              <li><strong>Papel:</strong> Papel Ilustración de 300g (o 310g/330g calidad casino "black core" si es posible).</li>
-              <li><strong>Acabado:</strong> Laminado o plastificado (brillante/mate) de ambos lados.</li>
-              <li><strong>Corte:</strong> Puntas redondeadas (radio de corte estándar entre 3mm y 5mm).</li>
+              <li><strong>Sangría (bleed):</strong> {bleedMm} mm por lado → Medida total: {totalWidthMm} × {totalHeightMm} mm</li>
+              <li>El PDF tiene imposición doble faz 1:1, voltear horizontalmente al imprimir.</li>
             </ul>
           </div>
         </div>
@@ -202,33 +93,34 @@ export default function AdminPrintView() {
             <option value="A4">Hoja A4 (297x210mm)</option>
           </select>
 
-          <PDFDownloadLink 
-            document={<CardsPdfDocument deck={deck} sheetSize={sheetSize} />} 
-            fileName={`Impresion_${deck.name}_${sheetSize}.pdf`}
-            style={{ textDecoration: 'none' }}
-          >
-            {({ loading }) => (
-              <button 
-                className="btn-primary" 
-                disabled={loading}
-                style={{ 
-                  padding: '0.75rem 1.5rem', 
-                  fontSize: '14px', 
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  opacity: loading ? 0.7 : 1 
-                }}
-              >
-                {loading ? 'Generando Alta Calidad...' : 'Descargar Archivo PDF'}
-              </button>
-            )}
-          </PDFDownloadLink>
+          {pdfUrl && (
+            <a 
+              href={pdfUrl}
+              download={`Impresion_${deck.name}_${sheetSize}.pdf`}
+              className="btn-primary" 
+              style={{ padding: '0.75rem 1.5rem', fontSize: '14px', textDecoration: 'none', display: 'inline-block' }}
+            >
+              Descargar Archivo PDF
+            </a>
+          )}
+          {isGenerating && (
+            <span style={{ color: '#d4af64', fontSize: '13px' }}>Generando PDF Alta Calidad...</span>
+          )}
         </div>
       </div>
 
       <div style={{ flex: 1, position: 'relative' }}>
-        <PDFViewer style={{ width: '100%', height: '100%', border: 'none', backgroundColor: '#333' }}>
-          <CardsPdfDocument deck={deck} sheetSize={sheetSize} />
-        </PDFViewer>
+        {pdfUrl ? (
+          <iframe 
+            src={pdfUrl} 
+            style={{ width: '100%', height: '100%', border: 'none', backgroundColor: '#333' }}
+            title="PDF Preview"
+          />
+        ) : (
+          <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: '#aaa' }}>
+            {isGenerating ? 'Generando PDF Viewer...' : 'Preparando entorno...'}
+          </div>
+        )}
       </div>
     </div>
   );

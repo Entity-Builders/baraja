@@ -1,6 +1,8 @@
-// src/components/admin/CardCanvas.tsx
-import React, { useState } from 'react';
+// src/components/cards/CardCanvas.tsx
+import React, { useEffect, useRef, useMemo } from 'react';
+import { Viewer } from '@pdfme/ui';
 import type { Card, DeckSchema } from '@eb-packages/deck-engine';
+import { getTemplateForDeck, buildPdfmeFonts, pdfmePlugins } from '../../lib/pdfmeConfig';
 import styles from './CardCanvas.module.css';
 
 interface CardCanvasProps {
@@ -9,88 +11,122 @@ interface CardCanvasProps {
   previewUrl?: string | null;
   flipped?: boolean;
   onFlip?: () => void;
-  // Let the parent dictate if we force original aspect ratio math
   forceOriginalMode?: boolean;
 }
 
 export function CardCanvas({ card, deck, previewUrl, flipped = false, onFlip, forceOriginalMode = false }: CardCanvasProps) {
-  const displayArtUrl = previewUrl || card.front.art_url;
+  const frontRef = useRef<HTMLDivElement>(null);
+  const backRef = useRef<HTMLDivElement>(null);
   
-  const design = deck.design;
-  const bgColor = design.background || design.primary_color || '#0c0b09';
-  const surfaceColor = design.surface_color || '#141210';
-  const accentColor = design.accent_color || '#d4af64';
-  const textColor = design.text_color || '#f0ebe0';
-  const fontHeading = design.font_heading || 'Cormorant Garamond';
-  const fontBody = design.font_body || 'Inter';
+  const viewerFrontRef = useRef<Viewer | null>(null);
+  const viewerBackRef = useRef<Viewer | null>(null);
 
-  const parsedWidth = Number(deck.print_specs?.dimensions?.width);
-  const parsedHeight = Number(deck.print_specs?.dimensions?.height);
-  const width = parsedWidth > 0 ? parsedWidth : 88;
-  const height = parsedHeight > 0 ? parsedHeight : 138;
-  const aspectRatioDecimal = width / height;
+  const displayArtUrl = previewUrl || card.front.art_url;
 
+  // We memoize the template to prevent constant recreation if getting it is heavy
+  const baseTemplate = useMemo(() => getTemplateForDeck(deck), [deck]);
+  
+  // Create single-page templates for front and back to mount on each side of the 3D card
+  const frontTemplate = useMemo(() => ({
+    ...baseTemplate,
+    schemas: [baseTemplate.schemas[0] || []],
+  }), [baseTemplate]);
+  
+  const backTemplate = useMemo(() => ({
+    ...baseTemplate,
+    schemas: [baseTemplate.schemas[baseTemplate.schemas.length > 1 ? 1 : 0] || []],
+  }), [baseTemplate]);
+
+  // Construct the input matching the template fields
+  const inputs = useMemo(() => {
+    return [{
+      bg: '',
+      border: '',
+      art: displayArtUrl || '',
+      number: `#${String(card.front.number).padStart(2, '0')}`,
+      title: card.front.title,
+      when_to_use: card.back.when_to_use,
+      phrase: `"${card.back.phrase}"`,
+      instruction: card.back.instruction,
+      answer: card.back.answer ? `Rta: ${card.back.answer}` : '',
+      fun_fact: card.back.fun_fact ? `💡 ${card.back.fun_fact}` : '',
+      qr: card.back.qr_url || 'https://baraja.cards',
+      brand: `Baraja · ${deck.name}`,
+    }];
+  }, [card, deck.name, displayArtUrl]);
+
+  // Geometry
+  const parsedWidth = Number(deck.print_specs?.dimensions?.width) || 88;
+  const parsedHeight = Number(deck.print_specs?.dimensions?.height) || 63;
+  const aspectRatioDecimal = parsedWidth / parsedHeight;
   const finalAspectRatio = forceOriginalMode ? (88 / 63) : aspectRatioDecimal;
   const paddingRatio = (1 / finalAspectRatio) * 100;
 
+  // Initialize and update the front Viewer
+  useEffect(() => {
+    if (!frontRef.current) return;
+    if (viewerFrontRef.current) {
+      viewerFrontRef.current.updateTemplate(frontTemplate);
+      viewerFrontRef.current.setInputs(inputs);
+    } else {
+      viewerFrontRef.current = new Viewer({
+        domContainer: frontRef.current,
+        template: frontTemplate,
+        inputs,
+        options: { font: buildPdfmeFonts() },
+        plugins: pdfmePlugins,
+      });
+    }
+  }, [frontTemplate, inputs]);
+
+  // Initialize and update the back Viewer
+  useEffect(() => {
+    if (!backRef.current) return;
+    if (viewerBackRef.current) {
+      viewerBackRef.current.updateTemplate(backTemplate);
+      viewerBackRef.current.setInputs(inputs);
+    } else {
+      viewerBackRef.current = new Viewer({
+        domContainer: backRef.current,
+        template: backTemplate,
+        inputs,
+        options: { font: buildPdfmeFonts() },
+        plugins: pdfmePlugins,
+      });
+    }
+  }, [backTemplate, inputs]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      viewerFrontRef.current?.destroy();
+      viewerBackRef.current?.destroy();
+      viewerFrontRef.current = null;
+      viewerBackRef.current = null;
+    };
+  }, []);
+
   return (
-    <div 
-      className={styles.wrapper}
-      style={{
-        '--card-padding': `${paddingRatio}%`,
-        '--card-bg': bgColor,
-        '--card-surface': surfaceColor,
-        '--card-accent': accentColor,
-        '--card-text': textColor,
-        '--card-font-head': `'${fontHeading}', serif`,
-        '--card-font-body': `'${fontBody}', sans-serif`,
-      } as React.CSSProperties}
-    >
+    <div className={styles.wrapper} style={{ '--card-padding': `${paddingRatio}%` } as React.CSSProperties}>
       <div className={styles.infoRow}>
-        <span className={styles.cardNumber}>
-          #{String(card.front.number).padStart(2, '0')}
-        </span>
-        <span className={styles.cardTitle}>
-          {card.front.title}
-        </span>
+        <span className={styles.cardNumber}>#{String(card.front.number).padStart(2, '0')}</span>
+        <span className={styles.cardTitle}>{card.front.title}</span>
       </div>
 
       <div
-        className={`${styles.cardContainer} ${flipped ? styles.flipped : ''} ${forceOriginalMode ? styles.originalMode : ''}`}
+        className={`${styles.cardContainer} ${flipped ? styles.flipped : ''}`}
         onClick={() => onFlip?.()}
-        role='button'
+        role="button"
         tabIndex={0}
         onKeyDown={(e) => e.key === 'Enter' && onFlip?.()}
-        style={{ paddingTop: `var(--card-padding)` }} // Keep the 3D hack pure here
+        style={{ paddingTop: `var(--card-padding)` }} // 3D hack
       >
         <div className={`${styles.face} ${styles.faceFront}`}>
-          {displayArtUrl ? (
-            <img src={displayArtUrl} alt='' className={styles.artImage} />
-          ) : (
-            <div className={styles.noArtPlaceholder}>
-              <span>🎨</span>
-              <span className={styles.noArtText}>Sin ilustración</span>
-            </div>
-          )}
+          <div ref={frontRef} style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }} />
         </div>
 
-        <div className={`${styles.face} ${styles.faceBack} ${card.back.answer ? styles.triviaMode : ''}`}>
-          <div className={card.back.answer ? styles.triviaInner : ''}>
-            <div className={styles.whenText}>{card.back.when_to_use}</div>
-            <div className={styles.phraseText}>"{card.back.phrase}"</div>
-            <div className={styles.instructionText}>{card.back.instruction}</div>
-            
-            {card.back.answer && (
-              <div className={styles.answerText}>Rta: {card.back.answer}</div>
-            )}
-            
-            {card.back.fun_fact && (
-              <div className={styles.funFactText}>💡 {card.back.fun_fact}</div>
-            )}
-            
-            <div className={styles.qrPlaceholder}><span>QR</span></div>
-            <div className={styles.brandText}>Baraja · {deck.name}</div>
-          </div>
+        <div className={`${styles.face} ${styles.faceBack}`}>
+          <div ref={backRef} style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }} />
         </div>
       </div>
     </div>

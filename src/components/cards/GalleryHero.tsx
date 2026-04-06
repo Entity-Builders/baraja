@@ -1,8 +1,7 @@
 // src/components/admin/GalleryHero.tsx
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { Card, DeckSchema } from '@eb-packages/deck-engine';
-import { PDFViewer, Document, Page, View } from '@react-pdf/renderer';
-import { PdfCardFace } from './PdfCard';
+import { CardCanvas } from './CardCanvas';
 import styles from './GalleryHero.module.css';
 
 interface GalleryHeroProps {
@@ -14,29 +13,6 @@ interface GalleryHeroProps {
   isGeneratingArt: boolean;
 }
 
-const SingleCardPdf = ({ card, deck, previewUrl }: { card: Card, deck: DeckSchema, previewUrl?: string | null }) => {
-  const widthMm = deck.print_specs.dimensions.width || 88;
-  const heightMm = deck.print_specs.dimensions.height || 138;
-  const bleedMm = deck.print_specs.bleed || 3;
-  const totalWidth = widthMm + bleedMm * 2;
-  const totalHeight = heightMm + bleedMm * 2;
-
-  return (
-    <Document title={`Carta_${card.front.number}`}>
-      <Page size={[totalWidth * 2.83465 * 2 + 60, totalHeight * 2.83465 + 60]} style={{ backgroundColor: '#1f1f1f', display: 'flex', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-         {/* Front Face */}
-         <View style={{ margin: 10 }}>
-           <PdfCardFace card={card} deck={deck} face="front" previewUrl={previewUrl} widthMm={widthMm} heightMm={heightMm} bleedMm={bleedMm} />
-         </View>
-         {/* Back Face */}
-         <View style={{ margin: 10 }}>
-           <PdfCardFace card={card} deck={deck} face="back" previewUrl={previewUrl} widthMm={widthMm} heightMm={heightMm} bleedMm={bleedMm} />
-         </View>
-      </Page>
-    </Document>
-  );
-};
-
 export function GalleryHero({ 
   card, 
   deck, 
@@ -46,6 +22,7 @@ export function GalleryHero({
   isGeneratingArt 
 }: GalleryHeroProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [flipped, setFlipped] = useState(false);
 
   const versions = card.front.art_versions || [];
   const hasVersions = versions.length > 0;
@@ -64,13 +41,22 @@ export function GalleryHero({
         >
           {isGeneratingArt ? '⏳ Generando IA...' : '🎨 Regenerar Arte'}
         </button>
+        <button className={styles.btnAction} onClick={() => setFlipped(!flipped)}>
+          🔄 Voltear Carta
+        </button>
       </div>
 
-      {/* The isolated pure Canvas now using PDFViewer for 100% accurate print preview */}
-      <div className={styles.canvasWrapper} style={{ height: '600px', padding: 0 }}>
-        <PDFViewer style={{ width: '100%', height: '100%', border: 'none', backgroundColor: '#111' }}>
-           <SingleCardPdf card={card} deck={deck} previewUrl={previewUrl} />
-        </PDFViewer>
+      {/* 3D Interactive CardCanvas powered by PDFME */}
+      <div className={styles.canvasWrapper} style={{ height: '600px', padding: '2rem', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+         <div style={{ width: '400px', maxWidth: '100%' }}>
+           <CardCanvas 
+             card={card} 
+             deck={deck} 
+             previewUrl={previewUrl} 
+             flipped={flipped}
+             onFlip={() => setFlipped(!flipped)}
+           />
+         </div>
       </div>
 
       {/* Versions Gallery Bar (Bottom) */}
