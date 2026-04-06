@@ -65,18 +65,31 @@ export function DeckSettingsModal({ deck, onClose }: DeckSettingsModalProps) {
     e.preventDefault();
     setSaving(true);
 
+    const settingsPayload = {
+      design_template_id: designTemplateId as DesignTemplateId,
+      print_spec_id: printSpecId as PrintSpecId,
+      print_specs_overrides: printOverrides,
+      design_template_overrides: designOverrides,
+    };
+
     try {
-      await deckRepo.updateDeckSettings(deck.slug || deck.id, {
-        design_template_id: designTemplateId as DesignTemplateId,
-        print_spec_id: printSpecId as PrintSpecId,
-        print_specs_overrides: printOverrides,
-        design_template_overrides: designOverrides,
+      // 1. Write to Supabase (persistent DB)
+      await deckRepo.updateDeckSettings(deck.slug || deck.id, settingsPayload);
+
+      // 2. Write to local JSON (drives DECKS static + Vite HMR)
+      await fetch('/api/admin/save-deck-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deckId: deck.slug || deck.id,
+          updates: settingsPayload,
+        }),
       });
 
       window.location.reload();
     } catch (err) {
       console.error(err);
-      alert('Network error while saving deck settings.');
+      alert('Error while saving deck settings.');
     } finally {
       setSaving(false);
     }

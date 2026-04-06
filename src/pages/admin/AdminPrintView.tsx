@@ -182,6 +182,8 @@ export default function AdminPrintView() {
           <div style={{ marginTop: '1rem', padding: '1rem', background: '#222', borderRadius: '8px', borderLeft: '4px solid #d4af64', maxWidth: '600px' }}>
             <h4 style={{ margin: '0 0 0.5rem 0', color: '#d4af64', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>📌 Instructivo para Imprenta</h4>
             <ul style={{ margin: '0', paddingLeft: '1.2rem', fontSize: '13px', color: 'white', opacity: 0.9, lineHeight: '1.5' }}>
+              <li><strong>Medida de cada carta:</strong> {widthMm} × {heightMm} mm {widthMm > heightMm ? '(horizontal / landscape)' : '(vertical / portrait)'}</li>
+              <li><strong>Sangría (bleed):</strong> {bleedMm} mm por lado → Medida total con sangría: {totalWidthMm} × {totalHeightMm} mm</li>
               <li><strong>Papel:</strong> Papel Ilustración de 300g (o 310g/330g calidad casino "black core" si es posible).</li>
               <li><strong>Acabado:</strong> Laminado o plastificado (brillante/mate) de ambos lados.</li>
               <li><strong>Corte:</strong> Puntas redondeadas (radio de corte estándar entre 3mm y 5mm).</li>
