@@ -8,6 +8,7 @@ import { GalleryHero } from '../../components/cards/GalleryHero';
 import { GalleryDock } from '../../components/cards/GalleryDock';
 import { EditorSidebar } from '../../components/cards/EditorSidebar';
 import { CardCanvas } from '../../components/cards/CardCanvas';
+import { DeckSettingsModal } from '../../components/admin/DeckSettingsModal';
 
 export default function AdminEditionEditor() {
   const { deckId } = useParams();
@@ -17,11 +18,12 @@ export default function AdminEditionEditor() {
   // Local state to see edits instantly before full page reload
   const [cards, setCards] = useState<Card[]>(deck ? deck.cards : []);
   const [editingCard, setEditingCard] = useState<Card | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [, setSaving] = useState(false);
   const [generatingArt, setGeneratingArt] = useState<Record<string, boolean>>({});
   const [batchGenerating, setBatchGenerating] = useState(false);
   const [viewMode, setViewMode] = useState<'print' | 'original' | 'gallery'>('gallery'); // Set as default for now to show off the new layout!
   const [activeCardId, setActiveCardId] = useState<string | null>(deck ? deck.cards[0]?.id : null);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   async function handleGenerateArt(cardId: string, force = true) {
     setGeneratingArt(prev => ({ ...prev, [cardId]: true }));
@@ -44,8 +46,8 @@ export default function AdminEditionEditor() {
       } else {
         alert(`Failed: ${result.error || 'Unknown error'}`);
       }
-    } catch (err: any) {
-      alert(`Network error: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`Network error: ${(err as Error).message}`);
     } finally {
       setGeneratingArt(prev => ({ ...prev, [cardId]: false }));
     }
@@ -158,7 +160,7 @@ export default function AdminEditionEditor() {
         alert('Edition deleted successfully. You MUST run "yarn workspace @eb-packages/deck-engine sync" to reflect this in code.');
         navigate('/admin');
       } else {
-        const data: any = await res.json();
+        const data = await res.json() as { error: string };
         alert('Failed to delete: ' + data.error);
       }
     } catch (err) {
@@ -179,6 +181,11 @@ export default function AdminEditionEditor() {
           onUpdateCard={setEditingCard}
           generatingArt={!!generatingArt[editingCard.id]}
         />
+      )}
+
+      {/* Settings Modal */}
+      {showSettingsModal && deck && (
+        <DeckSettingsModal deck={deck} onClose={() => setShowSettingsModal(false)} />
       )}
 
       {/* Main Content */}
@@ -234,6 +241,12 @@ export default function AdminEditionEditor() {
               style={{ background: 'transparent', border: '1px solid #f97316', color: '#f97316', padding: '0.5rem 1rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem', opacity: batchGenerating ? 0.5 : 1 }}
             >
               🔄 Regen ALL Art
+            </button>
+            <button
+              onClick={() => setShowSettingsModal(true)}
+              style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'white', padding: '0.5rem 1rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem' }}
+            >
+              ⚙️ Settings
             </button>
             <Link to={`/admin/${deckId}/print`} className="btn-primary" style={{ textDecoration: 'none' }}>
               Generate PDF
@@ -318,7 +331,7 @@ export default function AdminEditionEditor() {
                  </div>
                  <CardCanvas
                    card={card}
-                   deck={deck as any}
+                   deck={deck}
                    forceOriginalMode={viewMode === 'original'}
                  />
                </div>

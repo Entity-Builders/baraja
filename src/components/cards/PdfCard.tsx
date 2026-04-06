@@ -1,36 +1,7 @@
 import React from 'react';
-import { Font, View, Text, StyleSheet, Image } from '@react-pdf/renderer';
+import { View, Text, StyleSheet, Image } from '@react-pdf/renderer';
 import type { Card, DeckSchema } from '@eb-packages/deck-engine';
-
-// Register fonts needed for the card
-let fontsRegistered = false;
-export const registerPdfFonts = () => {
-  if (fontsRegistered) return;
-  Font.register({
-    family: 'Inter',
-    fonts: [
-      { src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyeMZhrib2Bg-4.ttf', fontWeight: 400 },
-      { src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuIWeMZhrib2Bg-4.ttf', fontWeight: 500 },
-      { src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuGKYMZhrib2Bg-4.ttf', fontWeight: 600 },
-      { src: 'https://fonts.gstatic.com/s/inter/v13/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuFuYMZhrib2Bg-4.ttf', fontWeight: 700 },
-    ]
-  });
-  
-  Font.register({
-    family: 'Cormorant Garamond',
-    fonts: [
-      { src: 'https://fonts.gstatic.com/s/cormorantgaramond/v16/co3bmX5slCNuHLi8bLeY9MK7whWMhyjYpntKqQ.ttf', fontWeight: 400 },
-      { src: 'https://fonts.gstatic.com/s/cormorantgaramond/v16/co3bmX5slCNuHLi8bLeY9MK7whWMhyjYhnpKqQ.ttf', fontWeight: 500 },
-      { src: 'https://fonts.gstatic.com/s/cormorantgaramond/v16/co3bmX5slCNuHLi8bLeY9MK7whWMhyjYAnpKqQ.ttf', fontWeight: 600 },
-      { src: 'https://fonts.gstatic.com/s/cormorantgaramond/v16/co3bmX5slCNuHLi8bLeY9MK7whWMhyjYWntKqQ.ttf', fontWeight: 700 },
-      { src: 'https://fonts.gstatic.com/s/cormorantgaramond/v16/co3amX5slCNuHLi8bLeY9MK7whWMhyjYDqVCq0-N.ttf', fontStyle: 'italic', fontWeight: 400 },
-    ]
-  });
-  fontsRegistered = true;
-};
-
-// Ensure fonts are registered immediately
-registerPdfFonts();
+import { registerDynamicFonts } from '../../lib/fontRegistry';
 
 // Define PDF styles using StyleSheet.create
 // React-PDF uses flexbox layout similarly to React Native.
@@ -78,7 +49,6 @@ const styles = StyleSheet.create({
     display: 'flex',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    fontFamily: 'Inter',
   },
   backCardInnerBorder: {
     position: 'absolute',
@@ -101,14 +71,12 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   whenText: {
-    fontFamily: 'Cormorant Garamond',
     textTransform: 'uppercase',
     letterSpacing: 2,
     fontSize: 10,
     marginBottom: 6,
   },
   phraseText: {
-    fontFamily: 'Cormorant Garamond',
     fontSize: 15,
     fontWeight: 600,
     lineHeight: 1.3,
@@ -119,14 +87,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   instructionText: {
-    fontFamily: 'Inter',
     fontSize: 9,
     lineHeight: 1.4,
     opacity: 0.8,
     marginBottom: 8,
   },
   answerText: {
-    fontFamily: 'Inter',
     fontSize: 11,
     fontWeight: 700,
     transform: 'rotate(180deg)',
@@ -137,14 +103,12 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(255, 255, 255, 0.15)',
   },
   funFactText: {
-    fontFamily: 'Inter',
-    fontSize: 10,
+    fontSize: 12,
     fontStyle: 'italic',
     marginTop: 6,
     opacity: 0.8,
   },
   brandText: {
-    fontFamily: 'Cormorant Garamond',
     fontSize: 9,
     letterSpacing: 1.5,
     textTransform: 'uppercase',
@@ -170,17 +134,27 @@ interface PdfCardFaceProps {
   deck: DeckSchema;
   face: 'front' | 'back';
   previewUrl?: string | null;
-  widthMm?: number;
-  heightMm?: number;
-  bleedMm?: number;
 }
 
-export function PdfCardFace({ card, deck, face, previewUrl, widthMm = 88, heightMm = 138, bleedMm = 3 }: PdfCardFaceProps) {
+export function PdfCardFace({ card, deck, face, previewUrl }: PdfCardFaceProps) {
   const design = deck.design;
+  const printSpecs = deck.print_specs;
+
   const bgColor = design.background || design.primary_color || '#0c0b09';
   const surfaceColor = design.surface_color || '#141210';
   const accentColor = design.accent_color || '#d4af64';
   const textColor = design.text_color || '#f0ebe0';
+
+  const fontHeading = design.font_heading || 'Cormorant Garamond';
+  const fontBody = design.font_body || 'Inter';
+
+  // Make sure fonts are registered
+  registerDynamicFonts([fontHeading, fontBody]);
+
+  // Handle dimensions based on print specs
+  const widthMm = printSpecs.dimensions.width;
+  const heightMm = printSpecs.dimensions.height;
+  const bleedMm = printSpecs.bleed;
 
   const totalWidth = widthMm + bleedMm * 2;
   const totalHeight = heightMm + bleedMm * 2;
@@ -198,10 +172,10 @@ export function PdfCardFace({ card, deck, face, previewUrl, widthMm = 88, height
             <Image src={displayArtUrl} style={styles.artImage} />
           ) : (
             <View style={styles.artPlaceholder}>
-              <Text style={{ fontSize: 18, color: accentColor, marginBottom: 12, fontFamily: 'Inter' }}>
+              <Text style={{ fontSize: 18, color: accentColor, marginBottom: 12, fontFamily: fontBody }}>
                 #{String(card.front.number).padStart(2, '0')}
               </Text>
-              <Text style={{ fontSize: 22, color: textColor, fontFamily: 'Cormorant Garamond', textAlign: 'center', paddingHorizontal: 15 }}>
+              <Text style={{ fontSize: 22, color: textColor, fontFamily: fontHeading, textAlign: 'center', paddingHorizontal: 15 }}>
                 {card.front.title}
               </Text>
             </View>
@@ -212,26 +186,26 @@ export function PdfCardFace({ card, deck, face, previewUrl, widthMm = 88, height
           <View style={{ ...styles.backCardInnerBorder, borderColor: accentColor }} />
           <View style={styles.backContent}>
             <View>
-              <Text style={{ ...styles.whenText, color: accentColor }}>{card.back.when_to_use}</Text>
+              <Text style={{ ...styles.whenText, color: accentColor, fontFamily: fontHeading }}>{card.back.when_to_use}</Text>
             </View>
             <View style={{ flex: 1, justifyContent: 'center' }}>
-              <Text style={{ ...styles.phraseText, color: textColor }}>"{card.back.phrase}"</Text>
+              <Text style={{ ...styles.phraseText, color: textColor, fontFamily: fontHeading }}>"{card.back.phrase}"</Text>
             </View>
-            <Text style={{ ...styles.instructionText, color: textColor }}>{card.back.instruction}</Text>
+            <Text style={{ ...styles.instructionText, color: textColor, fontFamily: fontBody }}>{card.back.instruction}</Text>
 
             {card.back.answer && (
-              <Text style={{ ...styles.answerText, color: accentColor }}>Rta: {card.back.answer}</Text>
+              <Text style={{ ...styles.answerText, color: accentColor, fontFamily: fontBody }}>Rta: {card.back.answer}</Text>
             )}
 
             {card.back.fun_fact && (
-              <Text style={{ ...styles.funFactText, color: textColor }}>💡 {card.back.fun_fact}</Text>
+              <Text style={{ ...styles.funFactText, color: textColor, fontFamily: fontHeading }}>💡 {card.back.fun_fact}</Text>
             )}
 
             <View style={{ ...styles.qrPlaceholder, borderColor: textColor }}>
-              <Text style={{ fontSize: 7, color: textColor }}>QR</Text>
+              <Text style={{ fontSize: 7, color: textColor, fontFamily: fontBody }}>QR</Text>
             </View>
             
-            <Text style={{ ...styles.brandText, color: textColor }}>Baraja · {deck.name}</Text>
+            <Text style={{ ...styles.brandText, color: textColor, fontFamily: fontHeading }}>Baraja · {deck.name}</Text>
           </View>
         </View>
       )}

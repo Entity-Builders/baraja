@@ -315,6 +315,37 @@ function localDeckCmsPlugin() {
           return;
         }
 
+        // ── Save deck settings ───────────────────────────────
+        if (req.url === '/api/admin/save-deck-settings' && req.method === 'POST') {
+          try {
+            const body = await readBody(req);
+            const { deckId, updates } = JSON.parse(body);
+            const jsonPath = path.resolve(CONTENT_DIR, `${deckId}.json`);
+
+            const content = await fs.readFile(jsonPath, 'utf-8');
+            const deck = JSON.parse(content);
+
+            if (updates.design_template_id) {
+              deck.design_template_id = updates.design_template_id;
+            }
+            if (updates.print_spec_id) {
+              deck.print_spec_id = updates.print_spec_id;
+            }
+
+            await fs.writeFile(jsonPath, JSON.stringify(deck, null, 2), 'utf-8');
+            console.log(`✅ [Admin] Deck settings updated for: ${deckId}`);
+            
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true }));
+          } catch (err) {
+            console.error('[save-deck-settings]', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: String(err) }));
+          }
+          return;
+        }
+
         // ── Generate art (single or batch) ───────────────────
         if (req.url === '/api/admin/generate-art' && req.method === 'POST') {
           const apiKey = process.env.GEMINI_API_KEY;

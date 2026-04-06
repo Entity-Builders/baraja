@@ -92,7 +92,7 @@ const CardsPdfDocument = ({ deck, sheetSize }: { deck: DeckSchema, sheetSize: 'A
           if (rowCards.length === 0) continue;
           
           // Pad row to columns size so that reversing pushes empty slots to the left (which physically aligns with right-aligned fronts)
-          const paddedRow = [...rowCards];
+          const paddedRow: (Card | null)[] = [...rowCards];
           while (paddedRow.length < cols) {
             paddedRow.push(null);
           }
@@ -114,7 +114,7 @@ const CardsPdfDocument = ({ deck, sheetSize }: { deck: DeckSchema, sheetSize: 'A
                         {card ? (
                           <>
                              <PdfCropMarks bleedMm={bleedMm} />
-                             <PdfCardFace card={card} deck={deck} face="front" widthMm={widthMm} heightMm={heightMm} bleedMm={bleedMm} />
+                             <PdfCardFace card={card} deck={deck} face="front" />
                           </>
                         ) : null}
                       </View>
@@ -134,7 +134,7 @@ const CardsPdfDocument = ({ deck, sheetSize }: { deck: DeckSchema, sheetSize: 'A
                         {card ? (
                           <>
                              <PdfCropMarks bleedMm={bleedMm} />
-                             <PdfCardFace card={card} deck={deck} face="back" widthMm={widthMm} heightMm={heightMm} bleedMm={bleedMm} />
+                             <PdfCardFace card={card} deck={deck} face="back" />
                           </>
                         ) : null}
                       </View>
