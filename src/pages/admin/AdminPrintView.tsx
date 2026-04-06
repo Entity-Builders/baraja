@@ -1,232 +1,230 @@
-import React, { useEffect } from 'react';
+import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { DECKS } from '@eb-packages/deck-engine';
-import type { Card } from '@eb-packages/deck-engine';
+import type { Card, DeckSchema } from '@eb-packages/deck-engine';
+import { Document, Page, View, PDFViewer, PDFDownloadLink, StyleSheet } from '@react-pdf/renderer';
+import { PdfCardFace } from '../../components/cards/PdfCard';
+
+const styles = StyleSheet.create({
+  page: {
+    backgroundColor: '#ffffff',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  grid: {
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  row: {
+    display: 'flex',
+    flexDirection: 'row',
+  },
+  cardWrapper: {
+    position: 'relative',
+    boxSizing: 'border-box',
+  },
+  cropMarkView: {
+    position: 'absolute',
+  }
+});
+
+const getCropMarkStyles = (bleedStr: string) => StyleSheet.create({
+  tlH: { top: bleedStr, left: 0, width: bleedStr, height: 0, borderTopWidth: 0.5, borderStyle: 'solid', borderColor: 'black' },
+  tlV: { top: 0, left: bleedStr, width: 0, height: bleedStr, borderLeftWidth: 0.5, borderStyle: 'solid', borderColor: 'black' },
+  trH: { top: bleedStr, right: 0, width: bleedStr, height: 0, borderTopWidth: 0.5, borderStyle: 'solid', borderColor: 'black' },
+  trV: { top: 0, right: bleedStr, width: 0, height: bleedStr, borderRightWidth: 0.5, borderStyle: 'solid', borderColor: 'black' },
+  blH: { bottom: bleedStr, left: 0, width: bleedStr, height: 0, borderBottomWidth: 0.5, borderStyle: 'solid', borderColor: 'black' },
+  blV: { bottom: 0, left: bleedStr, width: 0, height: bleedStr, borderLeftWidth: 0.5, borderStyle: 'solid', borderColor: 'black' },
+  brH: { bottom: bleedStr, right: 0, width: bleedStr, height: 0, borderBottomWidth: 0.5, borderStyle: 'solid', borderColor: 'black' },
+  brV: { bottom: 0, right: bleedStr, width: 0, height: bleedStr, borderRightWidth: 0.5, borderStyle: 'solid', borderColor: 'black' },
+});
+
+const PdfCropMarks = ({ bleedMm }: { bleedMm: number }) => {
+  const bleed = `${bleedMm}mm`;
+  const cm = getCropMarkStyles(bleed);
+  return (
+    <>
+      <View style={[styles.cropMarkView, cm.tlH]} />
+      <View style={[styles.cropMarkView, cm.tlV]} />
+      <View style={[styles.cropMarkView, cm.trH]} />
+      <View style={[styles.cropMarkView, cm.trV]} />
+      <View style={[styles.cropMarkView, cm.blH]} />
+      <View style={[styles.cropMarkView, cm.blV]} />
+      <View style={[styles.cropMarkView, cm.brH]} />
+      <View style={[styles.cropMarkView, cm.brV]} />
+    </>
+  );
+};
+
+const CardsPdfDocument = ({ deck, sheetSize }: { deck: DeckSchema, sheetSize: 'A3' | 'A4' }) => {
+  const widthMm = deck.print_specs.dimensions.width || 88;
+  const heightMm = deck.print_specs.dimensions.height || 138;
+  const bleedMm = deck.print_specs.bleed || 3;
+  const totalWidthMm = widthMm + bleedMm * 2;
+  const totalHeightMm = heightMm + bleedMm * 2;
+
+  const sheetWidthMm = sheetSize === 'A3' ? 420 : 297;
+  const sheetHeightMm = sheetSize === 'A3' ? 297 : 210;
+
+  const cols = Math.floor(sheetWidthMm / totalWidthMm);
+  const rows = Math.floor(sheetHeightMm / totalHeightMm);
+  const cardsPerSheet = cols * rows;
+
+  const sheets: Card[][] = [];
+  for (let i = 0; i < deck.cards.length; i += cardsPerSheet) {
+    sheets.push(deck.cards.slice(i, i + cardsPerSheet));
+  }
+  
+  return (
+    <Document title={`Impresion_${deck.name}_${sheetSize}`} author="Baraja by Entity Builders">
+      {sheets.map((sheetCards, sheetIndex) => {
+        // chunk sheetCards into rows
+        const frontRows: (Card | null)[][] = [];
+        const backRows: (Card | null)[][] = [];
+        
+        for (let r = 0; r < rows; r++) {
+          const rowStart = r * cols;
+          // if we exceed available cards, slice returns what's left
+          const rowCards = sheetCards.slice(rowStart, rowStart + cols);
+          
+          if (rowCards.length === 0) continue;
+          
+          // Pad row to columns size so that reversing pushes empty slots to the left (which physically aligns with right-aligned fronts)
+          const paddedRow = [...rowCards];
+          while (paddedRow.length < cols) {
+            paddedRow.push(null);
+          }
+          
+          frontRows.push([...paddedRow]);
+          // For the backs to align perfectly (Duplex), we must reverse the layout horizontally
+          backRows.push([...paddedRow].reverse());
+        }
+
+        return (
+          <React.Fragment key={sheetIndex}>
+            {/* Front Page */}
+            <Page size={sheetSize} orientation="landscape" style={styles.page}>
+              <View style={[styles.grid, { width: `${cols * totalWidthMm}mm`, height: `${rows * totalHeightMm}mm` }]}>
+                {frontRows.map((row, rI) => (
+                  <View key={`front-row-${rI}`} style={styles.row}>
+                    {row.map((card, cI) => (
+                      <View key={`front-card-${rI}-${cI}`} style={[styles.cardWrapper, { width: `${totalWidthMm}mm`, height: `${totalHeightMm}mm` }]}>
+                        {card ? (
+                          <>
+                             <PdfCropMarks bleedMm={bleedMm} />
+                             <PdfCardFace card={card} deck={deck} face="front" widthMm={widthMm} heightMm={heightMm} bleedMm={bleedMm} />
+                          </>
+                        ) : null}
+                      </View>
+                    ))}
+                  </View>
+                ))}
+              </View>
+            </Page>
+
+            {/* Back Page */}
+            <Page size={sheetSize} orientation="landscape" style={styles.page}>
+              <View style={[styles.grid, { width: `${cols * totalWidthMm}mm`, height: `${rows * totalHeightMm}mm` }]}>
+                {backRows.map((row, rI) => (
+                  <View key={`back-row-${rI}`} style={styles.row}>
+                    {row.map((card, cI) => (
+                      <View key={`back-card-${rI}-${cI}`} style={[styles.cardWrapper, { width: `${totalWidthMm}mm`, height: `${totalHeightMm}mm` }]}>
+                        {card ? (
+                          <>
+                             <PdfCropMarks bleedMm={bleedMm} />
+                             <PdfCardFace card={card} deck={deck} face="back" widthMm={widthMm} heightMm={heightMm} bleedMm={bleedMm} />
+                          </>
+                        ) : null}
+                      </View>
+                    ))}
+                  </View>
+                ))}
+              </View>
+            </Page>
+          </React.Fragment>
+        );
+      })}
+    </Document>
+  );
+};
 
 export default function AdminPrintView() {
   const { deckId } = useParams();
   const deck = deckId ? DECKS[deckId as keyof typeof DECKS] : null;
-
-  useEffect(() => {
-    // Add print styles dynamically when this component mounts
-    const style = document.createElement('style');
-    // We assume deck.print_specs dimensions. E.g. 88x138mm + 3mm bleed = 94x144mm
-    // To be precise, we calculate:
-    const width = deck?.print_specs.dimensions.width || 88;
-    const height = deck?.print_specs.dimensions.height || 138;
-    const bleed = deck?.print_specs.bleed || 3;
-    const totalWidth = width + bleed * 2;
-    const totalHeight = height + bleed * 2;
-
-    style.innerHTML = `
-      @media print {
-        @page {
-          size: ${totalWidth}mm ${totalHeight}mm;
-          margin: 0;
-        }
-        body, html {
-          margin: 0 !important;
-          padding: 0 !important;
-          background: #000 !important;
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
-        }
-        #root {
-          margin: 0 !important;
-          padding: 0 !important;
-        }
-        .no-print {
-          display: none !important;
-        }
-        .print-page {
-          width: ${totalWidth}mm;
-          height: ${totalHeight}mm;
-          page-break-after: always;
-          position: relative;
-          overflow: hidden;
-          background: var(--card-bg); /* Fallback */
-          box-sizing: border-box;
-        }
-      }
-      
-      /* Screen preview styles */
-      .print-preview-grid {
-        display: flex;
-        flex-direction: column;
-        gap: 2rem;
-        align-items: center;
-        padding-bottom: 4rem;
-        background: #111;
-      }
-      .print-page-screen {
-        width: ${(totalWidth) * 3}px;
-        height: ${(totalHeight) * 3}px;
-        background: var(--card-bg);
-        position: relative;
-        overflow: hidden;
-        border: 1px dashed rgba(255,255,255,0.3);
-      }
-      .cut-guide {
-        position: absolute;
-        width: 100%;
-        height: 100%;
-        top: 0; left: 0;
-        border: ${bleed * 3}px solid rgba(255,0,0,0.1);
-        pointer-events: none;
-        box-sizing: border-box;
-        z-index: 100;
-      }
-
-      /* Crop Marks */
-      .crop-mark-h {
-        position: absolute;
-        width: ${bleed}mm;
-        height: 0;
-        border-top: 0.25pt solid #000;
-        z-index: 1000;
-      }
-      .crop-mark-v {
-        position: absolute;
-        width: 0;
-        height: ${bleed}mm;
-        border-left: 0.25pt solid #000;
-        z-index: 1000;
-      }
-
-      .crop-tl-h { top: ${bleed}mm; left: 0; }
-      .crop-tl-v { top: 0; left: ${bleed}mm; }
-
-      .crop-tr-h { top: ${bleed}mm; right: 0; }
-      .crop-tr-v { top: 0; right: ${bleed}mm; }
-
-      .crop-bl-h { bottom: ${bleed}mm; left: 0; }
-      .crop-bl-v { bottom: 0; left: ${bleed}mm; }
-
-      .crop-br-h { bottom: ${bleed}mm; right: 0; }
-      .crop-br-v { bottom: 0; right: ${bleed}mm; }
-    `;
-    document.head.appendChild(style);
-    return () => {
-      document.head.removeChild(style);
-    };
-  }, [deck]);
+  const [sheetSize, setSheetSize] = useState<'A3' | 'A4'>('A3');
 
   if (!deck) return <div style={{ color: 'white', padding: '2rem' }}>Deck not found.</div>;
 
-  const cardStyle = {
-    '--card-bg': deck.design.background || deck.design.primary_color || '#0c0b09',
-    '--card-surface': deck.design.surface_color || '#141210',
-    '--card-accent': deck.design.accent_color || '#d4af64',
-    '--card-text': deck.design.text_color || '#f0ebe0',
-    '--card-font-head': `'${deck.design.font_heading || 'Cormorant Garamond'}', serif`,
-    '--card-font-body': `'${deck.design.font_body || 'Inter'}', sans-serif`,
-  } as React.CSSProperties;
+  const widthMm = deck.print_specs.dimensions.width || 88;
+  const heightMm = deck.print_specs.dimensions.height || 138;
+  const bleedMm = deck.print_specs.bleed || 3;
+  const totalWidthMm = widthMm + bleedMm * 2;
+  const totalHeightMm = heightMm + bleedMm * 2;
 
-  const bleedSpacing = deck.print_specs.bleed || 3;
-  // Make sure back safe padding accounts for bleed + extra inner safe margin (5mm)
-  const safePadding = `${bleedSpacing + 5}mm`;
+  const sheetWidthMm = sheetSize === 'A3' ? 420 : 297;
+  const sheetHeightMm = sheetSize === 'A3' ? 297 : 210;
 
-  const CropMarks = () => (
-    <>
-      <div className="crop-mark-h crop-tl-h"></div>
-      <div className="crop-mark-v crop-tl-v"></div>
-      <div className="crop-mark-h crop-tr-h"></div>
-      <div className="crop-mark-v crop-tr-v"></div>
-      <div className="crop-mark-h crop-bl-h"></div>
-      <div className="crop-mark-v crop-bl-v"></div>
-      <div className="crop-mark-h crop-br-h"></div>
-      <div className="crop-mark-v crop-br-v"></div>
-    </>
-  );
-
-  const PageContent = ({ card, face }: { card: Card, face: 'front' | 'back' }) => {
-    if (face === 'front') {
-      return (
-        <div className="admin-print-face admin-print-front" style={{ position: 'absolute', inset: 0, borderRadius: 0, boxShadow: 'none' }}>
-          {card.front.art_url ? (
-            <img src={card.front.art_url} className="admin-print-art" alt="" />
-          ) : (
-            <div className='admin-print-no-art' style={{ background: 'var(--card-bg)' }}>
-              <div style={{ fontSize: '16px', color: 'var(--card-accent)', letterSpacing: '0.1em', marginBottom: '1rem', fontFamily: 'var(--card-font-body)' }}>
-                #{String(card.front.number).padStart(2, '0')}
-              </div>
-              <h1 style={{ fontSize: '30px', fontFamily: 'var(--card-font-head)', margin: 0, color: 'var(--card-text)' }}>
-                {card.front.title}
-              </h1>
-            </div>
-          )}
-        </div>
-      );
-    } else {
-      const isTrivia = !!card.back.answer;
-      return (
-        <div className={`admin-print-face admin-print-back ${isTrivia ? 'admin-print-back--trivia' : ''}`} style={{ position: 'absolute', inset: 0, borderRadius: 0, boxShadow: 'none', transform: 'none', padding: safePadding }}>
-          <div className={isTrivia ? 'admin-print-back--trivia-inner' : ''} style={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-            <div className='admin-print-when'>
-              {card.back.when_to_use}
-            </div>
-            <div className='admin-print-phrase'>
-              "{card.back.phrase}"
-            </div>
-            <div className='admin-print-instruction'>
-              {card.back.instruction}
-            </div>
-            {card.back.answer && (
-              <div className='admin-print-answer'>
-                Rta: {card.back.answer}
-              </div>
-            )}
-            {card.back.fun_fact && (
-              <div className='admin-print-fun-fact' style={{ fontSize: '0.65rem', marginTop: '0.5rem', fontStyle: 'italic', opacity: 0.8 }}>
-                💡 {card.back.fun_fact}
-              </div>
-            )}
-            <div className='admin-print-qr-placeholder' style={{ marginTop: 'auto', alignSelf: 'center', width: '25px', height: '25px', border: '1px solid currentColor', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.3, marginBottom: '0.5rem' }}>
-              <span style={{ fontSize: '0.4rem' }}>QR</span>
-            </div>
-            <div className='admin-print-brand'>
-              Baraja · {deck.name}
-            </div>
-          </div>
-        </div>
-      );
-    }
-  };
+  const cols = Math.floor(sheetWidthMm / totalWidthMm);
+  const rows = Math.floor(sheetHeightMm / totalHeightMm);
+  const cardsPerSheet = cols * rows;
 
   return (
-    <div>
-      <div className="no-print" style={{ padding: '2rem', background: '#1a1a1a', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: '#111' }}>
+      <div style={{ padding: '1rem 2rem', background: '#1a1a1a', borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <Link to={`/admin/${deckId}`} style={{ color: 'var(--color-gold)', textDecoration: 'none' }}>&larr; Back to Editor</Link>
-          <h2 style={{ margin: '0.5rem 0 0' }}>PDF Print Generator: {deck.name}</h2>
+          <h2 style={{ margin: '0.5rem 0 0', color: 'white' }}>Imposición PDF: {deck.name}</h2>
+          <div style={{ marginTop: '0.2rem', fontSize: '14px', opacity: 0.7, color: 'white' }}>
+            {deck.cards.length} cartas totales • {cardsPerSheet} cartas por pliego ({cols}x{rows})
+          </div>
+          <div style={{ marginTop: '1rem', padding: '1rem', background: '#222', borderRadius: '8px', borderLeft: '4px solid #d4af64', maxWidth: '600px' }}>
+            <h4 style={{ margin: '0 0 0.5rem 0', color: '#d4af64', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>📌 Instructivo para Imprenta</h4>
+            <ul style={{ margin: '0', paddingLeft: '1.2rem', fontSize: '13px', color: 'white', opacity: 0.9, lineHeight: '1.5' }}>
+              <li><strong>Papel:</strong> Papel Ilustración de 300g (o 310g/330g calidad casino "black core" si es posible).</li>
+              <li><strong>Acabado:</strong> Laminado o plastificado (brillante/mate) de ambos lados.</li>
+              <li><strong>Corte:</strong> Puntas redondeadas (radio de corte estándar entre 3mm y 5mm).</li>
+            </ul>
+          </div>
         </div>
-        <button className="btn-primary" onClick={() => window.print()}>
-          Guardar PDF (Imprimir)
-        </button>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <select 
+            value={sheetSize} 
+            onChange={e => setSheetSize(e.target.value as 'A3' | 'A4')}
+            style={{ padding: '0.75rem', background: '#333', color: 'white', border: '1px solid #444', borderRadius: '4px', fontSize: '14px' }}
+          >
+            <option value="A3">Hoja A3 (420x297mm)</option>
+            <option value="A4">Hoja A4 (297x210mm)</option>
+          </select>
+
+          <PDFDownloadLink 
+            document={<CardsPdfDocument deck={deck} sheetSize={sheetSize} />} 
+            fileName={`Impresion_${deck.name}_${sheetSize}.pdf`}
+            style={{ textDecoration: 'none' }}
+          >
+            {({ loading }) => (
+              <button 
+                className="btn-primary" 
+                disabled={loading}
+                style={{ 
+                  padding: '0.75rem 1.5rem', 
+                  fontSize: '14px', 
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  opacity: loading ? 0.7 : 1 
+                }}
+              >
+                {loading ? 'Generando Alta Calidad...' : 'Descargar Archivo PDF'}
+              </button>
+            )}
+          </PDFDownloadLink>
+        </div>
       </div>
 
-      <div className="print-preview-grid" style={{ paddingTop: '2rem' }}>
-        <p className="no-print" style={{ color: 'white', opacity: 0.5, marginBottom: '2rem' }}>
-          La zona roja es "Demasía" (Bleed). No coloques texto dentro de la demasía. Se cortará en la imprenta.
-        </p>
-
-        {deck.cards.map((card) => (
-          <React.Fragment key={card.id}>
-            {/* Front Page */}
-            <div className="print-page print-page-screen" style={cardStyle}>
-               <div className="cut-guide no-print"></div>
-               <CropMarks />
-               <PageContent card={card} face="front" />
-            </div>
-            
-            {/* Back Page */}
-            <div className="print-page print-page-screen" style={cardStyle}>
-               <div className="cut-guide no-print"></div>
-               <CropMarks />
-               <PageContent card={card} face="back" />
-            </div>
-          </React.Fragment>
-        ))}
+      <div style={{ flex: 1, position: 'relative' }}>
+        <PDFViewer style={{ width: '100%', height: '100%', border: 'none', backgroundColor: '#333' }}>
+          <CardsPdfDocument deck={deck} sheetSize={sheetSize} />
+        </PDFViewer>
       </div>
     </div>
   );

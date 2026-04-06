@@ -1,0 +1,88 @@
+.dockContainer {
+  display: flex;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  gap: 1rem;
+  padding: 1rem;
+  align-self: center;
+  background: rgba(0,0,0,0.3);
+  border-radius: 12px;
+}
+
+.thumbItem {
+  flex: 0 0 auto;
+  position: relative;
+  width: 120px;
+  height: 85px;
+  background-size: cover;
+  background-position: center;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  opacity: 0.5;
+  transition: all 0.2s;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+  overflow: hidden;
+}
+
+.thumbItem:hover {
+  opacity: 0.8;
+  transform: translateY(-2px);
+}
+
+.thumbActive {
+  opacity: 1;
+  border-color: var(--color-gold, #d4af64);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 15px rgba(0,0,0,0.5);
+}
+
+.noArtThumb {
+  background-color: rgba(255, 255, 255, 0.05); /* Same as the card back / placeholder bg */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.noArtIcon {
+  font-size: 1.5rem;
+  opacity: 0.5;
+  filter: grayscale(0.5);
+}
+
+.thumbOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 0.35rem 0.5rem;
+  background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 60%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.thumbItem:hover .thumbOverlay,
+.thumbActive .thumbOverlay {
+  opacity: 1;
+}
+
+.thumbNumber {
+  font-size: 0.6rem;
+  font-family: var(--font-mono);
+  color: var(--color-gold, #d4af64);
+  letter-spacing: 0.05em;
+  margin-bottom: 0.1rem;
+}
+
+.thumbTitle {
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}

@@ -1,49 +1,8 @@
 import React, { useState } from 'react';
 import { DECKS } from '@eb-packages/deck-engine';
-import type { Card } from '@eb-packages/deck-engine';
+import { PublicShowcase } from '../../components/cards/PublicShowcase';
 
 const deck = DECKS['cable-a-tierra'];
-const showcaseCards = deck.cards.slice(0, 4);
-
-// ── Interactive card flip ─────────────────────────────────────
-
-function ShowcaseCard({ card, flipped, onClick }: {
-  card: Card;
-  flipped: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <div
-      className={`edition-card-3d ${flipped ? 'flipped' : ''}`}
-      onClick={onClick}
-      role="button"
-      tabIndex={0}
-      aria-label={`Carta ${card.front.title} — tocá para ver`}
-      onKeyDown={(e) => e.key === 'Enter' && onClick()}
-    >
-      <div className="edition-card-face edition-card-front">
-        <div className="ec-number">
-          {String(card.front.number).padStart(2, '0')} / {deck.card_count}
-        </div>
-        <div className="ec-title">{card.front.title}</div>
-        <div className="ec-hint">tocá para ver →</div>
-      </div>
-      <div className="edition-card-face edition-card-back">
-        <div className="ec-when">{card.back.when_to_use}</div>
-        <div className="ec-phrase">"{card.back.phrase}"</div>
-        <div className="ec-instruction">{card.back.instruction}</div>
-        {card.tags && card.tags.length > 0 && (
-          <div className="ec-tags">
-            {card.tags.map((tag) => (
-              <span key={tag} className="ec-tag">{tag}</span>
-            ))}
-          </div>
-        )}
-        <div className="ec-brand">Cable a Tierra · Baraja</div>
-      </div>
-    </div>
-  );
-}
 
 // ── Email capture ─────────────────────────────────────────────
 
@@ -99,8 +58,6 @@ function EmailCapture({ id }: { id: string }) {
 // ── Page ──────────────────────────────────────────────────────
 
 export default function CableATierraLanding() {
-  const [flippedCard, setFlippedCard] = useState<string | null>(null);
-
   const themeStyles = {
     '--color-bg': deck.design.background || 'var(--color-bg)',
     '--color-text': deck.design.text_color || 'var(--color-text)',
@@ -150,18 +107,9 @@ export default function CableATierraLanding() {
             <h2 className="section-title">Tocá cualquier carta</h2>
             <div className="divider" />
           </div>
-          <div className="ec-grid">
-            {showcaseCards.map((card) => (
-              <ShowcaseCard
-                key={card.id}
-                card={card}
-                flipped={flippedCard === card.id}
-                onClick={() => setFlippedCard(flippedCard === card.id ? null : card.id)}
-              />
-            ))}
-          </div>
+          <PublicShowcase deck={deck as any} maxCards={4} />
           <p className="edition-meta" style={{ textAlign: 'center', marginTop: '2rem' }}>
-            + {deck.card_count - showcaseCards.length} cartas más en el mazo completo
+            + {deck.card_count - 4} cartas más en el mazo completo
           </p>
         </div>
       </section>

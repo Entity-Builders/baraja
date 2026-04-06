@@ -4,10 +4,10 @@ import { DECKS } from '@eb-packages/deck-engine';
 import type { Card } from '@eb-packages/deck-engine';
 
 // Modular Admin Components
-import { GalleryHero } from '../../components/admin/GalleryHero';
-import { GalleryDock } from '../../components/admin/GalleryDock';
-import { EditorSidebar } from '../../components/admin/EditorSidebar';
-import { CardCanvas } from '../../components/admin/CardCanvas';
+import { GalleryHero } from '../../components/cards/GalleryHero';
+import { GalleryDock } from '../../components/cards/GalleryDock';
+import { EditorSidebar } from '../../components/cards/EditorSidebar';
+import { CardCanvas } from '../../components/cards/CardCanvas';
 
 export default function AdminEditionEditor() {
   const { deckId } = useParams();
@@ -182,7 +182,7 @@ export default function AdminEditionEditor() {
       )}
 
       {/* Main Content */}
-      <div style={{ flex: 1, padding: '2rem', marginRight: editingCard ? '400px' : '0', transition: 'margin-right 0.3s' }}>
+      <div style={{ flex: 1, minWidth: 0, padding: '2rem', marginRight: editingCard ? '400px' : '0', transition: 'margin-right 0.3s' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
           <div>
             <Link to="/admin" style={{ color: 'var(--color-gold)', textDecoration: 'none', marginBottom: '1rem', display: 'inline-block' }}>&larr; All Editions</Link>
@@ -249,7 +249,7 @@ export default function AdminEditionEditor() {
 
         {/* ── Dynamic Layout Engine ─────────────────────────── */}
         {viewMode === 'gallery' ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', maxWidth: '100%', gap: '2rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', minWidth: 0, maxWidth: '100%', gap: '2rem' }}>
             
             {/* HERO SECTION */}
             <div style={{ width: '100%', display: 'flex', justifyContent: 'center', position: 'relative' }}>
@@ -318,7 +318,7 @@ export default function AdminEditionEditor() {
                  </div>
                  <CardCanvas
                    card={card}
-                   deck={deck}
+                   deck={deck as any}
                    forceOriginalMode={viewMode === 'original'}
                  />
                </div>

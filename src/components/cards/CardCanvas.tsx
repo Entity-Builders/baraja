@@ -1,11 +1,11 @@
 // src/components/admin/CardCanvas.tsx
 import React, { useState } from 'react';
-import type { Card, Edition } from '@eb-packages/deck-engine';
+import type { Card, DeckSchema } from '@eb-packages/deck-engine';
 import styles from './CardCanvas.module.css';
 
 interface CardCanvasProps {
   card: Card;
-  deck: Edition;
+  deck: DeckSchema;
   previewUrl?: string | null;
   flipped?: boolean;
   onFlip?: () => void;
