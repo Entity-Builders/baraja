@@ -127,30 +127,54 @@ export class SupabaseDeckRepository implements IDeckRepository {
 
 // ── Design Template types & repository ─────────────────────────
 
+/** Position & style for a single back-face element (all values as % of card) */
+export interface ElementLayout {
+  visible: boolean;
+  /** Top offset as % of card height */
+  y: number;
+  /** Left offset as % of card width */
+  x: number;
+  /** Width as % of card width */
+  w: number;
+  /** Height as % of card height (0 = auto) */
+  h: number;
+  /** Font size in pt (used identically in CSS & react-pdf) */
+  fontSize: number;
+  /** Text alignment */
+  align: 'left' | 'center' | 'right';
+  /** Text transform */
+  transform?: 'uppercase' | 'none';
+  /** Letter spacing (px) */
+  letterSpacing?: number;
+  /** Opacity 0-1 */
+  opacity?: number;
+  /** Font type: heading or body */
+  fontType?: 'heading' | 'body';
+  /** Font weight */
+  fontWeight?: number;
+  /** Font style */
+  fontStyle?: 'normal' | 'italic';
+  /** Line height multiplier */
+  lineHeight?: number;
+  /** Use accent color instead of text color */
+  useAccentColor?: boolean;
+}
+
+/** Named elements on the back face */
+export type BackElementKey = 'when_to_use' | 'phrase' | 'instruction' | 'fun_fact' | 'answer' | 'qr' | 'brand';
+
 export interface LayoutConfig {
-  /** Back face element visibility & order */
-  back_elements?: {
-    show_when_to_use?: boolean;
-    show_phrase?: boolean;
-    show_instruction?: boolean;
-    show_answer?: boolean;
-    show_fun_fact?: boolean;
-    show_qr?: boolean;
-    show_brand?: boolean;
+  /** Per-element positioning on back face (% based) */
+  elements?: Partial<Record<BackElementKey, ElementLayout>>;
+  /** Back face inner border frame */
+  border?: {
+    visible: boolean;
+    style: 'solid' | 'dashed' | 'dotted';
+    inset: number; // % from edges
+    opacity: number;
   };
-  /** Font size overrides (rem) */
-  font_sizes?: {
-    phrase?: number;
-    when_to_use?: number;
-    instruction?: number;
-    brand?: number;
-  };
-  /** Back face padding (%) */
-  back_padding?: number;
-  /** Border style for back face inner frame */
-  back_border_style?: 'solid' | 'dashed' | 'dotted' | 'none';
-  /** Content alignment */
-  content_align?: 'center' | 'left' | 'right';
+  /** Editable sample text for preview testing in editor */
+  sample_text?: Partial<Record<BackElementKey, string>>;
 }
 
 export interface DesignTemplateRow {
