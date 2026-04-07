@@ -1,4 +1,4 @@
-import { Font } from '@react-pdf/renderer';
+// Define available fonts for pdfme text rendering
 
 export type FontFamilyName = 'Inter' | 'Cormorant Garamond';
 
@@ -24,25 +24,3 @@ export const FONT_REGISTRY: Record<FontFamilyName, FontNode[]> = {
   ],
 };
 
-const registeredFonts = new Set<string>();
-
-/**
- * Registers all fonts needed for the current design dynamically.
- * React-PDF ignores duplicate calls for the same family name.
- */
-export const registerDynamicFonts = (fontFamilies: string[]) => {
-  for (const family of fontFamilies) {
-    if (registeredFonts.has(family)) continue; // Already registered in this session
-    
-    const nodes = FONT_REGISTRY[family as FontFamilyName];
-    if (nodes) {
-      Font.register({
-        family,
-        fonts: nodes,
-      });
-      registeredFonts.add(family);
-    } else {
-      console.warn(`Font family "${family}" defined in design template is not present in FONT_REGISTRY.`);
-    }
-  }
-};

@@ -39,7 +39,7 @@ export function CardCanvas({ card, deck, previewUrl, flipped = false, onFlip, fo
 
   // Construct the input matching the template fields
   const inputs = useMemo(() => {
-    return [{
+    const cardInput: Record<string, string> = {
       bg: '',
       border: '',
       art: displayArtUrl || '',
@@ -52,8 +52,18 @@ export function CardCanvas({ card, deck, previewUrl, flipped = false, onFlip, fo
       fun_fact: card.back.fun_fact ? `💡 ${card.back.fun_fact}` : '',
       qr: card.back.qr_url || 'https://baraja.cards',
       brand: `Baraja · ${deck.name}`,
-    }];
-  }, [card, deck.name, displayArtUrl]);
+    };
+
+    // Auto-inject any other keys found in the schema so that static schemas 
+    // (decorations, AI borders, lines) correctly render even if they have no explicit data mapped.
+    baseTemplate.schemas.flat().forEach(schema => {
+        if (cardInput[schema.name] === undefined) {
+            cardInput[schema.name] = (schema as any).content || '';
+        }
+    });
+
+    return [cardInput];
+  }, [card, deck.name, displayArtUrl, baseTemplate]);
 
   // Geometry
   // We MUST use the basePdf dimensions so the aspect ratio matches the template EXACTLY,

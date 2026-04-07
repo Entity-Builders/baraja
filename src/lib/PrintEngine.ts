@@ -91,6 +91,16 @@ async function buildImpositionTemplateAndInputs(
     // Append suffix to name so each cell has unique variables (e.g., "title_0_0")
     el.name = `${el.name}_${suffix}`;
     
+    // Fix: DB templates might hold legacy SVG content with leading whitespace which crashes pdfme
+    if (el.type === 'svg' && typeof (el as Record<string, any>).content === 'string') {
+      let contentString = (el as Record<string, any>).content as string;
+      const svgStartIndex = contentString.indexOf('<svg');
+      if (svgStartIndex > 0) {
+        contentString = contentString.substring(svgStartIndex);
+      }
+      (el as Record<string, any>).content = contentString.trim();
+    }
+    
     // Some elements like 'bg' logic
     el.position.x += xOffset;
     el.position.y += yOffset;
@@ -176,6 +186,29 @@ async function buildImpositionTemplateAndInputs(
           pageInputs[`fun_fact_${suffix}`] = card.back.fun_fact ? `💡 ${card.back.fun_fact}` : '';
           pageInputs[`qr_${suffix}`] = card.back.qr_url || 'https://baraja.cards';
           pageInputs[`brand_${suffix}`] = `Baraja · ${deck.name}`;
+          
+          // Hydrate any statically generated AI structural properties (SVGs, rectangles, dividers)
+          cardSchemas.flat().forEach(schema => {
+            const mappedName = `${schema.name}_${suffix}`;
+            if (pageInputs[mappedName] === undefined) {
+              let content = (schema as Record<string, any>).content || '';
+              if (schema.type === 'svg' && typeof content === 'string') {
+                const svgStartIndex = content.indexOf('<svg');
+                if (svgStartIndex > 0) {
+                  content = content.substring(svgStartIndex);
+                }
+                content = content.trim();
+              }
+              pageInputs[mappedName] = content;
+            } else if (schema.type === 'svg' && typeof pageInputs[mappedName] === 'string') {
+              let content = pageInputs[mappedName];
+              const svgStartIndex = content.indexOf('<svg');
+              if (svgStartIndex > 0) {
+                content = content.substring(svgStartIndex);
+              }
+              pageInputs[mappedName] = content.trim();
+            }
+          });
         }
       }
     }

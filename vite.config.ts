@@ -68,11 +68,13 @@ async function generateCardArt(
   const isLandscape = width > height;
 
   // Set the precise ratio flag for Imagen 4
-  const targetRatio = isLandscape ? "16:9" : "3:4";
+  // 88x63 (Landscape) is ~1.39 ratio. "4:3" (1.33) is the closest fit.
+  // 63x88 (Portrait) is ~0.71 ratio. "3:4" (0.75) is the closest fit.
+  const targetRatio = isLandscape ? "4:3" : "3:4";
 
-  if (isLandscape) {
-    promptParts.push('CRITICAL FORMATTING REQUIREMENT: This scene must be composed perfectly for a horizontal wide cinema frame. Action must be centered.');
-  }
+  // Add safe zone instructions to prevent subject cropping
+  promptParts.push('CRITICAL FORMATTING REQUIREMENT: Keep the main subject and action perfectly centered. Leave generous breathing room (padding) around the edges of the canvas to ensure no important details get cropped out when fitting the illustration into a standard playing card frame.');
+
 
   const prompt = promptParts.join('\n');
 

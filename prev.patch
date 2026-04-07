@@ -1,0 +1,2462 @@
+commit 97617c58fb6e4d04366d3bc1c385f6b439aad8c3
+Author: juan obrach <juanobrach@gmail.com>
+Date:   Mon Apr 6 18:35:39 2026 -0300
+
+    fix: resolve PDF image format errors, sync template updates via BroadcastChannel, and improve canvas aspect ratio and deck refetching logic
+
+diff --git a/apps/baraja/src/pages/admin/AdminTemplates.tsx b/apps/baraja/src/pages/admin/AdminTemplates.tsx
+index f727080..1b68b3c 100644
+--- a/apps/baraja/src/pages/admin/AdminTemplates.tsx
++++ b/apps/baraja/src/pages/admin/AdminTemplates.tsx
+@@ -403,6 +403,10 @@ export default function AdminTemplates() {
+     await repo.create(input);
+     setCreating(false);
+     await loadTemplates();
++
++    const channel = new BroadcastChannel('baraja_template_updates');
++    channel.postMessage({ type: 'TEMPLATE_UPDATED', id: input.id });
++    channel.close();
+   }
+ 
+   async function handleUpdate(pdfmeTemplate: Template, meta: Partial<DesignTemplateInput>) {
+@@ -414,6 +418,10 @@ export default function AdminTemplates() {
+     });
+     setEditingId(null);
+     await loadTemplates();
++
++    const channel = new BroadcastChannel('baraja_template_updates');
++    channel.postMessage({ type: 'TEMPLATE_UPDATED', id: editingId });
++    channel.close();
+   }
+ 
+   async function handleDelete(id: string) {
+
+commit 357aec705565bc62e80606a57d4b4b965d2b4c7b
+Author: juan obrach <juanobrach@gmail.com>
+Date:   Mon Apr 6 18:26:50 2026 -0300
+
+    refactor: replace react-pdf with pdfme for card rendering and introduce PrintEngine for unified document generation
+
+diff --git a/apps/baraja/src/pages/admin/AdminTemplates.tsx b/apps/baraja/src/pages/admin/AdminTemplates.tsx
+index ab480a8..f727080 100644
+--- a/apps/baraja/src/pages/admin/AdminTemplates.tsx
++++ b/apps/baraja/src/pages/admin/AdminTemplates.tsx
+@@ -1,654 +1,307 @@
+-import React, { useState, useCallback, useMemo } from 'react';
++import React, { useState, useEffect, useRef, useCallback } from 'react';
+ import { Link } from 'react-router-dom';
++import { Designer } from '@pdfme/ui';
++import type { Template, Schema } from '@pdfme/common';
+ import { DesignTemplateRepository } from '../../lib/deckRepository';
+-import type {
+-  DesignTemplateRow, DesignTemplateInput, LayoutConfig,
+-  ElementLayout, BackElementKey,
+-} from '../../lib/deckRepository';
++import type { DesignTemplateRow, DesignTemplateInput } from '../../lib/deckRepository';
++import {
++  pdfmePlugins,
++  buildPdfmeFonts,
++  createDefaultCardTemplate,
++} from '../../lib/pdfmeConfig';
+ 
+ const repo = new DesignTemplateRepository();
+ 
+-// ── Default element layouts (%) ──────────────────────────────
+-
+-const DEFAULT_ELEMENTS: Record<BackElementKey, ElementLayout> = {
+-  when_to_use: {
+-    visible: true, x: 10, y: 8, w: 80, h: 0,
+-    fontSize: 7, align: 'center', transform: 'uppercase',
+-    letterSpacing: 2, opacity: 1, fontType: 'heading',
+-    fontWeight: 400, fontStyle: 'normal', lineHeight: 1.3,
+-    useAccentColor: true,
+-  },
+-  phrase: {
+-    visible: true, x: 10, y: 22, w: 80, h: 40,
+-    fontSize: 13, align: 'center', transform: 'none',
+-    letterSpacing: 0, opacity: 1, fontType: 'heading',
+-    fontWeight: 600, fontStyle: 'normal', lineHeight: 1.35,
+-    useAccentColor: false,
+-  },
+-  instruction: {
+-    visible: true, x: 10, y: 65, w: 80, h: 0,
+-    fontSize: 8, align: 'center', transform: 'none',
+-    letterSpacing: 0, opacity: 0.75, fontType: 'body',
+-    fontWeight: 400, fontStyle: 'normal', lineHeight: 1.4,
+-    useAccentColor: false,
+-  },
+-  fun_fact: {
+-    visible: true, x: 10, y: 78, w: 80, h: 0,
+-    fontSize: 7, align: 'center', transform: 'none',
+-    letterSpacing: 0, opacity: 0.6, fontType: 'heading',
+-    fontWeight: 400, fontStyle: 'italic', lineHeight: 1.3,
+-    useAccentColor: false,
+-  },
+-  answer: {
+-    visible: false, x: 10, y: 80, w: 80, h: 0,
+-    fontSize: 9, align: 'center', transform: 'none',
+-    letterSpacing: 0, opacity: 1, fontType: 'body',
+-    fontWeight: 700, fontStyle: 'normal', lineHeight: 1.3,
+-    useAccentColor: true,
+-  },
+-  qr: {
+-    visible: true, x: 42, y: 85, w: 16, h: 0,
+-    fontSize: 6, align: 'center', transform: 'none',
+-    letterSpacing: 0, opacity: 0.3, fontType: 'body',
+-    fontWeight: 400, fontStyle: 'normal', lineHeight: 1,
+-    useAccentColor: false,
+-  },
+-  brand: {
+-    visible: true, x: 10, y: 93, w: 80, h: 0,
+-    fontSize: 6, align: 'center', transform: 'uppercase',
+-    letterSpacing: 2, opacity: 0.35, fontType: 'heading',
+-    fontWeight: 400, fontStyle: 'normal', lineHeight: 1,
+-    useAccentColor: false,
+-  },
+-};
+-
+-const DEFAULT_SAMPLE_TEXT: Record<BackElementKey, string> = {
+-  when_to_use: 'Cuando sentís que estás dando vueltas',
+-  phrase: 'A veces volver al punto de partida es la forma más honesta de avanzar.',
+-  instruction: 'Cerrá los ojos. Pensá en algo que dejaste a medias. ¿Lo dejaste o te dejó?',
+-  fun_fact: '💡 El 80% de los proyectos abandonados tenían una solución a menos de 3 pasos.',
+-  answer: 'Respuesta de ejemplo',
+-  qr: 'QR',
+-  brand: 'Baraja · Sample Edition',
+-};
+-
+-const DEFAULT_BORDER = { visible: true, style: 'solid' as const, inset: 5, opacity: 0.25 };
+-
+-function getElement(layout: LayoutConfig, key: BackElementKey): ElementLayout {
+-  return { ...DEFAULT_ELEMENTS[key], ...(layout.elements?.[key] || {}) };
+-}
+-
+-function getSampleText(layout: LayoutConfig, key: BackElementKey): string {
+-  return layout.sample_text?.[key] || DEFAULT_SAMPLE_TEXT[key];
+-}
+-
+-// ── Helpers ──────────────────────────────────────────────────
+-
+-function isLightColor(hex: string): boolean {
+-  const c = hex.replace('#', '');
+-  if (c.length !== 6) return false;
+-  const r = parseInt(c.substring(0, 2), 16);
+-  const g = parseInt(c.substring(2, 4), 16);
+-  const b = parseInt(c.substring(4, 6), 16);
+-  return (r * 299 + g * 587 + b * 114) / 1000 > 128;
+-}
+-
+-function slugify(text: string): string {
+-  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+-}
+-
+-// ── Stable form inputs ───────────────────────────────────────
+-
+-function InputRow({ label, value, onChange, type = 'text', placeholder, min, max, step, width }: {
+-  label: string; value: string | number; onChange: (val: string) => void;
+-  type?: string; placeholder?: string; min?: number; max?: number; step?: number; width?: string;
+-}) {
+-  return (
+-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', width }}>
+-      <label style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</label>
+-      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+-        min={min} max={max} step={step}
+-        style={{ background: 'rgba(0,0,0,0.4)', color: 'white', border: '1px solid rgba(255,255,255,0.07)', padding: '0.3rem 0.4rem', borderRadius: '3px', fontSize: '0.75rem', width: '100%' }}
+-      />
+-    </div>
+-  );
+-}
+-
+-function ColorInput({ label, value, onChange }: { label: string; value: string; onChange: (val: string) => void; }) {
+-  return (
+-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+-      <label style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</label>
+-      <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+-        <input type="color" value={value || '#000000'} onChange={e => onChange(e.target.value)}
+-          style={{ width: '24px', height: '24px', border: 'none', cursor: 'pointer', borderRadius: '3px', background: 'transparent', padding: 0 }}
+-        />
+-        <input type="text" value={value || ''} onChange={e => onChange(e.target.value)} placeholder="#000"
+-          style={{ flex: 1, background: 'rgba(0,0,0,0.4)', color: 'white', border: '1px solid rgba(255,255,255,0.07)', padding: '0.3rem 0.4rem', borderRadius: '3px', fontSize: '0.7rem', fontFamily: 'monospace' }}
+-        />
+-      </div>
+-    </div>
+-  );
+-}
+-
+-// ── Collapsible Section ──────────────────────────────────────
+-
+-function Section({ title, icon, children, defaultOpen = true }: {
+-  title: string; icon: string; children: React.ReactNode; defaultOpen?: boolean;
+-}) {
+-  const [open, setOpen] = useState(defaultOpen);
+-  return (
+-    <div style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+-      <button type="button" onClick={() => setOpen(!open)} style={{
+-        width: '100%', background: 'none', border: 'none', color: 'rgba(255,255,255,0.55)',
+-        padding: '0.5rem 0.6rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem',
+-        fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em',
+-      }}>
+-        <span style={{ transform: open ? 'rotate(90deg)' : 'rotate(0)', transition: 'transform 0.15s', fontSize: '0.55rem' }}>▶</span>
+-        <span>{icon}</span><span>{title}</span>
+-      </button>
+-      {open && <div style={{ padding: '0 0.6rem 0.6rem' }}>{children}</div>}
+-    </div>
+-  );
+-}
+-
+-// ── Element Property Editor ──────────────────────────────────
+-
+-function ElementEditor({ label, elemKey, el, text, onUpdate, onUpdateText }: {
+-  label: string;
+-  elemKey: BackElementKey;
+-  el: ElementLayout;
+-  text: string;
+-  onUpdate: (key: BackElementKey, partial: Partial<ElementLayout>) => void;
+-  onUpdateText: (key: BackElementKey, text: string) => void;
+-}) {
+-  const [expanded, setExpanded] = useState(false);
+-  return (
+-    <div style={{
+-      background: el.visible ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.01)',
+-      borderRadius: '4px', border: '1px solid rgba(255,255,255,0.05)',
+-      marginBottom: '0.3rem', overflow: 'hidden',
+-    }}>
+-      {/* Header: toggle + name + expand */}
+-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.5rem' }}>
+-        <input type="checkbox" checked={el.visible} onChange={e => onUpdate(elemKey, { visible: e.target.checked })}
+-          style={{ accentColor: 'var(--color-gold, #d4af64)' }} />
+-        <span style={{ flex: 1, fontSize: '0.75rem', color: el.visible ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.3)', cursor: 'pointer' }}
+-          onClick={() => setExpanded(!expanded)}>
+-          {label}
+-        </span>
+-        <button type="button" onClick={() => setExpanded(!expanded)} style={{
+-          background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', fontSize: '0.6rem',
+-        }}>{expanded ? '▲' : '▼'}</button>
+-      </div>
++// ── pdfme Designer wrapper ────────────────────────────
+ 
+-      {expanded && el.visible && (
+-        <div style={{ padding: '0.3rem 0.5rem 0.5rem', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+-          {/* Sample text */}
+-          {elemKey !== 'qr' && (
+-            <div style={{ marginBottom: '0.4rem' }}>
+-              <label style={{ fontSize: '0.55rem', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase' }}>Preview Text</label>
+-              <textarea value={text} onChange={e => onUpdateText(elemKey, e.target.value)}
+-                rows={2}
+-                style={{ width: '100%', background: 'rgba(0,0,0,0.3)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', padding: '0.3rem', borderRadius: '3px', fontSize: '0.7rem', resize: 'vertical', fontFamily: 'inherit' }}
+-              />
+-            </div>
+-          )}
+-          {/* Position: X, Y, W */}
+-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.25rem', marginBottom: '0.3rem' }}>
+-            <InputRow label="X %" value={el.x} onChange={v => onUpdate(elemKey, { x: Number(v) })} type="number" min={0} max={100} step={1} />
+-            <InputRow label="Y %" value={el.y} onChange={v => onUpdate(elemKey, { y: Number(v) })} type="number" min={0} max={100} step={1} />
+-            <InputRow label="W %" value={el.w} onChange={v => onUpdate(elemKey, { w: Number(v) })} type="number" min={5} max={100} step={1} />
+-          </div>
+-          {/* Font: size, weight, style, align */}
+-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.25rem', marginBottom: '0.3rem' }}>
+-            <InputRow label="Size pt" value={el.fontSize} onChange={v => onUpdate(elemKey, { fontSize: Number(v) })} type="number" min={4} max={30} step={0.5} />
+-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+-              <label style={{ fontSize: '0.55rem', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase' }}>Align</label>
+-              <select value={el.align} onChange={e => onUpdate(elemKey, { align: e.target.value as ElementLayout['align'] })}
+-                style={{ background: 'rgba(0,0,0,0.4)', color: 'white', border: '1px solid rgba(255,255,255,0.07)', padding: '0.3rem', borderRadius: '3px', fontSize: '0.7rem' }}>
+-                <option value="left">Left</option>
+-                <option value="center">Center</option>
+-                <option value="right">Right</option>
+-              </select>
+-            </div>
+-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+-              <label style={{ fontSize: '0.55rem', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase' }}>Font</label>
+-              <select value={el.fontType || 'heading'} onChange={e => onUpdate(elemKey, { fontType: e.target.value as 'heading' | 'body' })}
+-                style={{ background: 'rgba(0,0,0,0.4)', color: 'white', border: '1px solid rgba(255,255,255,0.07)', padding: '0.3rem', borderRadius: '3px', fontSize: '0.7rem' }}>
+-                <option value="heading">Heading</option>
+-                <option value="body">Body</option>
+-              </select>
+-            </div>
+-            <InputRow label="Opacity" value={el.opacity ?? 1} onChange={v => onUpdate(elemKey, { opacity: Number(v) })} type="number" min={0} max={1} step={0.05} />
+-          </div>
+-          {/* Advanced: lineHeight, letterSpacing, transform, accent */}
+-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.25rem' }}>
+-            <InputRow label="Line H" value={el.lineHeight ?? 1.3} onChange={v => onUpdate(elemKey, { lineHeight: Number(v) })} type="number" min={0.8} max={2.5} step={0.05} />
+-            <InputRow label="Letter" value={el.letterSpacing ?? 0} onChange={v => onUpdate(elemKey, { letterSpacing: Number(v) })} type="number" min={0} max={10} step={0.5} />
+-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+-              <label style={{ fontSize: '0.55rem', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase' }}>Case</label>
+-              <select value={el.transform || 'none'} onChange={e => onUpdate(elemKey, { transform: e.target.value as 'uppercase' | 'none' })}
+-                style={{ background: 'rgba(0,0,0,0.4)', color: 'white', border: '1px solid rgba(255,255,255,0.07)', padding: '0.3rem', borderRadius: '3px', fontSize: '0.7rem' }}>
+-                <option value="none">Normal</option>
+-                <option value="uppercase">UPPER</option>
+-              </select>
+-            </div>
+-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', paddingTop: '0.7rem' }}>
+-              <input type="checkbox" checked={el.useAccentColor || false} onChange={e => onUpdate(elemKey, { useAccentColor: e.target.checked })}
+-                style={{ accentColor: 'var(--color-gold, #d4af64)' }} />
+-              Accent
+-            </label>
+-          </div>
+-        </div>
+-      )}
+-    </div>
+-  );
+-}
+-
+-// ── Canvas: Absolute-positioned back face ────────────────────
+-
+-function BackFaceCanvas({
+-  template, layout, scalePx,
++function PdfmeDesigner({
++  template,
++  onSave,
++  onCancel,
++  templateRow,
++  isNew,
+ }: {
+-  template: Partial<DesignTemplateInput>;
+-  layout: LayoutConfig;
+-  scalePx: { w: number; h: number };
+-}) {
+-  const bg = template.background || template.primary_color || '#0c0b09';
+-  const text = template.text_color || (isLightColor(bg) ? '#1a1a1a' : '#f0ebe0');
+-  const accent = template.accent_color || '#d4af64';
+-  const fontHead = template.font_heading || 'Cormorant Garamond';
+-  const fontBody = template.font_body || 'Inter';
+-  const border = { ...DEFAULT_BORDER, ...(layout.border || {}) };
+-
+-  // Scale factor: canvas pixels per mm
+-  const mmW = template.card_width || 88;
+-  const pxPerMm = scalePx.w / mmW;
+-
+-  const ELEMENT_ORDER: { key: BackElementKey; label: string }[] = [
+-    { key: 'when_to_use', label: 'When' },
+-    { key: 'phrase', label: 'Phrase' },
+-    { key: 'instruction', label: 'Instruction' },
+-    { key: 'fun_fact', label: 'Fun Fact' },
+-    { key: 'answer', label: 'Answer' },
+-    { key: 'qr', label: 'QR' },
+-    { key: 'brand', label: 'Brand' },
+-  ];
+-
+-  return (
+-    <div style={{
+-      width: `${scalePx.w}px`, height: `${scalePx.h}px`,
+-      background: bg, borderRadius: '8px', position: 'relative',
+-      overflow: 'hidden',
+-      boxShadow: '0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08)',
+-    }}>
+-      {/* Border frame */}
+-      {border.visible && (
+-        <div style={{
+-          position: 'absolute',
+-          top: `${border.inset}%`, left: `${border.inset}%`,
+-          right: `${border.inset}%`, bottom: `${border.inset}%`,
+-          border: `1px ${border.style} ${accent}`,
+-          opacity: border.opacity, borderRadius: '3px', pointerEvents: 'none',
+-        }} />
+-      )}
+-
+-      {/* Elements */}
+-      {ELEMENT_ORDER.map(({ key }) => {
+-        const el = getElement(layout, key);
+-        if (!el.visible) return null;
+-        const sampleText = getSampleText(layout, key);
+-        const color = el.useAccentColor ? accent : text;
+-        const font = el.fontType === 'body' ? fontBody : fontHead;
+-
+-        if (key === 'qr') {
+-          return (
+-            <div key={key} style={{
+-              position: 'absolute',
+-              top: `${el.y}%`, left: `${el.x}%`,
+-              width: `${el.w}%`,
+-              display: 'flex', justifyContent: el.align === 'center' ? 'center' : `flex-${el.align === 'left' ? 'start' : 'end'}`,
+-            }}>
+-              <div style={{
+-                width: `${24 * pxPerMm}px`, height: `${24 * pxPerMm}px`,
+-                border: `1px solid ${text}`, opacity: el.opacity,
+-                display: 'flex', alignItems: 'center', justifyContent: 'center',
+-              }}>
+-                <span style={{ fontSize: `${el.fontSize * pxPerMm * 0.35}px`, color: text }}>QR</span>
+-              </div>
+-            </div>
+-          );
+-        }
+-
+-        return (
+-          <div key={key} style={{
+-            position: 'absolute',
+-            top: `${el.y}%`, left: `${el.x}%`,
+-            width: `${el.w}%`,
+-            ...(el.h ? { height: `${el.h}%`, display: 'flex', alignItems: 'center' } : {}),
+-            color, opacity: el.opacity, fontFamily: `'${font}', serif`,
+-            fontSize: `${el.fontSize * pxPerMm * 0.35}px`,
+-            fontWeight: el.fontWeight || 400,
+-            fontStyle: el.fontStyle || 'normal',
+-            lineHeight: el.lineHeight || 1.3,
+-            textAlign: el.align,
+-            textTransform: el.transform === 'uppercase' ? 'uppercase' : 'none',
+-            letterSpacing: `${(el.letterSpacing || 0) * pxPerMm * 0.3}px`,
+-            overflow: 'hidden',
+-          }}>
+-            {el.h ? <span style={{ width: '100%', textAlign: el.align }}>{key === 'phrase' ? `"${sampleText}"` : sampleText}</span> : (key === 'phrase' ? `"${sampleText}"` : sampleText)}
+-          </div>
+-        );
+-      })}
+-    </div>
+-  );
+-}
+-
+-function FrontFaceCanvas({
+-  template, scalePx,
+-}: {
+-  template: Partial<DesignTemplateInput>;
+-  scalePx: { w: number; h: number };
+-}) {
+-  const bg = template.background || template.primary_color || '#0c0b09';
+-  const text = template.text_color || (isLightColor(bg) ? '#1a1a1a' : '#f0ebe0');
+-  const accent = template.accent_color || '#d4af64';
+-  const fontHead = template.font_heading || 'Cormorant Garamond';
+-  const fontBody = template.font_body || 'Inter';
+-  const mmW = template.card_width || 88;
+-  const pxPerMm = scalePx.w / mmW;
+-
+-  return (
+-    <div style={{
+-      width: `${scalePx.w}px`, height: `${scalePx.h}px`,
+-      background: bg, borderRadius: '8px', position: 'relative', overflow: 'hidden',
+-      boxShadow: '0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08)',
+-    }}>
+-      <div style={{
+-        position: 'absolute', inset: 0,
+-        background: `repeating-linear-gradient(45deg, ${accent}0d, ${accent}0d 12px, transparent 12px, transparent 24px)`,
+-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+-      }}>
+-        <span style={{ fontSize: `${40 * pxPerMm * 0.35}px`, filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))' }}>🎨</span>
+-        <span style={{ color: text, opacity: 0.25, fontSize: `${7 * pxPerMm * 0.35}px`, fontFamily: `'${fontBody}', sans-serif`, marginTop: '0.5rem' }}>
+-          Illustration artwork
+-        </span>
+-      </div>
+-      <div style={{
+-        position: 'absolute', bottom: `${14 * pxPerMm * 0.35}px`, left: `${14 * pxPerMm * 0.35}px`,
+-        background: accent, color: isLightColor(accent) ? '#1a1a1a' : '#fff',
+-        padding: `${3 * pxPerMm * 0.35}px ${8 * pxPerMm * 0.35}px`, borderRadius: '3px',
+-        fontSize: `${8 * pxPerMm * 0.35}px`, fontWeight: 700, fontFamily: `'${fontBody}', sans-serif`,
+-      }}>#07</div>
+-      <div style={{
+-        position: 'absolute', bottom: `${14 * pxPerMm * 0.35}px`, right: `${14 * pxPerMm * 0.35}px`,
+-        color: text, opacity: 0.6, fontSize: `${9 * pxPerMm * 0.35}px`,
+-        fontFamily: `'${fontHead}', serif`, fontStyle: 'italic',
+-      }}>La Vuelta</div>
+-      <div style={{
+-        position: 'absolute', top: `${10 * pxPerMm * 0.35}px`, left: `${14 * pxPerMm * 0.35}px`,
+-        color: accent, opacity: 0.4, fontSize: `${5 * pxPerMm * 0.35}px`,
+-        fontFamily: `'${fontHead}', serif`, letterSpacing: '0.12em', textTransform: 'uppercase',
+-      }}>Baraja · Sample</div>
+-    </div>
+-  );
+-}
+-
+-// ── Full-screen Template Editor ──────────────────────────────
+-
+-function TemplateEditor({
+-  initial, onSave, onCancel, isNew,
+-}: {
+-  initial: Partial<DesignTemplateInput>;
+-  onSave: (t: DesignTemplateInput) => Promise<void>;
++  template: Template;
++  onSave: (pdfmeTemplate: Template, meta: Partial<DesignTemplateInput>) => Promise<void>;
+   onCancel: () => void;
++  templateRow: Partial<DesignTemplateInput>;
+   isNew: boolean;
+ }) {
+-  const [form, setForm] = useState<Partial<DesignTemplateInput>>({ ...initial });
++  const containerRef = useRef<HTMLDivElement>(null);
++  const designerRef = useRef<Designer | null>(null);
+   const [saving, setSaving] = useState(false);
+-  const [previewSide, setPreviewSide] = useState<'front' | 'back'>('back');
+-
+-  const layout: LayoutConfig = useMemo(() => (form.layout_config || {}), [form.layout_config]);
+-
+-  const update = useCallback((key: keyof DesignTemplateInput, value: string | number | LayoutConfig | null) => {
+-    setForm(prev => {
+-      const next = { ...prev, [key]: value };
+-      if (isNew && key === 'name' && typeof value === 'string' && !initial.id) {
+-        next.id = slugify(value);
+-      }
+-      return next;
++  const [name, setName] = useState(templateRow.name || '');
++  const [slug, setSlug] = useState(templateRow.id || '');
++  const [cardWidth, setCardWidth] = useState(templateRow.card_width || 88);
++  const [cardHeight, setCardHeight] = useState(templateRow.card_height || 63);
++
++  // Colors for metadata (stored in DB, not in pdfme template)
++  const [primaryColor, setPrimaryColor] = useState(templateRow.primary_color || '#0c0b09');
++  const [accentColor, setAccentColor] = useState(templateRow.accent_color || '#d4af64');
++  const [textColor, setTextColor] = useState(templateRow.text_color || '#f0ebe0');
++  const [generatingLayout, setGeneratingLayout] = useState(false);
++
++  useEffect(() => {
++    if (!containerRef.current) return;
++
++    const fonts = buildPdfmeFonts();
++
++    const designer = new Designer({
++      domContainer: containerRef.current,
++      template,
++      options: {
++        font: fonts,
++        lang: 'en',
++      },
++      plugins: pdfmePlugins,
+     });
+-  }, [isNew, initial.id]);
+ 
+-  const updateLayout = useCallback((partial: Partial<LayoutConfig>) => {
+-    setForm(prev => {
+-      const current = (prev.layout_config || {}) as LayoutConfig;
+-      return { ...prev, layout_config: { ...current, ...partial } };
++    // Listen for Ctrl+S / Cmd+S
++    designer.onSaveTemplate(async (savedTemplate) => {
++      if (saving) return;
++      handleSave(savedTemplate);
+     });
+-  }, []);
+ 
+-  const updateElement = useCallback((key: BackElementKey, partial: Partial<ElementLayout>) => {
+-    setForm(prev => {
+-      const current = (prev.layout_config || {}) as LayoutConfig;
+-      const elements = { ...(current.elements || {}) };
+-      elements[key] = { ...getElement(current, key), ...partial };
+-      return { ...prev, layout_config: { ...current, elements } };
+-    });
+-  }, []);
++    designerRef.current = designer;
+ 
+-  const updateSampleText = useCallback((key: BackElementKey, text: string) => {
+-    setForm(prev => {
+-      const current = (prev.layout_config || {}) as LayoutConfig;
+-      return { ...prev, layout_config: { ...current, sample_text: { ...(current.sample_text || {}), [key]: text } } };
+-    });
++    return () => {
++      designer.destroy();
++      designerRef.current = null;
++    };
++    // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, []);
+ 
+-  async function handleSubmit(e: React.FormEvent) {
+-    e.preventDefault();
+-    if (!form.id || !form.name) { alert('ID and Name required'); return; }
++  async function handleSave(pdfmeTemplate?: Template) {
++    const tpl = pdfmeTemplate || designerRef.current?.getTemplate();
++    if (!tpl) return;
++    if (!slug || !name) {
++      alert('Template ID and Name are required');
++      return;
++    }
++
+     setSaving(true);
+     try {
+-      await onSave({
+-        id: form.id, name: form.name,
+-        primary_color: form.primary_color || '#0c0b09',
+-        accent_color: form.accent_color || '#d4af64',
+-        font_heading: form.font_heading || 'Cormorant Garamond',
+-        font_body: form.font_body || 'Inter',
+-        background: form.background || null,
+-        text_color: form.text_color || null,
+-        surface_color: form.surface_color || null,
+-        card_width: form.card_width || 88,
+-        card_height: form.card_height || 63,
+-        card_unit: form.card_unit || 'mm',
+-        layout_config: form.layout_config || {},
++      const finalW = (typeof tpl.basePdf === 'object' && 'width' in tpl.basePdf) ? tpl.basePdf.width : cardWidth;
++      const finalH = (typeof tpl.basePdf === 'object' && 'height' in tpl.basePdf) ? tpl.basePdf.height : cardHeight;
++      
++      await onSave(tpl, {
++        id: slug,
++        name,
++        primary_color: primaryColor,
++        accent_color: accentColor,
++        text_color: textColor,
++        card_width: finalW,
++        card_height: finalH,
++        card_unit: 'mm',
++        font_heading: 'Cormorant Garamond',
++        font_body: 'Inter',
+       });
+-    } catch (err) { alert(`Error: ${err}`); }
+-    finally { setSaving(false); }
++    } catch (err) {
++      alert(`Error saving: ${err}`);
++    } finally {
++      setSaving(false);
++    }
+   }
+ 
+-  const w = form.card_width || 88;
+-  const h = form.card_height || 63;
+-
+-  // Compute canvas pixel size to fill ~500px on longest side
+-  const maxPx = 480;
+-  const scale = maxPx / Math.max(w, h);
+-  const scalePx = { w: Math.round(w * scale), h: Math.round(h * scale) };
++  const updateCardSize = useCallback((w: number, h: number) => {
++    setCardWidth(w);
++    setCardHeight(h);
++    // Update the pdfme template basePdf
++    if (designerRef.current) {
++      const current = designerRef.current.getTemplate();
++      const updated: Template = {
++        ...current,
++        basePdf: { width: w, height: h, padding: [0, 0, 0, 0] },
++      };
++      designerRef.current.updateTemplate(updated);
++    }
++  }, []);
+ 
+-  const border = { ...DEFAULT_BORDER, ...(layout.border || {}) };
++  async function handleAutoLayout() {
++    if (!designerRef.current) return;
++    const currentTpl = designerRef.current.getTemplate();
++    const isHorizontal = typeof currentTpl.basePdf === 'object' && 'width' in currentTpl.basePdf
++      ? currentTpl.basePdf.width > currentTpl.basePdf.height
++      : cardWidth > cardHeight;
++    
++    const userPrompt = window.prompt(
++      'Describe the layout style to the AI (e.g. "Centered minimalist", "Dark fantasy full bleed"):',
++      isHorizontal ? 'Horizontal format layout. Classic card game.' : 'Minimalist clean layout. Classic poker style.'
++    );
++    if (!userPrompt) return;
++
++    setGeneratingLayout(true);
++    try {
++      const publicHost = import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321';
++      
++      const newSchemas = [];
++      
++      // We process each page/side of the card (e.g. front and back) individually or together.
++      // Doing it individually reduces context size and complexity for the AI.
++      for (let i = 0; i < currentTpl.schemas.length; i++) {
++        const pageElements = currentTpl.schemas[i].map(s => ({
++          name: s.name,
++          type: s.type,
++          // Give AI the current text/color/font to help it know what it is
++          content: 'content' in s ? s.content : undefined,
++          color: 'color' in s ? s.color : undefined,
++          fontColor: 'fontColor' in s ? s.fontColor : undefined,
++          fontName: 'fontName' in s ? s.fontName : undefined,
++        }));
++        
++        console.log(`[AI Layout] Generating page ${i}...`, pageElements);
++        const res = await fetch(`${publicHost}/functions/v1/baraja-generate-layout`, {
++          method: 'POST',
++          headers: {
++            'Content-Type': 'application/json',
++            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
++          },
++          body: JSON.stringify({
++            cardWidth: cardWidth,
++            cardHeight: cardHeight,
++            elements: pageElements,
++            prompt: userPrompt + (i === 1 ? ' (This is the BACK face of the card).' : ' (This is the FRONT face of the card).')
++          })
++        });
++        
++        if (!res.ok) {
++          const errData = await res.text();
++          throw new Error(`API Error ${res.status}: ${errData}`);
++        }
++        
++        const data = await res.json() as { schemas: any[] };
++        // The API returns an array for this specific page
++        newSchemas.push(data.schemas);
++      }
++      
++      const updatedTemplate = {
++        ...currentTpl,
++        schemas: newSchemas
++      };
++      
++      designerRef.current.updateTemplate(updatedTemplate);
++      alert('✨ Layout generation applied!');
++      
++    } catch (e: unknown) {
++      const err = e as Error;
++      alert(`Error generating layout: ${err.message}`);
++      console.error(e);
++    } finally {
++      setGeneratingLayout(false);
++    }
++  }
+ 
+   return (
+-    <form onSubmit={handleSubmit} style={{
+-      position: 'fixed', inset: 0, zIndex: 1000, background: '#0e0e0e',
+-      display: 'grid', gridTemplateColumns: '300px 1fr', overflow: 'hidden',
+-    }}>
+-      {/* ── LEFT PANEL ── */}
++    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', flexDirection: 'column', background: '#0e0e0e' }}>
++      {/* Top Bar */}
+       <div style={{
+-        background: '#131313', borderRight: '1px solid rgba(255,255,255,0.05)',
+-        display: 'flex', flexDirection: 'column', overflowY: 'auto',
++        display: 'flex', alignItems: 'center', gap: '0.6rem',
++        padding: '0.5rem 1rem', background: '#131313',
++        borderBottom: '1px solid rgba(255,255,255,0.08)',
++        zIndex: 10, flexShrink: 0,
+       }}>
+-        {/* Header */}
+-        <div style={{
+-          padding: '0.6rem', borderBottom: '1px solid rgba(255,255,255,0.05)',
+-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+-          position: 'sticky', top: 0, background: '#131313', zIndex: 10,
+-        }}>
+-          <button type="button" onClick={onCancel} style={{
+-            background: 'none', border: 'none', color: 'rgba(255,255,255,0.45)', cursor: 'pointer', fontSize: '0.75rem',
+-          }}>← Back</button>
+-          <button type="submit" disabled={saving} style={{
+-            background: 'var(--color-gold, #d4af64)', color: '#000', border: 'none',
+-            padding: '0.3rem 0.8rem', borderRadius: '4px', cursor: 'pointer',
+-            fontSize: '0.7rem', fontWeight: 600, opacity: saving ? 0.5 : 1,
+-          }}>{saving ? '...' : isNew ? '✨ Create' : '💾 Save'}</button>
++        <button type="button" onClick={onCancel} style={{
++          background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)',
++          cursor: 'pointer', fontSize: '0.85rem', padding: '0.3rem 0.5rem',
++        }}>← Back</button>
++
++        <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.1)' }} />
++
++        {/* ID */}
++        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
++          <label style={{ fontSize: '0.5rem', color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase' }}>ID</label>
++          <input value={slug} onChange={e => setSlug(e.target.value)} disabled={!isNew}
++            style={{ background: 'rgba(0,0,0,0.4)', color: 'white', border: '1px solid rgba(255,255,255,0.07)',
++              padding: '0.2rem 0.4rem', borderRadius: '3px', fontSize: '0.75rem', width: '120px',
++              opacity: isNew ? 1 : 0.5,
++            }} />
+         </div>
+ 
+-        <Section title="Identity" icon="🏷️">
+-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+-            <InputRow label="ID" value={form.id || ''} onChange={v => update('id', v)} placeholder="mi-template" />
+-            <InputRow label="Name" value={form.name || ''} onChange={v => update('name', v)} placeholder="Template Name" />
+-          </div>
+-        </Section>
+-
+-        <Section title="Card Size" icon="📐">
+-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem' }}>
+-            <InputRow label="Width mm" value={w} onChange={v => update('card_width', Number(v))} type="number" min={30} max={200} />
+-            <InputRow label="Height mm" value={h} onChange={v => update('card_height', Number(v))} type="number" min={30} max={200} />
+-          </div>
+-          <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.4rem' }}>
+-            {[
+-              { l: '88×63', w: 88, h: 63 }, { l: '63×88', w: 63, h: 88 },
+-              { l: '70×120', w: 70, h: 120 }, { l: '89×51', w: 89, h: 51 },
+-            ].map(p => {
+-              const active = form.card_width === p.w && form.card_height === p.h;
+-              return (
+-                <button key={p.l} type="button" onClick={() => { update('card_width', p.w); update('card_height', p.h); }}
+-                  style={{ padding: '0.15rem 0.4rem', fontSize: '0.6rem', cursor: 'pointer',
+-                    background: active ? 'var(--color-gold, #d4af64)' : 'rgba(255,255,255,0.03)',
+-                    color: active ? '#000' : 'rgba(255,255,255,0.45)',
+-                    border: `1px solid ${active ? 'transparent' : 'rgba(255,255,255,0.06)'}`, borderRadius: '3px',
+-                    fontWeight: active ? 600 : 400,
+-                  }}>{p.l}</button>
+-              );
+-            })}
+-          </div>
+-        </Section>
+-
+-        <Section title="Colors" icon="🎨">
+-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+-            <ColorInput label="Primary" value={form.primary_color || '#0c0b09'} onChange={v => update('primary_color', v)} />
+-            <ColorInput label="Accent" value={form.accent_color || '#d4af64'} onChange={v => update('accent_color', v)} />
+-            <ColorInput label="Background" value={form.background || ''} onChange={v => update('background', v)} />
+-            <ColorInput label="Text" value={form.text_color || ''} onChange={v => update('text_color', v)} />
+-            <ColorInput label="Surface" value={form.surface_color || ''} onChange={v => update('surface_color', v)} />
+-          </div>
+-        </Section>
++        {/* Name */}
++        <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
++          <label style={{ fontSize: '0.5rem', color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase' }}>Name</label>
++          <input value={name} onChange={e => {
++            setName(e.target.value);
++            if (isNew) setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''));
++          }}
++            style={{ background: 'rgba(0,0,0,0.4)', color: 'white', border: '1px solid rgba(255,255,255,0.07)',
++              padding: '0.2rem 0.4rem', borderRadius: '3px', fontSize: '0.75rem', width: '180px',
++            }} />
++        </div>
+ 
+-        <Section title="Fonts" icon="✒️">
+-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+-            <InputRow label="Heading" value={form.font_heading || 'Cormorant Garamond'} onChange={v => update('font_heading', v)} />
+-            <InputRow label="Body" value={form.font_body || 'Inter'} onChange={v => update('font_body', v)} />
+-          </div>
+-        </Section>
+-
+-        <Section title="Border Frame" icon="🖼️" defaultOpen={false}>
+-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.7rem', color: 'rgba(255,255,255,0.6)', cursor: 'pointer' }}>
+-              <input type="checkbox" checked={border.visible} onChange={e => updateLayout({ border: { ...border, visible: e.target.checked } })}
+-                style={{ accentColor: 'var(--color-gold, #d4af64)' }} /> Show border
+-            </label>
+-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.25rem' }}>
+-              <InputRow label="Inset %" value={border.inset} onChange={v => updateLayout({ border: { ...border, inset: Number(v) } })} type="number" min={1} max={20} />
+-              <InputRow label="Opacity" value={border.opacity} onChange={v => updateLayout({ border: { ...border, opacity: Number(v) } })} type="number" min={0} max={1} step={0.05} />
+-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+-                <label style={{ fontSize: '0.55rem', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase' }}>Style</label>
+-                <select value={border.style} onChange={e => updateLayout({ border: { ...border, style: e.target.value as 'solid' | 'dashed' | 'dotted' } })}
+-                  style={{ background: 'rgba(0,0,0,0.4)', color: 'white', border: '1px solid rgba(255,255,255,0.07)', padding: '0.3rem', borderRadius: '3px', fontSize: '0.7rem' }}>
+-                  <option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option>
+-                </select>
+-              </div>
+-            </div>
+-          </div>
+-        </Section>
+-
+-        <Section title="Back Elements" icon="📋">
+-          {([
+-            { key: 'when_to_use' as BackElementKey, label: 'When to Use' },
+-            { key: 'phrase' as BackElementKey, label: 'Phrase' },
+-            { key: 'instruction' as BackElementKey, label: 'Instruction' },
+-            { key: 'fun_fact' as BackElementKey, label: 'Fun Fact' },
+-            { key: 'answer' as BackElementKey, label: 'Answer' },
+-            { key: 'qr' as BackElementKey, label: 'QR Code' },
+-            { key: 'brand' as BackElementKey, label: 'Brand' },
+-          ]).map(({ key, label }) => (
+-            <ElementEditor
+-              key={key}
+-              elemKey={key}
+-              label={label}
+-              el={getElement(layout, key)}
+-              text={getSampleText(layout, key)}
+-              onUpdate={updateElement}
+-              onUpdateText={updateSampleText}
++        <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.1)' }} />
++
++        {/* Card width & height inputs */}
++        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
++          <span style={{ fontSize: '0.55rem', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase' }}>Size:</span>
++          
++          <div style={{ display: 'flex', alignItems: 'center', gap: '1px' }}>
++            <input 
++              type="number"
++              value={cardWidth} 
++              onChange={e => updateCardSize(Number(e.target.value) || 0, cardHeight)}
++              style={{ background: 'rgba(0,0,0,0.4)', color: 'white', border: '1px solid rgba(255,255,255,0.07)',
++                padding: '0.2rem 0.4rem', borderRadius: '3px 0 0 3px', fontSize: '0.75rem', width: '50px', textAlign: 'center'
++              }} 
++            />
++            <span style={{ background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)', padding: '0.2rem 0.3rem', fontSize: '0.75rem' }}>×</span>
++            <input 
++              type="number"
++              value={cardHeight} 
++              onChange={e => updateCardSize(cardWidth, Number(e.target.value) || 0)}
++              style={{ background: 'rgba(0,0,0,0.4)', color: 'white', border: '1px solid rgba(255,255,255,0.07)',
++                padding: '0.2rem 0.4rem', borderRadius: '0 3px 3px 0', fontSize: '0.75rem', width: '50px', textAlign: 'center'
++              }} 
+             />
+-          ))}
+-        </Section>
+-      </div>
+-
+-      {/* ── RIGHT: CANVAS ── */}
+-      <div style={{
+-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+-        background: '#090909', position: 'relative', overflow: 'hidden',
+-      }}>
+-        {/* Grid bg */}
+-        <div style={{
+-          position: 'absolute', inset: 0, opacity: 0.03,
+-          backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.5) 1px, transparent 1px)',
+-          backgroundSize: '20px 20px', pointerEvents: 'none',
+-        }} />
+-
+-        {/* Top bar */}
+-        <div style={{
+-          position: 'absolute', top: 0, left: 0, right: 0, padding: '0.8rem 1.2rem',
+-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+-          background: 'linear-gradient(to bottom, rgba(0,0,0,0.5), transparent)', zIndex: 5,
+-        }}>
+-          <div style={{ display: 'flex', gap: '0.4rem' }}>
+-            {(['front', 'back'] as const).map(s => (
+-              <button key={s} type="button" onClick={() => setPreviewSide(s)} style={{
+-                padding: '0.3rem 0.8rem', fontSize: '0.7rem', cursor: 'pointer',
+-                background: previewSide === s ? 'rgba(255,255,255,0.1)' : 'transparent',
+-                color: previewSide === s ? 'white' : 'rgba(255,255,255,0.35)',
+-                border: `1px solid ${previewSide === s ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.05)'}`,
+-                borderRadius: '4px', textTransform: 'capitalize', transition: 'all 0.15s',
+-              }}>{s === 'front' ? '♠ Front' : '♦ Back'}</button>
+-            ))}
+           </div>
+-          <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.25)', fontFamily: 'monospace' }}>
+-            {w}×{h}mm · {scalePx.w}×{scalePx.h}px
+-          </span>
++          <span style={{ fontSize: '0.55rem', color: 'rgba(255,255,255,0.3)', marginLeft: '-0.3rem' }}>mm</span>
+         </div>
+ 
+-        {/* Card */}
+-        <div style={{ cursor: 'pointer' }} onClick={() => setPreviewSide(s => s === 'front' ? 'back' : 'front')}>
+-          {previewSide === 'front' ? (
+-            <FrontFaceCanvas template={form} scalePx={scalePx} />
+-          ) : (
+-            <BackFaceCanvas template={form} layout={layout} scalePx={scalePx} />
+-          )}
++        <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.1)' }} />
++
++        {/* Color pickers */}
++        <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
++          {[
++            { label: 'BG', value: primaryColor, set: setPrimaryColor },
++            { label: 'Accent', value: accentColor, set: setAccentColor },
++            { label: 'Text', value: textColor, set: setTextColor },
++          ].map(c => (
++            <div key={c.label} style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
++              <span style={{ fontSize: '0.5rem', color: 'rgba(255,255,255,0.25)' }}>{c.label}</span>
++              <input type="color" value={c.value || '#000'} onChange={e => c.set(e.target.value)}
++                style={{ width: '20px', height: '20px', border: 'none', cursor: 'pointer', borderRadius: '3px', background: 'transparent', padding: 0 }} />
++            </div>
++          ))}
+         </div>
+ 
+-        {/* Footer */}
+-        <div style={{
+-          position: 'absolute', bottom: '0.8rem', left: 0, right: 0,
+-          textAlign: 'center', color: 'rgba(255,255,255,0.15)', fontSize: '0.65rem',
+-        }}>
+-          Click card to flip · {form.name || 'Untitled'}
++        {/* Spacer */}
++        <div style={{ flex: 1 }} />
++
++        {/* Save & Layout */}
++        <div style={{ display: 'flex', gap: '0.4rem' }}>
++          <button type="button" disabled={saving || generatingLayout} onClick={() => handleAutoLayout()}
++            style={{
++              background: 'rgba(255,255,255,0.05)', color: '#d4af64', border: '1px solid rgba(212, 175, 100, 0.3)',
++              padding: '0.35rem 0.6rem', borderRadius: '4px', cursor: 'pointer',
++              fontSize: '0.75rem', fontWeight: 600, opacity: generatingLayout ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: '0.3rem'
++            }}>{generatingLayout ? '⏳ Generating...' : '✨ Auto-Layout'}</button>
++
++          <button type="button" disabled={saving || generatingLayout} onClick={() => handleSave()}
++            style={{
++              background: '#d4af64', color: '#000', border: 'none',
++              padding: '0.35rem 1rem', borderRadius: '4px', cursor: 'pointer',
++              fontSize: '0.75rem', fontWeight: 600, opacity: saving ? 0.5 : 1,
++            }}>{saving ? 'Saving...' : isNew ? '💾 Create Template' : '💾 Save Template'}</button>
+         </div>
+       </div>
+-    </form>
++
++      {/* pdfme Designer Container */}
++      <div ref={containerRef} style={{ flex: 1, width: '100%' }} />
++    </div>
+   );
+ }
+ 
+-// ── Main Page ────────────────────────────────────────────────
++// ── Template List Page ────────────────────────────────
+ 
+ export default function AdminTemplates() {
+   const [templates, setTemplates] = useState<DesignTemplateRow[]>([]);
+@@ -663,43 +316,162 @@ export default function AdminTemplates() {
+     finally { setLoading(false); }
+   }
+ 
+-  React.useEffect(() => { loadTemplates(); }, []);
++  useEffect(() => { loadTemplates(); }, []);
+ 
+   const editingTemplate = editingId ? templates.find(t => t.id === editingId) : null;
+ 
+-  async function handleCreate(t: DesignTemplateInput) {
+-    await repo.create(t); setCreating(false); await loadTemplates();
++  // Resolve the pdfme Template from the stored layout_config
++  function getPdfmeTemplate(row: DesignTemplateRow): Template {
++    const config = row.layout_config;
++    // If layout_config has a pdfme_template, use it directly (and auto-upgrade old ones)
++    if (config && 'basePdf' in config && 'schemas' in config) {
++      const template = JSON.parse(JSON.stringify(config)) as Template;
++      const defaults = createDefaultCardTemplate(row.card_width, row.card_height);
++
++      // Auto-inject missing sampledata so old DB templates aren't blank
++      const currentSample = Array.isArray(template.sampledata) ? template.sampledata : [];
++      if (currentSample.length === 0) {
++        const defaultSample = (defaults.sampledata as Record<string, string>[])?.[0] || {};
++        template.sampledata = [{ ...defaultSample }];
++      }
++
++      // LEGACY UPGRADE: If schema only has 1 page, it was the BACK face.
++      if (template.schemas && template.schemas.length === 1) {
++        // Move the back face to index 1, and insert the default front face at index 0
++        template.schemas = [defaults.schemas[0], template.schemas[0]];
++      }
++
++      // Auto-upgrade legacy bg and border to rectangle type, and inject missing elements for both pages
++      if (template.schemas && template.schemas.length >= 2) {
++        template.schemas.forEach((schemaPage, pageIndex) => {
++          // Remove old 'text' type bg/border
++          ['bg', 'border'].forEach(name => {
++            const index = schemaPage.findIndex(s => s.name === name);
++            if (index >= 0 && schemaPage[index].type !== 'rectangle') {
++              schemaPage.splice(index, 1);
++            }
++          });
++
++          // Re-inject missing layout essentials from the corresponding default page
++          const defaultPage = defaults.schemas[pageIndex] || [];
++          const missingObjects: Schema[] = [];
++          defaultPage.forEach(defaultObj => {
++            if (!schemaPage.some(s => s.name === defaultObj.name)) {
++              missingObjects.push(defaultObj);
++            }
++          });
++
++          // Background and border go to the bottom of the stack (index 0)
++          const bgBorder = missingObjects.filter(obj => obj.name === 'bg' || obj.name === 'border');
++          // Other items go on top of the stack
++          const textStuff = missingObjects.filter(obj => obj.name !== 'bg' && obj.name !== 'border');
++
++          // Unshift adds to the beginning. Add border first, then bg
++          bgBorder.reverse().forEach(obj => {
++            if (obj) schemaPage.unshift(obj);
++          });
++
++          textStuff.forEach(obj => {
++            if (obj) schemaPage.push(obj);
++          });
++        });
++      }
++
++      return template;
++    }
++    // Otherwise create a default one from card dimensions
++    return createDefaultCardTemplate(row.card_width, row.card_height);
++  }
++
++  async function handleCreate(pdfmeTemplate: Template, meta: Partial<DesignTemplateInput>) {
++    const input: DesignTemplateInput = {
++      id: meta.id || 'untitled',
++      name: meta.name || 'Untitled',
++      primary_color: meta.primary_color || '#0c0b09',
++      accent_color: meta.accent_color || '#d4af64',
++      font_heading: meta.font_heading || 'Cormorant Garamond',
++      font_body: meta.font_body || 'Inter',
++      background: meta.primary_color || '#0c0b09',
++      text_color: meta.text_color || '#f0ebe0',
++      surface_color: null,
++      card_width: meta.card_width || 88,
++      card_height: meta.card_height || 63,
++      card_unit: 'mm',
++      // Store the full pdfme template as layout_config
++      layout_config: pdfmeTemplate as unknown as DesignTemplateRow['layout_config'],
++    };
++    await repo.create(input);
++    setCreating(false);
++    await loadTemplates();
+   }
+-  async function handleUpdate(t: DesignTemplateInput) {
+-    await repo.update(t.id, t); setEditingId(null); await loadTemplates();
++
++  async function handleUpdate(pdfmeTemplate: Template, meta: Partial<DesignTemplateInput>) {
++    if (!editingId) return;
++    await repo.update(editingId, {
++      ...meta,
++      background: meta.primary_color,
++      layout_config: pdfmeTemplate as unknown as DesignTemplateRow['layout_config'],
++    });
++    setEditingId(null);
++    await loadTemplates();
+   }
++
+   async function handleDelete(id: string) {
+     if (!confirm(`Delete "${id}"?`)) return;
+-    await repo.delete(id); await loadTemplates();
++    await repo.delete(id);
++    await loadTemplates();
+   }
+ 
++  // ── Editor views ──
++
+   if (creating) {
+-    return <TemplateEditor initial={{
+-      font_heading: 'Cormorant Garamond', font_body: 'Inter',
+-      primary_color: '#0c0b09', accent_color: '#d4af64',
+-      card_width: 88, card_height: 63, card_unit: 'mm', layout_config: {},
+-    }} onSave={handleCreate} onCancel={() => setCreating(false)} isNew />;
++    const defaultTemplate = createDefaultCardTemplate(88, 63);
++    return (
++      <PdfmeDesigner
++        template={defaultTemplate}
++        onSave={handleCreate}
++        onCancel={() => setCreating(false)}
++        templateRow={{
++          font_heading: 'Cormorant Garamond',
++          font_body: 'Inter',
++          primary_color: '#0c0b09',
++          accent_color: '#d4af64',
++          text_color: '#f0ebe0',
++          card_width: 88,
++          card_height: 63,
++          card_unit: 'mm',
++        }}
++        isNew
++      />
++    );
+   }
+ 
+   if (editingTemplate) {
+-    return <TemplateEditor initial={editingTemplate} onSave={handleUpdate} onCancel={() => setEditingId(null)} isNew={false} />;
++    return (
++      <PdfmeDesigner
++        template={getPdfmeTemplate(editingTemplate)}
++        onSave={handleUpdate}
++        onCancel={() => setEditingId(null)}
++        templateRow={editingTemplate}
++        isNew={false}
++      />
++    );
+   }
+ 
++  // ── List view ──
++
+   return (
+     <div style={{ padding: '2rem', maxWidth: '1000px', margin: '0 auto', color: 'white' }}>
+       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+         <div>
+-          <Link to="/admin" style={{ color: 'var(--color-gold, #d4af64)', textDecoration: 'none', fontSize: '0.85rem' }}>&larr; Dashboard</Link>
++          <Link to="/admin" style={{ color: '#d4af64', textDecoration: 'none', fontSize: '0.85rem' }}>&larr; Dashboard</Link>
+           <h1 style={{ margin: '0.5rem 0 0' }}>🎨 Design Templates</h1>
+         </div>
+         <button onClick={() => setCreating(true)} className="btn-primary" style={{ fontSize: '0.85rem' }}>+ New Template</button>
+       </div>
+-      <p style={{ opacity: 0.5, marginBottom: '2rem', fontSize: '0.9rem' }}>Click a template to open the editor.</p>
++      <p style={{ opacity: 0.5, marginBottom: '2rem', fontSize: '0.9rem' }}>
++        Powered by <strong>pdfme</strong> — drag & drop template designer. What you design is what the PDF outputs.
++      </p>
+ 
+       {loading && <p style={{ opacity: 0.5 }}>Loading...</p>}
+ 
+@@ -718,7 +490,6 @@ export default function AdminTemplates() {
+               <div style={{ height: '50px', display: 'flex' }}>
+                 <div style={{ flex: 2, background: bg }} />
+                 <div style={{ flex: 1, background: accent }} />
+-                {tpl.surface_color && <div style={{ flex: 1, background: tpl.surface_color }} />}
+               </div>
+               <div style={{ padding: '0.6rem 0.8rem' }}>
+                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+@@ -729,7 +500,9 @@ export default function AdminTemplates() {
+                 </div>
+                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.2rem' }}>
+                   <code style={{ fontSize: '0.6rem', opacity: 0.25 }}>{tpl.id}</code>
+-                  <span style={{ fontSize: '0.6rem', opacity: 0.25, fontFamily: 'monospace' }}>{tpl.card_width}×{tpl.card_height}mm</span>
++                  <span style={{ fontSize: '0.6rem', opacity: 0.25, fontFamily: 'monospace' }}>
++                    {tpl.card_width}×{tpl.card_height}mm
++                  </span>
+                 </div>
+               </div>
+             </div>
+@@ -740,7 +513,7 @@ export default function AdminTemplates() {
+       {!loading && templates.length === 0 && (
+         <div style={{ textAlign: 'center', padding: '4rem 0', opacity: 0.4 }}>
+           <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🎨</p>
+-          <p>No templates yet.</p>
++          <p>No templates yet. Click <strong>+ New Template</strong> to start designing.</p>
+         </div>
+       )}
+     </div>
+
+commit b604e2c1b736b1dbb6bcd43b694063f6b7e38f83
+Author: juan obrach <juanobrach@gmail.com>
+Date:   Mon Apr 6 16:38:21 2026 -0300
+
+    refactor: replace hardcoded card preview with dynamic layout-based element rendering system
+
+diff --git a/apps/baraja/src/pages/admin/AdminTemplates.tsx b/apps/baraja/src/pages/admin/AdminTemplates.tsx
+index 878f84d..ab480a8 100644
+--- a/apps/baraja/src/pages/admin/AdminTemplates.tsx
++++ b/apps/baraja/src/pages/admin/AdminTemplates.tsx
+@@ -1,315 +1,403 @@
+-import React, { useState, useEffect, useMemo } from 'react';
++import React, { useState, useCallback, useMemo } from 'react';
+ import { Link } from 'react-router-dom';
+ import { DesignTemplateRepository } from '../../lib/deckRepository';
+-import type { DesignTemplateRow, DesignTemplateInput, LayoutConfig } from '../../lib/deckRepository';
+-import type { Card, DeckSchema } from '@eb-packages/deck-engine';
++import type {
++  DesignTemplateRow, DesignTemplateInput, LayoutConfig,
++  ElementLayout, BackElementKey,
++} from '../../lib/deckRepository';
+ 
+ const repo = new DesignTemplateRepository();
+ 
+-// ── Sample card for preview ──────────────────────────────────
++// ── Default element layouts (%) ──────────────────────────────
+ 
+-const SAMPLE_CARD: Card = {
+-  id: 'sample-01',
+-  front: {
+-    art_prompt: '',
+-    art_url: '',
+-    title: 'La Vuelta',
+-    number: 7,
++const DEFAULT_ELEMENTS: Record<BackElementKey, ElementLayout> = {
++  when_to_use: {
++    visible: true, x: 10, y: 8, w: 80, h: 0,
++    fontSize: 7, align: 'center', transform: 'uppercase',
++    letterSpacing: 2, opacity: 1, fontType: 'heading',
++    fontWeight: 400, fontStyle: 'normal', lineHeight: 1.3,
++    useAccentColor: true,
+   },
+-  back: {
+-    phrase: 'A veces volver al punto de partida es la forma más honesta de avanzar.',
+-    when_to_use: 'Cuando sentís que estás dando vueltas',
+-    instruction: 'Cerrá los ojos. Pensá en algo que dejaste a medias. ¿Lo dejaste o te dejó?',
+-    fun_fact: 'El 80% de los proyectos abandonados tenían una solución a menos de 3 pasos.',
+-    answer: undefined,
++  phrase: {
++    visible: true, x: 10, y: 22, w: 80, h: 40,
++    fontSize: 13, align: 'center', transform: 'none',
++    letterSpacing: 0, opacity: 1, fontType: 'heading',
++    fontWeight: 600, fontStyle: 'normal', lineHeight: 1.35,
++    useAccentColor: false,
++  },
++  instruction: {
++    visible: true, x: 10, y: 65, w: 80, h: 0,
++    fontSize: 8, align: 'center', transform: 'none',
++    letterSpacing: 0, opacity: 0.75, fontType: 'body',
++    fontWeight: 400, fontStyle: 'normal', lineHeight: 1.4,
++    useAccentColor: false,
++  },
++  fun_fact: {
++    visible: true, x: 10, y: 78, w: 80, h: 0,
++    fontSize: 7, align: 'center', transform: 'none',
++    letterSpacing: 0, opacity: 0.6, fontType: 'heading',
++    fontWeight: 400, fontStyle: 'italic', lineHeight: 1.3,
++    useAccentColor: false,
++  },
++  answer: {
++    visible: false, x: 10, y: 80, w: 80, h: 0,
++    fontSize: 9, align: 'center', transform: 'none',
++    letterSpacing: 0, opacity: 1, fontType: 'body',
++    fontWeight: 700, fontStyle: 'normal', lineHeight: 1.3,
++    useAccentColor: true,
++  },
++  qr: {
++    visible: true, x: 42, y: 85, w: 16, h: 0,
++    fontSize: 6, align: 'center', transform: 'none',
++    letterSpacing: 0, opacity: 0.3, fontType: 'body',
++    fontWeight: 400, fontStyle: 'normal', lineHeight: 1,
++    useAccentColor: false,
++  },
++  brand: {
++    visible: true, x: 10, y: 93, w: 80, h: 0,
++    fontSize: 6, align: 'center', transform: 'uppercase',
++    letterSpacing: 2, opacity: 0.35, fontType: 'heading',
++    fontWeight: 400, fontStyle: 'normal', lineHeight: 1,
++    useAccentColor: false,
+   },
+ };
+ 
++const DEFAULT_SAMPLE_TEXT: Record<BackElementKey, string> = {
++  when_to_use: 'Cuando sentís que estás dando vueltas',
++  phrase: 'A veces volver al punto de partida es la forma más honesta de avanzar.',
++  instruction: 'Cerrá los ojos. Pensá en algo que dejaste a medias. ¿Lo dejaste o te dejó?',
++  fun_fact: '💡 El 80% de los proyectos abandonados tenían una solución a menos de 3 pasos.',
++  answer: 'Respuesta de ejemplo',
++  qr: 'QR',
++  brand: 'Baraja · Sample Edition',
++};
++
++const DEFAULT_BORDER = { visible: true, style: 'solid' as const, inset: 5, opacity: 0.25 };
++
++function getElement(layout: LayoutConfig, key: BackElementKey): ElementLayout {
++  return { ...DEFAULT_ELEMENTS[key], ...(layout.elements?.[key] || {}) };
++}
++
++function getSampleText(layout: LayoutConfig, key: BackElementKey): string {
++  return layout.sample_text?.[key] || DEFAULT_SAMPLE_TEXT[key];
++}
++
++// ── Helpers ──────────────────────────────────────────────────
++
++function isLightColor(hex: string): boolean {
++  const c = hex.replace('#', '');
++  if (c.length !== 6) return false;
++  const r = parseInt(c.substring(0, 2), 16);
++  const g = parseInt(c.substring(2, 4), 16);
++  const b = parseInt(c.substring(4, 6), 16);
++  return (r * 299 + g * 587 + b * 114) / 1000 > 128;
++}
++
++function slugify(text: string): string {
++  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
++}
++
+ // ── Stable form inputs ───────────────────────────────────────
+ 
+-function InputRow({ label, value, onChange, type = 'text', placeholder, min, max, step }: {
+-  label: string;
+-  value: string | number;
+-  onChange: (val: string) => void;
+-  type?: string;
+-  placeholder?: string;
+-  min?: number;
+-  max?: number;
+-  step?: number;
++function InputRow({ label, value, onChange, type = 'text', placeholder, min, max, step, width }: {
++  label: string; value: string | number; onChange: (val: string) => void;
++  type?: string; placeholder?: string; min?: number; max?: number; step?: number; width?: string;
+ }) {
+   return (
+-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+-      <label style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+-        {label}
+-      </label>
+-      <input
+-        type={type}
+-        value={value}
+-        onChange={(e) => onChange(e.target.value)}
+-        placeholder={placeholder}
+-        min={min}
+-        max={max}
+-        step={step}
+-        style={{
+-          background: 'rgba(0,0,0,0.5)',
+-          color: 'white',
+-          border: '1px solid rgba(255,255,255,0.1)',
+-          padding: '0.4rem 0.5rem',
+-          borderRadius: '4px',
+-          fontSize: '0.85rem',
+-          width: '100%',
+-        }}
++    <div style={{ display: 'flex', flexDirection: 'column', gap: '1px', width }}>
++      <label style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</label>
++      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
++        min={min} max={max} step={step}
++        style={{ background: 'rgba(0,0,0,0.4)', color: 'white', border: '1px solid rgba(255,255,255,0.07)', padding: '0.3rem 0.4rem', borderRadius: '3px', fontSize: '0.75rem', width: '100%' }}
+       />
+     </div>
+   );
+ }
+ 
+-function ColorInput({ label, value, onChange }: {
+-  label: string;
+-  value: string;
+-  onChange: (val: string) => void;
+-}) {
++function ColorInput({ label, value, onChange }: { label: string; value: string; onChange: (val: string) => void; }) {
+   return (
+-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+-      <label style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+-        {label}
+-      </label>
+-      <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+-        <input
+-          type="color"
+-          value={value || '#000000'}
+-          onChange={(e) => onChange(e.target.value)}
+-          style={{ width: '32px', height: '32px', border: 'none', cursor: 'pointer', borderRadius: '4px', background: 'transparent', padding: 0 }}
++    <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
++      <label style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</label>
++      <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
++        <input type="color" value={value || '#000000'} onChange={e => onChange(e.target.value)}
++          style={{ width: '24px', height: '24px', border: 'none', cursor: 'pointer', borderRadius: '3px', background: 'transparent', padding: 0 }}
+         />
+-        <input
+-          type="text"
+-          value={value || ''}
+-          onChange={(e) => onChange(e.target.value)}
+-          placeholder="#000000"
+-          style={{
+-            flex: 1,
+-            background: 'rgba(0,0,0,0.5)',
+-            color: 'white',
+-            border: '1px solid rgba(255,255,255,0.1)',
+-            padding: '0.4rem 0.5rem',
+-            borderRadius: '4px',
+-            fontSize: '0.8rem',
+-            fontFamily: 'monospace',
+-          }}
++        <input type="text" value={value || ''} onChange={e => onChange(e.target.value)} placeholder="#000"
++          style={{ flex: 1, background: 'rgba(0,0,0,0.4)', color: 'white', border: '1px solid rgba(255,255,255,0.07)', padding: '0.3rem 0.4rem', borderRadius: '3px', fontSize: '0.7rem', fontFamily: 'monospace' }}
+         />
+       </div>
+     </div>
+   );
+ }
+ 
+-function ToggleRow({ label, checked, onChange }: {
+-  label: string;
+-  checked: boolean;
+-  onChange: (val: boolean) => void;
++// ── Collapsible Section ──────────────────────────────────────
++
++function Section({ title, icon, children, defaultOpen = true }: {
++  title: string; icon: string; children: React.ReactNode; defaultOpen?: boolean;
+ }) {
++  const [open, setOpen] = useState(defaultOpen);
+   return (
+-    <label style={{
+-      display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer',
+-      fontSize: '0.8rem', color: 'rgba(255,255,255,0.7)',
+-    }}>
+-      <input
+-        type="checkbox"
+-        checked={checked}
+-        onChange={(e) => onChange(e.target.checked)}
+-        style={{ accentColor: 'var(--color-gold, #d4af64)' }}
+-      />
+-      {label}
+-    </label>
++    <div style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
++      <button type="button" onClick={() => setOpen(!open)} style={{
++        width: '100%', background: 'none', border: 'none', color: 'rgba(255,255,255,0.55)',
++        padding: '0.5rem 0.6rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem',
++        fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.05em',
++      }}>
++        <span style={{ transform: open ? 'rotate(90deg)' : 'rotate(0)', transition: 'transform 0.15s', fontSize: '0.55rem' }}>▶</span>
++        <span>{icon}</span><span>{title}</span>
++      </button>
++      {open && <div style={{ padding: '0 0.6rem 0.6rem' }}>{children}</div>}
++    </div>
+   );
+ }
+ 
+-// ── Helpers ──────────────────────────────────────────────────
++// ── Element Property Editor ──────────────────────────────────
+ 
+-function isLightColor(hex: string): boolean {
+-  const c = hex.replace('#', '');
+-  if (c.length !== 6) return false;
+-  const r = parseInt(c.substring(0, 2), 16);
+-  const g = parseInt(c.substring(2, 4), 16);
+-  const b = parseInt(c.substring(4, 6), 16);
+-  return (r * 299 + g * 587 + b * 114) / 1000 > 128;
+-}
++function ElementEditor({ label, elemKey, el, text, onUpdate, onUpdateText }: {
++  label: string;
++  elemKey: BackElementKey;
++  el: ElementLayout;
++  text: string;
++  onUpdate: (key: BackElementKey, partial: Partial<ElementLayout>) => void;
++  onUpdateText: (key: BackElementKey, text: string) => void;
++}) {
++  const [expanded, setExpanded] = useState(false);
++  return (
++    <div style={{
++      background: el.visible ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.01)',
++      borderRadius: '4px', border: '1px solid rgba(255,255,255,0.05)',
++      marginBottom: '0.3rem', overflow: 'hidden',
++    }}>
++      {/* Header: toggle + name + expand */}
++      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.5rem' }}>
++        <input type="checkbox" checked={el.visible} onChange={e => onUpdate(elemKey, { visible: e.target.checked })}
++          style={{ accentColor: 'var(--color-gold, #d4af64)' }} />
++        <span style={{ flex: 1, fontSize: '0.75rem', color: el.visible ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.3)', cursor: 'pointer' }}
++          onClick={() => setExpanded(!expanded)}>
++          {label}
++        </span>
++        <button type="button" onClick={() => setExpanded(!expanded)} style={{
++          background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', fontSize: '0.6rem',
++        }}>{expanded ? '▲' : '▼'}</button>
++      </div>
+ 
+-function slugify(text: string): string {
+-  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
++      {expanded && el.visible && (
++        <div style={{ padding: '0.3rem 0.5rem 0.5rem', borderTop: '1px solid rgba(255,255,255,0.04)' }}>
++          {/* Sample text */}
++          {elemKey !== 'qr' && (
++            <div style={{ marginBottom: '0.4rem' }}>
++              <label style={{ fontSize: '0.55rem', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase' }}>Preview Text</label>
++              <textarea value={text} onChange={e => onUpdateText(elemKey, e.target.value)}
++                rows={2}
++                style={{ width: '100%', background: 'rgba(0,0,0,0.3)', color: 'white', border: '1px solid rgba(255,255,255,0.06)', padding: '0.3rem', borderRadius: '3px', fontSize: '0.7rem', resize: 'vertical', fontFamily: 'inherit' }}
++              />
++            </div>
++          )}
++          {/* Position: X, Y, W */}
++          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.25rem', marginBottom: '0.3rem' }}>
++            <InputRow label="X %" value={el.x} onChange={v => onUpdate(elemKey, { x: Number(v) })} type="number" min={0} max={100} step={1} />
++            <InputRow label="Y %" value={el.y} onChange={v => onUpdate(elemKey, { y: Number(v) })} type="number" min={0} max={100} step={1} />
++            <InputRow label="W %" value={el.w} onChange={v => onUpdate(elemKey, { w: Number(v) })} type="number" min={5} max={100} step={1} />
++          </div>
++          {/* Font: size, weight, style, align */}
++          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.25rem', marginBottom: '0.3rem' }}>
++            <InputRow label="Size pt" value={el.fontSize} onChange={v => onUpdate(elemKey, { fontSize: Number(v) })} type="number" min={4} max={30} step={0.5} />
++            <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
++              <label style={{ fontSize: '0.55rem', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase' }}>Align</label>
++              <select value={el.align} onChange={e => onUpdate(elemKey, { align: e.target.value as ElementLayout['align'] })}
++                style={{ background: 'rgba(0,0,0,0.4)', color: 'white', border: '1px solid rgba(255,255,255,0.07)', padding: '0.3rem', borderRadius: '3px', fontSize: '0.7rem' }}>
++                <option value="left">Left</option>
++                <option value="center">Center</option>
++                <option value="right">Right</option>
++              </select>
++            </div>
++            <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
++              <label style={{ fontSize: '0.55rem', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase' }}>Font</label>
++              <select value={el.fontType || 'heading'} onChange={e => onUpdate(elemKey, { fontType: e.target.value as 'heading' | 'body' })}
++                style={{ background: 'rgba(0,0,0,0.4)', color: 'white', border: '1px solid rgba(255,255,255,0.07)', padding: '0.3rem', borderRadius: '3px', fontSize: '0.7rem' }}>
++                <option value="heading">Heading</option>
++                <option value="body">Body</option>
++              </select>
++            </div>
++            <InputRow label="Opacity" value={el.opacity ?? 1} onChange={v => onUpdate(elemKey, { opacity: Number(v) })} type="number" min={0} max={1} step={0.05} />
++          </div>
++          {/* Advanced: lineHeight, letterSpacing, transform, accent */}
++          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.25rem' }}>
++            <InputRow label="Line H" value={el.lineHeight ?? 1.3} onChange={v => onUpdate(elemKey, { lineHeight: Number(v) })} type="number" min={0.8} max={2.5} step={0.05} />
++            <InputRow label="Letter" value={el.letterSpacing ?? 0} onChange={v => onUpdate(elemKey, { letterSpacing: Number(v) })} type="number" min={0} max={10} step={0.5} />
++            <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
++              <label style={{ fontSize: '0.55rem', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase' }}>Case</label>
++              <select value={el.transform || 'none'} onChange={e => onUpdate(elemKey, { transform: e.target.value as 'uppercase' | 'none' })}
++                style={{ background: 'rgba(0,0,0,0.4)', color: 'white', border: '1px solid rgba(255,255,255,0.07)', padding: '0.3rem', borderRadius: '3px', fontSize: '0.7rem' }}>
++                <option value="none">Normal</option>
++                <option value="uppercase">UPPER</option>
++              </select>
++            </div>
++            <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.65rem', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', paddingTop: '0.7rem' }}>
++              <input type="checkbox" checked={el.useAccentColor || false} onChange={e => onUpdate(elemKey, { useAccentColor: e.target.checked })}
++                style={{ accentColor: 'var(--color-gold, #d4af64)' }} />
++              Accent
++            </label>
++          </div>
++        </div>
++      )}
++    </div>
++  );
+ }
+ 
+-// ── Card Preview (renders both sides inline) ──────────────────
++// ── Canvas: Absolute-positioned back face ────────────────────
+ 
+-function CardPreview({ template }: { template: Partial<DesignTemplateInput> }) {
++function BackFaceCanvas({
++  template, layout, scalePx,
++}: {
++  template: Partial<DesignTemplateInput>;
++  layout: LayoutConfig;
++  scalePx: { w: number; h: number };
++}) {
+   const bg = template.background || template.primary_color || '#0c0b09';
+   const text = template.text_color || (isLightColor(bg) ? '#1a1a1a' : '#f0ebe0');
+   const accent = template.accent_color || '#d4af64';
+-  const surface = template.surface_color || bg;
+   const fontHead = template.font_heading || 'Cormorant Garamond';
+   const fontBody = template.font_body || 'Inter';
+-
+-  const w = template.card_width || 88;
+-  const h = template.card_height || 63;
+-  const isLandscape = w > h;
+-
+-  // Scale card to fit preview area (max 200px wide)
+-  const maxW = 180;
+-  const scale = maxW / w;
+-  const displayW = w * scale;
+-  const displayH = h * scale;
+-
+-  const layout = (template.layout_config || {}) as LayoutConfig;
+-  const elems = layout.back_elements || {};
+-  const fonts = layout.font_sizes || {};
+-  const padding = layout.back_padding ?? 10;
+-  const borderStyle = layout.back_border_style ?? 'solid';
+-  const align = layout.content_align ?? 'center';
+-
+-  const cardStyle: React.CSSProperties = {
+-    width: `${displayW}px`,
+-    height: `${displayH}px`,
+-    borderRadius: '6px',
+-    overflow: 'hidden',
+-    position: 'relative',
+-    boxShadow: '0 8px 24px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.1)',
+-    flexShrink: 0,
+-  };
++  const border = { ...DEFAULT_BORDER, ...(layout.border || {}) };
++
++  // Scale factor: canvas pixels per mm
++  const mmW = template.card_width || 88;
++  const pxPerMm = scalePx.w / mmW;
++
++  const ELEMENT_ORDER: { key: BackElementKey; label: string }[] = [
++    { key: 'when_to_use', label: 'When' },
++    { key: 'phrase', label: 'Phrase' },
++    { key: 'instruction', label: 'Instruction' },
++    { key: 'fun_fact', label: 'Fun Fact' },
++    { key: 'answer', label: 'Answer' },
++    { key: 'qr', label: 'QR' },
++    { key: 'brand', label: 'Brand' },
++  ];
+ 
+   return (
+-    <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', justifyContent: 'center', flexWrap: 'wrap' }}>
+-      {/* FRONT */}
+-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem' }}>
+-        <span style={{ fontSize: '0.65rem', opacity: 0.4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Front</span>
+-        <div style={{ ...cardStyle, background: bg }}>
+-          {/* Art placeholder with pattern */}
+-          <div style={{
+-            position: 'absolute', inset: 0,
+-            background: `repeating-linear-gradient(45deg, ${accent}11, ${accent}11 10px, transparent 10px, transparent 20px)`,
+-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+-          }}>
+-            <span style={{ fontSize: '2rem' }}>🎨</span>
+-            <span style={{ color: text, opacity: 0.4, fontSize: '0.6rem', fontFamily: fontBody, marginTop: '0.3rem' }}>
+-              Art goes here
+-            </span>
+-          </div>
+-          {/* Card number overlay */}
+-          <div style={{
+-            position: 'absolute', bottom: '8px', left: '8px',
+-            background: accent, color: isLightColor(accent) ? '#1a1a1a' : '#fff',
+-            padding: '0.15rem 0.4rem', borderRadius: '3px',
+-            fontSize: '0.6rem', fontWeight: 700, fontFamily: fontBody,
+-          }}>
+-            #07
+-          </div>
+-          {/* Title overlay */}
+-          <div style={{
+-            position: 'absolute', bottom: '8px', right: '8px',
+-            color: text, opacity: 0.8,
+-            fontSize: '0.6rem', fontFamily: fontHead, fontStyle: 'italic',
+-          }}>
+-            {SAMPLE_CARD.front.title}
+-          </div>
+-        </div>
+-        <span style={{ fontSize: '0.7rem', opacity: 0.3, fontFamily: 'monospace' }}>{w}×{h}mm</span>
+-      </div>
+-
+-      {/* BACK */}
+-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.3rem' }}>
+-        <span style={{ fontSize: '0.65rem', opacity: 0.4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Back</span>
+-        <div style={{ ...cardStyle, background: bg, display: 'flex', flexDirection: 'column', padding: `${padding}%`, textAlign: align }}>
+-          {/* Inner border frame */}
+-          {borderStyle !== 'none' && (
+-            <div style={{
+-              position: 'absolute', inset: '5%',
+-              border: `1px ${borderStyle} ${accent}50`,
+-              borderRadius: '2px', pointerEvents: 'none',
+-            }} />
+-          )}
+-
+-          {/* When to use */}
+-          {(elems.show_when_to_use !== false) && (
+-            <div style={{
+-              color: accent, fontFamily: fontHead,
+-              letterSpacing: '0.1em', textTransform: 'uppercase',
+-              fontSize: `${(fonts.when_to_use || 0.45) * scale * 0.7}rem`,
+-              marginBottom: '0.3rem',
+-            }}>
+-              {SAMPLE_CARD.back.when_to_use}
+-            </div>
+-          )}
+-
+-          {/* Phrase */}
+-          {(elems.show_phrase !== false) && (
+-            <div style={{
+-              color: text, fontFamily: fontHead,
+-              fontSize: `${(fonts.phrase || 0.7) * scale * 0.7}rem`,
+-              lineHeight: 1.3, fontWeight: 600,
+-              flex: 1, display: 'flex', alignItems: 'center', justifyContent: align === 'center' ? 'center' : `flex-${align === 'left' ? 'start' : 'end'}`,
+-            }}>
+-              "{SAMPLE_CARD.back.phrase}"
+-            </div>
+-          )}
+-
+-          {/* Instruction */}
+-          {(elems.show_instruction !== false) && (
+-            <div style={{
+-              color: text, fontFamily: fontBody, opacity: 0.7,
+-              fontSize: `${(fonts.instruction || 0.45) * scale * 0.7}rem`,
+-              lineHeight: 1.4, marginTop: '0.3rem',
+-            }}>
+-              {SAMPLE_CARD.back.instruction}
+-            </div>
+-          )}
++    <div style={{
++      width: `${scalePx.w}px`, height: `${scalePx.h}px`,
++      background: bg, borderRadius: '8px', position: 'relative',
++      overflow: 'hidden',
++      boxShadow: '0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08)',
++    }}>
++      {/* Border frame */}
++      {border.visible && (
++        <div style={{
++          position: 'absolute',
++          top: `${border.inset}%`, left: `${border.inset}%`,
++          right: `${border.inset}%`, bottom: `${border.inset}%`,
++          border: `1px ${border.style} ${accent}`,
++          opacity: border.opacity, borderRadius: '3px', pointerEvents: 'none',
++        }} />
++      )}
+ 
+-          {/* Fun fact */}
+-          {(elems.show_fun_fact !== false) && SAMPLE_CARD.back.fun_fact && (
+-            <div style={{
+-              color: text, fontFamily: fontBody, fontStyle: 'italic',
+-              fontSize: `${(fonts.instruction || 0.4) * scale * 0.7}rem`,
+-              opacity: 0.6, marginTop: '0.2rem',
++      {/* Elements */}
++      {ELEMENT_ORDER.map(({ key }) => {
++        const el = getElement(layout, key);
++        if (!el.visible) return null;
++        const sampleText = getSampleText(layout, key);
++        const color = el.useAccentColor ? accent : text;
++        const font = el.fontType === 'body' ? fontBody : fontHead;
++
++        if (key === 'qr') {
++          return (
++            <div key={key} style={{
++              position: 'absolute',
++              top: `${el.y}%`, left: `${el.x}%`,
++              width: `${el.w}%`,
++              display: 'flex', justifyContent: el.align === 'center' ? 'center' : `flex-${el.align === 'left' ? 'start' : 'end'}`,
+             }}>
+-              💡 {SAMPLE_CARD.back.fun_fact}
++              <div style={{
++                width: `${24 * pxPerMm}px`, height: `${24 * pxPerMm}px`,
++                border: `1px solid ${text}`, opacity: el.opacity,
++                display: 'flex', alignItems: 'center', justifyContent: 'center',
++              }}>
++                <span style={{ fontSize: `${el.fontSize * pxPerMm * 0.35}px`, color: text }}>QR</span>
++              </div>
+             </div>
+-          )}
++          );
++        }
++
++        return (
++          <div key={key} style={{
++            position: 'absolute',
++            top: `${el.y}%`, left: `${el.x}%`,
++            width: `${el.w}%`,
++            ...(el.h ? { height: `${el.h}%`, display: 'flex', alignItems: 'center' } : {}),
++            color, opacity: el.opacity, fontFamily: `'${font}', serif`,
++            fontSize: `${el.fontSize * pxPerMm * 0.35}px`,
++            fontWeight: el.fontWeight || 400,
++            fontStyle: el.fontStyle || 'normal',
++            lineHeight: el.lineHeight || 1.3,
++            textAlign: el.align,
++            textTransform: el.transform === 'uppercase' ? 'uppercase' : 'none',
++            letterSpacing: `${(el.letterSpacing || 0) * pxPerMm * 0.3}px`,
++            overflow: 'hidden',
++          }}>
++            {el.h ? <span style={{ width: '100%', textAlign: el.align }}>{key === 'phrase' ? `"${sampleText}"` : sampleText}</span> : (key === 'phrase' ? `"${sampleText}"` : sampleText)}
++          </div>
++        );
++      })}
++    </div>
++  );
++}
+ 
+-          {/* QR */}
+-          {(elems.show_qr !== false) && (
+-            <div style={{
+-              marginTop: 'auto', alignSelf: 'center',
+-              width: `${14 * scale * 0.6}px`, height: `${14 * scale * 0.6}px`,
+-              border: `1px solid ${text}40`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+-            }}>
+-              <span style={{ fontSize: '0.35rem', color: text, opacity: 0.4 }}>QR</span>
+-            </div>
+-          )}
++function FrontFaceCanvas({
++  template, scalePx,
++}: {
++  template: Partial<DesignTemplateInput>;
++  scalePx: { w: number; h: number };
++}) {
++  const bg = template.background || template.primary_color || '#0c0b09';
++  const text = template.text_color || (isLightColor(bg) ? '#1a1a1a' : '#f0ebe0');
++  const accent = template.accent_color || '#d4af64';
++  const fontHead = template.font_heading || 'Cormorant Garamond';
++  const fontBody = template.font_body || 'Inter';
++  const mmW = template.card_width || 88;
++  const pxPerMm = scalePx.w / mmW;
+ 
+-          {/* Brand */}
+-          {(elems.show_brand !== false) && (
+-            <div style={{
+-              color: text, fontFamily: fontHead, opacity: 0.35,
+-              fontSize: `${(fonts.brand || 0.4) * scale * 0.7}rem`,
+-              letterSpacing: '0.1em', textTransform: 'uppercase',
+-              marginTop: '0.2rem', alignSelf: 'center',
+-            }}>
+-              Baraja · Sample
+-            </div>
+-          )}
+-        </div>
+-        <span style={{ fontSize: '0.7rem', opacity: 0.3, fontFamily: 'monospace' }}>
+-          {isLandscape ? 'Landscape' : 'Portrait'}
++  return (
++    <div style={{
++      width: `${scalePx.w}px`, height: `${scalePx.h}px`,
++      background: bg, borderRadius: '8px', position: 'relative', overflow: 'hidden',
++      boxShadow: '0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08)',
++    }}>
++      <div style={{
++        position: 'absolute', inset: 0,
++        background: `repeating-linear-gradient(45deg, ${accent}0d, ${accent}0d 12px, transparent 12px, transparent 24px)`,
++        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
++      }}>
++        <span style={{ fontSize: `${40 * pxPerMm * 0.35}px`, filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))' }}>🎨</span>
++        <span style={{ color: text, opacity: 0.25, fontSize: `${7 * pxPerMm * 0.35}px`, fontFamily: `'${fontBody}', sans-serif`, marginTop: '0.5rem' }}>
++          Illustration artwork
+         </span>
+       </div>
++      <div style={{
++        position: 'absolute', bottom: `${14 * pxPerMm * 0.35}px`, left: `${14 * pxPerMm * 0.35}px`,
++        background: accent, color: isLightColor(accent) ? '#1a1a1a' : '#fff',
++        padding: `${3 * pxPerMm * 0.35}px ${8 * pxPerMm * 0.35}px`, borderRadius: '3px',
++        fontSize: `${8 * pxPerMm * 0.35}px`, fontWeight: 700, fontFamily: `'${fontBody}', sans-serif`,
++      }}>#07</div>
++      <div style={{
++        position: 'absolute', bottom: `${14 * pxPerMm * 0.35}px`, right: `${14 * pxPerMm * 0.35}px`,
++        color: text, opacity: 0.6, fontSize: `${9 * pxPerMm * 0.35}px`,
++        fontFamily: `'${fontHead}', serif`, fontStyle: 'italic',
++      }}>La Vuelta</div>
++      <div style={{
++        position: 'absolute', top: `${10 * pxPerMm * 0.35}px`, left: `${14 * pxPerMm * 0.35}px`,
++        color: accent, opacity: 0.4, fontSize: `${5 * pxPerMm * 0.35}px`,
++        fontFamily: `'${fontHead}', serif`, letterSpacing: '0.12em', textTransform: 'uppercase',
++      }}>Baraja · Sample</div>
+     </div>
+   );
+ }
+ 
+-// ── Template Editor Form ─────────────────────────────────────
++// ── Full-screen Template Editor ──────────────────────────────
+ 
+-function TemplateForm({
+-  initial,
+-  onSave,
+-  onCancel,
+-  isNew,
++function TemplateEditor({
++  initial, onSave, onCancel, isNew,
+ }: {
+   initial: Partial<DesignTemplateInput>;
+   onSave: (t: DesignTemplateInput) => Promise<void>;
+@@ -318,11 +406,11 @@ function TemplateForm({
+ }) {
+   const [form, setForm] = useState<Partial<DesignTemplateInput>>({ ...initial });
+   const [saving, setSaving] = useState(false);
++  const [previewSide, setPreviewSide] = useState<'front' | 'back'>('back');
+ 
+-  const layout = useMemo(() => (form.layout_config || {}) as LayoutConfig, [form.layout_config]);
+-  const elems = layout.back_elements || {};
++  const layout: LayoutConfig = useMemo(() => (form.layout_config || {}), [form.layout_config]);
+ 
+-  const update = (key: keyof DesignTemplateInput, value: string | number | LayoutConfig | null) => {
++  const update = useCallback((key: keyof DesignTemplateInput, value: string | number | LayoutConfig | null) => {
+     setForm(prev => {
+       const next = { ...prev, [key]: value };
+       if (isNew && key === 'name' && typeof value === 'string' && !initial.id) {
+@@ -330,32 +418,38 @@ function TemplateForm({
+       }
+       return next;
+     });
+-  };
++  }, [isNew, initial.id]);
+ 
+-  const updateLayout = (partial: Partial<LayoutConfig>) => {
+-    const merged = { ...layout, ...partial };
+-    update('layout_config', merged);
+-  };
++  const updateLayout = useCallback((partial: Partial<LayoutConfig>) => {
++    setForm(prev => {
++      const current = (prev.layout_config || {}) as LayoutConfig;
++      return { ...prev, layout_config: { ...current, ...partial } };
++    });
++  }, []);
+ 
+-  const updateElems = (partial: Partial<NonNullable<LayoutConfig['back_elements']>>) => {
+-    updateLayout({ back_elements: { ...elems, ...partial } });
+-  };
++  const updateElement = useCallback((key: BackElementKey, partial: Partial<ElementLayout>) => {
++    setForm(prev => {
++      const current = (prev.layout_config || {}) as LayoutConfig;
++      const elements = { ...(current.elements || {}) };
++      elements[key] = { ...getElement(current, key), ...partial };
++      return { ...prev, layout_config: { ...current, elements } };
++    });
++  }, []);
+ 
+-  const updateFontSizes = (partial: Partial<NonNullable<LayoutConfig['font_sizes']>>) => {
+-    updateLayout({ font_sizes: { ...(layout.font_sizes || {}), ...partial } });
+-  };
++  const updateSampleText = useCallback((key: BackElementKey, text: string) => {
++    setForm(prev => {
++      const current = (prev.layout_config || {}) as LayoutConfig;
++      return { ...prev, layout_config: { ...current, sample_text: { ...(current.sample_text || {}), [key]: text } } };
++    });
++  }, []);
+ 
+   async function handleSubmit(e: React.FormEvent) {
+     e.preventDefault();
+-    if (!form.id || !form.name) {
+-      alert('ID and Name are required');
+-      return;
+-    }
++    if (!form.id || !form.name) { alert('ID and Name required'); return; }
+     setSaving(true);
+     try {
+       await onSave({
+-        id: form.id,
+-        name: form.name,
++        id: form.id, name: form.name,
+         primary_color: form.primary_color || '#0c0b09',
+         accent_color: form.accent_color || '#d4af64',
+         font_heading: form.font_heading || 'Cormorant Garamond',
+@@ -368,159 +462,186 @@ function TemplateForm({
+         card_unit: form.card_unit || 'mm',
+         layout_config: form.layout_config || {},
+       });
+-    } catch (err) {
+-      alert(`Error: ${err}`);
+-    } finally {
+-      setSaving(false);
+-    }
++    } catch (err) { alert(`Error: ${err}`); }
++    finally { setSaving(false); }
+   }
+ 
++  const w = form.card_width || 88;
++  const h = form.card_height || 63;
++
++  // Compute canvas pixel size to fill ~500px on longest side
++  const maxPx = 480;
++  const scale = maxPx / Math.max(w, h);
++  const scalePx = { w: Math.round(w * scale), h: Math.round(h * scale) };
++
++  const border = { ...DEFAULT_BORDER, ...(layout.border || {}) };
++
+   return (
+     <form onSubmit={handleSubmit} style={{
+-      background: 'var(--color-surface, #1a1a1a)',
+-      borderRadius: '12px',
+-      border: '1px solid rgba(255,255,255,0.1)',
+-      overflow: 'hidden',
++      position: 'fixed', inset: 0, zIndex: 1000, background: '#0e0e0e',
++      display: 'grid', gridTemplateColumns: '300px 1fr', overflow: 'hidden',
+     }}>
+-      {/* Header */}
+-      <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+-        <h3 style={{ margin: 0, color: 'white', fontSize: '1rem' }}>
+-          {isNew ? '✨ New Template' : `✏️ ${form.name}`}
+-        </h3>
+-        <div style={{ display: 'flex', gap: '0.5rem' }}>
+-          <button type="submit" disabled={saving} className="btn-primary" style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', opacity: saving ? 0.5 : 1 }}>
+-            {saving ? '...' : isNew ? 'Create' : 'Save'}
+-          </button>
+-          <button type="button" onClick={onCancel} className="btn-ghost" style={{ padding: '0.4rem 1rem', fontSize: '0.8rem' }}>
+-            Cancel
+-          </button>
++      {/* ── LEFT PANEL ── */}
++      <div style={{
++        background: '#131313', borderRight: '1px solid rgba(255,255,255,0.05)',
++        display: 'flex', flexDirection: 'column', overflowY: 'auto',
++      }}>
++        {/* Header */}
++        <div style={{
++          padding: '0.6rem', borderBottom: '1px solid rgba(255,255,255,0.05)',
++          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
++          position: 'sticky', top: 0, background: '#131313', zIndex: 10,
++        }}>
++          <button type="button" onClick={onCancel} style={{
++            background: 'none', border: 'none', color: 'rgba(255,255,255,0.45)', cursor: 'pointer', fontSize: '0.75rem',
++          }}>← Back</button>
++          <button type="submit" disabled={saving} style={{
++            background: 'var(--color-gold, #d4af64)', color: '#000', border: 'none',
++            padding: '0.3rem 0.8rem', borderRadius: '4px', cursor: 'pointer',
++            fontSize: '0.7rem', fontWeight: 600, opacity: saving ? 0.5 : 1,
++          }}>{saving ? '...' : isNew ? '✨ Create' : '💾 Save'}</button>
+         </div>
+-      </div>
+-
+-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 0 }}>
+-        {/* Left: All fields */}
+-        <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', borderRight: '1px solid rgba(255,255,255,0.06)', overflowY: 'auto', maxHeight: '600px' }}>
+ 
+-          {/* Identity */}
+-          <fieldset style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '0.75rem', margin: 0 }}>
+-            <legend style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', padding: '0 0.3rem' }}>IDENTITY</legend>
+-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+-              <InputRow label="ID (slug)" value={form.id || ''} onChange={v => update('id', v)} placeholder="dark-minimal-01" />
+-              <InputRow label="Name" value={form.name || ''} onChange={v => update('name', v)} placeholder="Dark Minimal" />
+-            </div>
+-          </fieldset>
+-
+-          {/* Card Size */}
+-          <fieldset style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '0.75rem', margin: 0 }}>
+-            <legend style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', padding: '0 0.3rem' }}>📐 CARD SIZE</legend>
+-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
+-              <InputRow label="Width" value={form.card_width || 88} onChange={v => update('card_width', Number(v))} type="number" min={30} max={200} step={1} />
+-              <InputRow label="Height" value={form.card_height || 63} onChange={v => update('card_height', Number(v))} type="number" min={30} max={200} step={1} />
+-              <InputRow label="Unit" value={form.card_unit || 'mm'} onChange={v => update('card_unit', v)} placeholder="mm" />
+-            </div>
+-            <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+-              {[
+-                { label: '88×63 (Landscape)', w: 88, h: 63 },
+-                { label: '63×88 (Portrait)', w: 63, h: 88 },
+-                { label: '70×120 (Tarot)', w: 70, h: 120 },
+-                { label: '89×51 (Business)', w: 89, h: 51 },
+-                { label: '100×100 (Square)', w: 100, h: 100 },
+-              ].map(p => (
+-                <button
+-                  key={p.label}
+-                  type="button"
+-                  onClick={() => { update('card_width', p.w); update('card_height', p.h); }}
+-                  style={{
+-                    padding: '0.2rem 0.5rem', fontSize: '0.65rem', cursor: 'pointer',
+-                    background: (form.card_width === p.w && form.card_height === p.h) ? 'var(--color-gold, #d4af64)' : 'rgba(255,255,255,0.05)',
+-                    color: (form.card_width === p.w && form.card_height === p.h) ? '#000' : 'rgba(255,255,255,0.6)',
+-                    border: '1px solid rgba(255,255,255,0.1)', borderRadius: '3px',
+-                  }}
+-                >
+-                  {p.label}
+-                </button>
+-              ))}
+-            </div>
+-          </fieldset>
+-
+-          {/* Colors */}
+-          <fieldset style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '0.75rem', margin: 0 }}>
+-            <legend style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', padding: '0 0.3rem' }}>🎨 COLORS</legend>
+-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+-              <ColorInput label="Primary" value={form.primary_color || '#0c0b09'} onChange={v => update('primary_color', v)} />
+-              <ColorInput label="Accent" value={form.accent_color || '#d4af64'} onChange={v => update('accent_color', v)} />
+-              <ColorInput label="Background" value={form.background || ''} onChange={v => update('background', v)} />
+-              <ColorInput label="Text" value={form.text_color || ''} onChange={v => update('text_color', v)} />
+-            </div>
+-            <div style={{ marginTop: '0.5rem' }}>
+-              <ColorInput label="Surface" value={form.surface_color || ''} onChange={v => update('surface_color', v)} />
+-            </div>
+-          </fieldset>
+-
+-          {/* Fonts */}
+-          <fieldset style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '0.75rem', margin: 0 }}>
+-            <legend style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', padding: '0 0.3rem' }}>✒️ FONTS</legend>
+-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+-              <InputRow label="Heading" value={form.font_heading || 'Cormorant Garamond'} onChange={v => update('font_heading', v)} />
+-              <InputRow label="Body" value={form.font_body || 'Inter'} onChange={v => update('font_body', v)} />
+-            </div>
+-          </fieldset>
+-
+-          {/* Layout / Elements */}
+-          <fieldset style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '0.75rem', margin: 0 }}>
+-            <legend style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', padding: '0 0.3rem' }}>📋 BACK FACE LAYOUT</legend>
+-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem' }}>
+-              <ToggleRow label="When to Use" checked={elems.show_when_to_use !== false} onChange={v => updateElems({ show_when_to_use: v })} />
+-              <ToggleRow label="Phrase" checked={elems.show_phrase !== false} onChange={v => updateElems({ show_phrase: v })} />
+-              <ToggleRow label="Instruction" checked={elems.show_instruction !== false} onChange={v => updateElems({ show_instruction: v })} />
+-              <ToggleRow label="Fun Fact" checked={elems.show_fun_fact !== false} onChange={v => updateElems({ show_fun_fact: v })} />
+-              <ToggleRow label="QR Code" checked={elems.show_qr !== false} onChange={v => updateElems({ show_qr: v })} />
+-              <ToggleRow label="Brand" checked={elems.show_brand !== false} onChange={v => updateElems({ show_brand: v })} />
+-            </div>
++        <Section title="Identity" icon="🏷️">
++          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
++            <InputRow label="ID" value={form.id || ''} onChange={v => update('id', v)} placeholder="mi-template" />
++            <InputRow label="Name" value={form.name || ''} onChange={v => update('name', v)} placeholder="Template Name" />
++          </div>
++        </Section>
+ 
+-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', marginTop: '0.75rem' }}>
+-              <InputRow label="Phrase size (rem)" value={layout.font_sizes?.phrase || 0.7} onChange={v => updateFontSizes({ phrase: Number(v) })} type="number" min={0.3} max={2} step={0.05} />
+-              <InputRow label="Label size" value={layout.font_sizes?.when_to_use || 0.45} onChange={v => updateFontSizes({ when_to_use: Number(v) })} type="number" min={0.2} max={1} step={0.05} />
+-              <InputRow label="Body size" value={layout.font_sizes?.instruction || 0.45} onChange={v => updateFontSizes({ instruction: Number(v) })} type="number" min={0.2} max={1} step={0.05} />
+-            </div>
++        <Section title="Card Size" icon="📐">
++          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem' }}>
++            <InputRow label="Width mm" value={w} onChange={v => update('card_width', Number(v))} type="number" min={30} max={200} />
++            <InputRow label="Height mm" value={h} onChange={v => update('card_height', Number(v))} type="number" min={30} max={200} />
++          </div>
++          <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.4rem' }}>
++            {[
++              { l: '88×63', w: 88, h: 63 }, { l: '63×88', w: 63, h: 88 },
++              { l: '70×120', w: 70, h: 120 }, { l: '89×51', w: 89, h: 51 },
++            ].map(p => {
++              const active = form.card_width === p.w && form.card_height === p.h;
++              return (
++                <button key={p.l} type="button" onClick={() => { update('card_width', p.w); update('card_height', p.h); }}
++                  style={{ padding: '0.15rem 0.4rem', fontSize: '0.6rem', cursor: 'pointer',
++                    background: active ? 'var(--color-gold, #d4af64)' : 'rgba(255,255,255,0.03)',
++                    color: active ? '#000' : 'rgba(255,255,255,0.45)',
++                    border: `1px solid ${active ? 'transparent' : 'rgba(255,255,255,0.06)'}`, borderRadius: '3px',
++                    fontWeight: active ? 600 : 400,
++                  }}>{p.l}</button>
++              );
++            })}
++          </div>
++        </Section>
++
++        <Section title="Colors" icon="🎨">
++          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
++            <ColorInput label="Primary" value={form.primary_color || '#0c0b09'} onChange={v => update('primary_color', v)} />
++            <ColorInput label="Accent" value={form.accent_color || '#d4af64'} onChange={v => update('accent_color', v)} />
++            <ColorInput label="Background" value={form.background || ''} onChange={v => update('background', v)} />
++            <ColorInput label="Text" value={form.text_color || ''} onChange={v => update('text_color', v)} />
++            <ColorInput label="Surface" value={form.surface_color || ''} onChange={v => update('surface_color', v)} />
++          </div>
++        </Section>
+ 
+-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', marginTop: '0.5rem' }}>
+-              <InputRow label="Padding (%)" value={layout.back_padding ?? 10} onChange={v => updateLayout({ back_padding: Number(v) })} type="number" min={2} max={25} step={1} />
+-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+-                <label style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Border</label>
+-                <select
+-                  value={layout.back_border_style ?? 'solid'}
+-                  onChange={(e) => updateLayout({ back_border_style: e.target.value as LayoutConfig['back_border_style'] })}
+-                  style={{ background: 'rgba(0,0,0,0.5)', color: 'white', border: '1px solid rgba(255,255,255,0.1)', padding: '0.4rem', borderRadius: '4px', fontSize: '0.8rem' }}
+-                >
+-                  <option value="solid">Solid</option>
+-                  <option value="dashed">Dashed</option>
+-                  <option value="dotted">Dotted</option>
+-                  <option value="none">None</option>
+-                </select>
+-              </div>
+-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+-                <label style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Align</label>
+-                <select
+-                  value={layout.content_align ?? 'center'}
+-                  onChange={(e) => updateLayout({ content_align: e.target.value as LayoutConfig['content_align'] })}
+-                  style={{ background: 'rgba(0,0,0,0.5)', color: 'white', border: '1px solid rgba(255,255,255,0.1)', padding: '0.4rem', borderRadius: '4px', fontSize: '0.8rem' }}
+-                >
+-                  <option value="center">Center</option>
+-                  <option value="left">Left</option>
+-                  <option value="right">Right</option>
++        <Section title="Fonts" icon="✒️">
++          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
++            <InputRow label="Heading" value={form.font_heading || 'Cormorant Garamond'} onChange={v => update('font_heading', v)} />
++            <InputRow label="Body" value={form.font_body || 'Inter'} onChange={v => update('font_body', v)} />
++          </div>
++        </Section>
++
++        <Section title="Border Frame" icon="🖼️" defaultOpen={false}>
++          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
++            <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.7rem', color: 'rgba(255,255,255,0.6)', cursor: 'pointer' }}>
++              <input type="checkbox" checked={border.visible} onChange={e => updateLayout({ border: { ...border, visible: e.target.checked } })}
++                style={{ accentColor: 'var(--color-gold, #d4af64)' }} /> Show border
++            </label>
++            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.25rem' }}>
++              <InputRow label="Inset %" value={border.inset} onChange={v => updateLayout({ border: { ...border, inset: Number(v) } })} type="number" min={1} max={20} />
++              <InputRow label="Opacity" value={border.opacity} onChange={v => updateLayout({ border: { ...border, opacity: Number(v) } })} type="number" min={0} max={1} step={0.05} />
++              <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
++                <label style={{ fontSize: '0.55rem', color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase' }}>Style</label>
++                <select value={border.style} onChange={e => updateLayout({ border: { ...border, style: e.target.value as 'solid' | 'dashed' | 'dotted' } })}
++                  style={{ background: 'rgba(0,0,0,0.4)', color: 'white', border: '1px solid rgba(255,255,255,0.07)', padding: '0.3rem', borderRadius: '3px', fontSize: '0.7rem' }}>
++                  <option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option>
+                 </select>
+               </div>
+             </div>
+-          </fieldset>
+-        </div>
++          </div>
++        </Section>
++
++        <Section title="Back Elements" icon="📋">
++          {([
++            { key: 'when_to_use' as BackElementKey, label: 'When to Use' },
++            { key: 'phrase' as BackElementKey, label: 'Phrase' },
++            { key: 'instruction' as BackElementKey, label: 'Instruction' },
++            { key: 'fun_fact' as BackElementKey, label: 'Fun Fact' },
++            { key: 'answer' as BackElementKey, label: 'Answer' },
++            { key: 'qr' as BackElementKey, label: 'QR Code' },
++            { key: 'brand' as BackElementKey, label: 'Brand' },
++          ]).map(({ key, label }) => (
++            <ElementEditor
++              key={key}
++              elemKey={key}
++              label={label}
++              el={getElement(layout, key)}
++              text={getSampleText(layout, key)}
++              onUpdate={updateElement}
++              onUpdateText={updateSampleText}
++            />
++          ))}
++        </Section>
++      </div>
+ 
+-        {/* Right: Live Card Preview */}
+-        <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.2)' }}>
+-          <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+-            ♠ Live Card Preview
++      {/* ── RIGHT: CANVAS ── */}
++      <div style={{
++        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
++        background: '#090909', position: 'relative', overflow: 'hidden',
++      }}>
++        {/* Grid bg */}
++        <div style={{
++          position: 'absolute', inset: 0, opacity: 0.03,
++          backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.5) 1px, transparent 1px)',
++          backgroundSize: '20px 20px', pointerEvents: 'none',
++        }} />
++
++        {/* Top bar */}
++        <div style={{
++          position: 'absolute', top: 0, left: 0, right: 0, padding: '0.8rem 1.2rem',
++          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
++          background: 'linear-gradient(to bottom, rgba(0,0,0,0.5), transparent)', zIndex: 5,
++        }}>
++          <div style={{ display: 'flex', gap: '0.4rem' }}>
++            {(['front', 'back'] as const).map(s => (
++              <button key={s} type="button" onClick={() => setPreviewSide(s)} style={{
++                padding: '0.3rem 0.8rem', fontSize: '0.7rem', cursor: 'pointer',
++                background: previewSide === s ? 'rgba(255,255,255,0.1)' : 'transparent',
++                color: previewSide === s ? 'white' : 'rgba(255,255,255,0.35)',
++                border: `1px solid ${previewSide === s ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.05)'}`,
++                borderRadius: '4px', textTransform: 'capitalize', transition: 'all 0.15s',
++              }}>{s === 'front' ? '♠ Front' : '♦ Back'}</button>
++            ))}
++          </div>
++          <span style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.25)', fontFamily: 'monospace' }}>
++            {w}×{h}mm · {scalePx.w}×{scalePx.h}px
+           </span>
+-          <CardPreview template={form} />
++        </div>
++
++        {/* Card */}
++        <div style={{ cursor: 'pointer' }} onClick={() => setPreviewSide(s => s === 'front' ? 'back' : 'front')}>
++          {previewSide === 'front' ? (
++            <FrontFaceCanvas template={form} scalePx={scalePx} />
++          ) : (
++            <BackFaceCanvas template={form} layout={layout} scalePx={scalePx} />
++          )}
++        </div>
++
++        {/* Footer */}
++        <div style={{
++          position: 'absolute', bottom: '0.8rem', left: 0, right: 0,
++          textAlign: 'center', color: 'rgba(255,255,255,0.15)', fontSize: '0.65rem',
++        }}>
++          Click card to flip · {form.name || 'Untitled'}
+         </div>
+       </div>
+     </form>
+@@ -537,168 +658,90 @@ export default function AdminTemplates() {
+ 
+   async function loadTemplates() {
+     setLoading(true);
+-    try {
+-      const data = await repo.getAll();
+-      setTemplates(data);
+-    } catch (err) {
+-      console.error(err);
+-    } finally {
+-      setLoading(false);
+-    }
++    try { setTemplates(await repo.getAll()); }
++    catch (err) { console.error(err); }
++    finally { setLoading(false); }
+   }
+ 
+-  useEffect(() => { loadTemplates(); }, []);
++  React.useEffect(() => { loadTemplates(); }, []);
++
++  const editingTemplate = editingId ? templates.find(t => t.id === editingId) : null;
+ 
+   async function handleCreate(t: DesignTemplateInput) {
+-    await repo.create(t);
+-    setCreating(false);
+-    await loadTemplates();
++    await repo.create(t); setCreating(false); await loadTemplates();
+   }
+-
+   async function handleUpdate(t: DesignTemplateInput) {
+-    await repo.update(t.id, t);
+-    setEditingId(null);
+-    await loadTemplates();
++    await repo.update(t.id, t); setEditingId(null); await loadTemplates();
+   }
+-
+   async function handleDelete(id: string) {
+-    if (!confirm(`Delete template "${id}"? Editions using it will need to be reassigned.`)) return;
+-    await repo.delete(id);
+-    await loadTemplates();
++    if (!confirm(`Delete "${id}"?`)) return;
++    await repo.delete(id); await loadTemplates();
++  }
++
++  if (creating) {
++    return <TemplateEditor initial={{
++      font_heading: 'Cormorant Garamond', font_body: 'Inter',
++      primary_color: '#0c0b09', accent_color: '#d4af64',
++      card_width: 88, card_height: 63, card_unit: 'mm', layout_config: {},
++    }} onSave={handleCreate} onCancel={() => setCreating(false)} isNew />;
++  }
++
++  if (editingTemplate) {
++    return <TemplateEditor initial={editingTemplate} onSave={handleUpdate} onCancel={() => setEditingId(null)} isNew={false} />;
+   }
+ 
+   return (
+-    <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto', color: 'white' }}>
+-      {/* Header */}
++    <div style={{ padding: '2rem', maxWidth: '1000px', margin: '0 auto', color: 'white' }}>
+       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+         <div>
+           <Link to="/admin" style={{ color: 'var(--color-gold, #d4af64)', textDecoration: 'none', fontSize: '0.85rem' }}>&larr; Dashboard</Link>
+           <h1 style={{ margin: '0.5rem 0 0' }}>🎨 Design Templates</h1>
+         </div>
+-        {!creating && (
+-          <button
+-            onClick={() => { setCreating(true); setEditingId(null); }}
+-            className="btn-primary"
+-            style={{ fontSize: '0.85rem' }}
+-          >
+-            + New Template
+-          </button>
+-        )}
++        <button onClick={() => setCreating(true)} className="btn-primary" style={{ fontSize: '0.85rem' }}>+ New Template</button>
+       </div>
+-      <p style={{ opacity: 0.5, marginBottom: '2rem', fontSize: '0.9rem' }}>
+-        Each template controls colors, fonts, card dimensions, and back-face layout. Assign a template to each edition.
+-      </p>
+-
+-      {/* Create new */}
+-      {creating && (
+-        <div style={{ marginBottom: '2rem' }}>
+-          <TemplateForm
+-            initial={{
+-              font_heading: 'Cormorant Garamond', font_body: 'Inter',
+-              primary_color: '#0c0b09', accent_color: '#d4af64',
+-              card_width: 88, card_height: 63, card_unit: 'mm',
+-              layout_config: {},
++      <p style={{ opacity: 0.5, marginBottom: '2rem', fontSize: '0.9rem' }}>Click a template to open the editor.</p>
++
++      {loading && <p style={{ opacity: 0.5 }}>Loading...</p>}
++
++      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1rem' }}>
++        {templates.map((tpl) => {
++          const bg = tpl.background || tpl.primary_color;
++          const accent = tpl.accent_color;
++          return (
++            <div key={tpl.id} onClick={() => setEditingId(tpl.id)} style={{
++              background: '#1a1a1a', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.07)',
++              overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.15s, box-shadow 0.15s',
+             }}
+-            onSave={handleCreate}
+-            onCancel={() => setCreating(false)}
+-            isNew
+-          />
+-        </div>
+-      )}
+-
+-      {loading && <p style={{ opacity: 0.5 }}>Loading templates...</p>}
+-
+-      {/* Template list */}
+-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+-        {templates.map((tpl) => (
+-          <div key={tpl.id}>
+-            {editingId === tpl.id ? (
+-              <TemplateForm
+-                initial={tpl}
+-                onSave={handleUpdate}
+-                onCancel={() => setEditingId(null)}
+-                isNew={false}
+-              />
+-            ) : (
+-              /* Collapsed card row */
+-              <div style={{
+-                background: 'var(--color-surface, #1a1a1a)',
+-                borderRadius: '12px',
+-                border: '1px solid rgba(255,255,255,0.08)',
+-                display: 'grid',
+-                gridTemplateColumns: '1fr 300px',
+-                overflow: 'hidden',
+-              }}>
+-                {/* Info side */}
+-                <div style={{ padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+-                    <h3 style={{ margin: 0, fontSize: '1rem' }}>{tpl.name}</h3>
+-                    <code style={{ fontSize: '0.65rem', opacity: 0.35, background: 'rgba(255,255,255,0.05)', padding: '0.1rem 0.35rem', borderRadius: '3px' }}>
+-                      {tpl.id}
+-                    </code>
+-                    <span style={{ fontSize: '0.65rem', opacity: 0.35, marginLeft: 'auto' }}>
+-                      {tpl.card_width}×{tpl.card_height}{tpl.card_unit}
+-                    </span>
+-                  </div>
+-
+-                  {/* Color swatches */}
+-                  <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
+-                    {[
+-                      { label: 'Primary', color: tpl.primary_color },
+-                      { label: 'Accent', color: tpl.accent_color },
+-                      ...(tpl.background ? [{ label: 'BG', color: tpl.background }] : []),
+-                      ...(tpl.text_color ? [{ label: 'Text', color: tpl.text_color }] : []),
+-                      ...(tpl.surface_color ? [{ label: 'Surface', color: tpl.surface_color }] : []),
+-                    ].map((c) => (
+-                      <div key={c.label} style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+-                        <div style={{ width: '12px', height: '12px', borderRadius: '2px', background: c.color, border: '1px solid rgba(255,255,255,0.15)' }} />
+-                        <span style={{ fontSize: '0.65rem', opacity: 0.4 }}>{c.label}</span>
+-                      </div>
+-                    ))}
+-                    <span style={{ fontSize: '0.65rem', opacity: 0.3, marginLeft: '0.5rem' }}>
+-                      {tpl.font_heading} / {tpl.font_body}
+-                    </span>
+-                  </div>
+-
+-                  {/* Actions */}
+-                  <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.25rem' }}>
+-                    <button
+-                      onClick={() => { setEditingId(tpl.id); setCreating(false); }}
+-                      style={{
+-                        background: 'transparent', border: '1px solid rgba(255,255,255,0.15)',
+-                        color: 'white', padding: '0.25rem 0.7rem', borderRadius: '4px',
+-                        cursor: 'pointer', fontSize: '0.7rem',
+-                      }}
+-                    >
+-                      ✏️ Edit
+-                    </button>
+-                    <button
+-                      onClick={() => handleDelete(tpl.id)}
+-                      style={{
+-                        background: 'transparent', border: '1px solid rgba(239,68,68,0.3)',
+-                        color: '#ef4444', padding: '0.25rem 0.7rem', borderRadius: '4px',
+-                        cursor: 'pointer', fontSize: '0.7rem',
+-                      }}
+-                    >
+-                      🗑️
+-                    </button>
+-                  </div>
++              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.3)'; }}
++              onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; }}
++            >
++              <div style={{ height: '50px', display: 'flex' }}>
++                <div style={{ flex: 2, background: bg }} />
++                <div style={{ flex: 1, background: accent }} />
++                {tpl.surface_color && <div style={{ flex: 1, background: tpl.surface_color }} />}
++              </div>
++              <div style={{ padding: '0.6rem 0.8rem' }}>
++                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
++                  <h3 style={{ margin: 0, fontSize: '0.85rem' }}>{tpl.name}</h3>
++                  <button onClick={e => { e.stopPropagation(); handleDelete(tpl.id); }} style={{
++                    background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.7rem', opacity: 0.4,
++                  }}>🗑️</button>
+                 </div>
+-
+-                {/* Mini preview */}
+-                <div style={{ padding: '0.75rem', borderLeft: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.15)' }}>
+-                  <CardPreview template={tpl} />
++                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.2rem' }}>
++                  <code style={{ fontSize: '0.6rem', opacity: 0.25 }}>{tpl.id}</code>
++                  <span style={{ fontSize: '0.6rem', opacity: 0.25, fontFamily: 'monospace' }}>{tpl.card_width}×{tpl.card_height}mm</span>
+                 </div>
+               </div>
+-            )}
+-          </div>
+-        ))}
++            </div>
++          );
++        })}
+       </div>
+ 
+       {!loading && templates.length === 0 && (
+-        <p style={{ opacity: 0.4, textAlign: 'center', padding: '3rem 0' }}>
+-          No templates yet. Create your first one to get started.
+-        </p>
++        <div style={{ textAlign: 'center', padding: '4rem 0', opacity: 0.4 }}>
++          <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🎨</p>
++          <p>No templates yet.</p>
++        </div>
+       )}
+     </div>
+   );

@@ -10,6 +10,7 @@ export default function AdminPrintView() {
   const [sheetSize, setSheetSize] = useState<'A3' | 'A4'>('A3');
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [genError, setGenError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!deck) return;
@@ -26,8 +27,9 @@ export default function AdminPrintView() {
         const blob = new Blob([new Uint8Array(uint8Array)], { type: 'application/pdf' });
         const url = URL.createObjectURL(blob);
         setPdfUrl(url);
-      } catch (err) {
+      } catch (err: any) {
         console.error('Failed to generate PDF', err);
+        if (isActive) setGenError(err.stack || err.toString());
       } finally {
         if (isActive) setIsGenerating(false);
       }
@@ -50,6 +52,10 @@ export default function AdminPrintView() {
 
   if (error || !deck) {
     return <div style={{ color: 'white', padding: '2rem' }}>Deck not found. {error}</div>;
+  }
+
+  if (genError) {
+    return <div style={{ color: 'red', padding: '2rem', whiteSpace: 'pre-wrap' }}>{genError}</div>;
   }
 
   const widthMm = deck.print_specs?.dimensions?.width || 88;
