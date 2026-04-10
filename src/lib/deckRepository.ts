@@ -43,11 +43,11 @@ export class SupabaseDeckRepository implements IDeckRepository {
       console.warn(`[SupabaseDeckRepository] getDeckById cards error for slug ${id}:`, cardsError);
     }
 
-    let dbDesignOverrides: Record<string, string> = {};
+    let dbDesignOverrides: Record<string, unknown> = {};
     if (edition.design_template_id) {
       const { data: dt, error: dtError } = await this.client
         .from('baraja_design_templates')
-        .select('primary_color, accent_color, text_color, background, font_heading, font_body, layout_config')
+        .select('primary_color, accent_color, text_color, background, font_heading, font_body, layout_config, qr_color')
         .eq('id', edition.design_template_id)
         .single();
         
@@ -78,6 +78,7 @@ export class SupabaseDeckRepository implements IDeckRepository {
         ...dbDesignOverrides,
         ...(edition.design_template_overrides || {})
       },
+      landing_config: edition.landing_config || {},
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       cards: (cards || []).map((card: any) => ({
         id: card.id,
@@ -127,6 +128,9 @@ export class SupabaseDeckRepository implements IDeckRepository {
     if (updates.design_template_overrides !== undefined) {
       payload.design_template_overrides = updates.design_template_overrides;
     }
+    if (updates.landing_config !== undefined) {
+      payload.landing_config = updates.landing_config;
+    }
 
     if (Object.keys(payload).length > 0) {
       const { error } = await this.client
@@ -138,6 +142,25 @@ export class SupabaseDeckRepository implements IDeckRepository {
         console.error(`[SupabaseDeckRepository] updateDeckSettings error for ${id}:`, error);
         throw error;
       }
+    }
+  }
+
+  /**
+   * Assigns a design preset to an edition and clears any per-edition overrides.
+   * This is the "clean" assignment path — the preset owns all visual config.
+   */
+  async assignPreset(editionSlug: string, presetId: string): Promise<void> {
+    const { error } = await this.client
+      .from('baraja_editions')
+      .update({
+        design_template_id: presetId,
+        design_template_overrides: {}, // Clear overrides — preset is the source of truth
+      })
+      .eq('slug', editionSlug);
+
+    if (error) {
+      console.error(`[SupabaseDeckRepository] assignPreset error:`, error);
+      throw error;
     }
   }
 }
@@ -175,6 +198,8 @@ export interface ElementLayout {
   lineHeight?: number;
   /** Use accent color instead of text color */
   useAccentColor?: boolean;
+  /** Explicit color override (hex / rgba) — takes precedence over theme defaults */
+  color?: string;
 }
 
 /** Named elements on the back face */
@@ -208,10 +233,13 @@ export interface DesignTemplateRow {
   card_height: number;
   card_unit: string;
   layout_config: LayoutConfig;
+  /** QR code foreground color for this preset. Null = use theme default. */
+  qr_color: string | null;
   created_at: string;
   updated_at: string;
 }
 
+export type DesignTemplateId = string;
 export type DesignTemplateInput = Omit<DesignTemplateRow, 'created_at' | 'updated_at'>;
 
 export class DesignTemplateRepository {

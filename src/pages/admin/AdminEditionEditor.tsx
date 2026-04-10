@@ -20,7 +20,9 @@ export default function AdminEditionEditor() {
   const [editingCard, setEditingCard] = useState<Card | null>(null);
   const [, setSaving] = useState(false);
   const [generatingArt, setGeneratingArt] = useState<Record<string, boolean>>({});
+  const [generatingBack, setGeneratingBack] = useState<Record<string, boolean>>({});
   const [batchGenerating, setBatchGenerating] = useState(false);
+  const [batchGeneratingBacks, setBatchGeneratingBacks] = useState(false);
   const [viewMode, setViewMode] = useState<'print' | 'original' | 'gallery'>('gallery');
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -38,7 +40,7 @@ export default function AdminEditionEditor() {
   async function handleGenerateArt(cardId: string, force = true) {
     setGeneratingArt(prev => ({ ...prev, [cardId]: true }));
     try {
-      const res = await fetch('/api/admin/generate-art', {
+      const res = await fetch('/__cms__/generate-art', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ deckId, cardId, force }),
@@ -73,6 +75,41 @@ export default function AdminEditionEditor() {
     setBatchGenerating(false);
   }
 
+  async function handleGenerateCardBack(cardId: string, force = true) {
+    setGeneratingBack(prev => ({ ...prev, [cardId]: true }));
+    try {
+      const res = await fetch('/__cms__/generate-card-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deckId, cardId, force }),
+      });
+      const result = await res.json() as { success?: boolean; back_image_url?: string; skipped?: boolean; error?: string };
+      if (result.success && result.back_image_url) {
+        setCards(prev => prev.map(c => {
+          if (c.id !== cardId) return c;
+          return { ...c, back: { ...c.back, back_image_url: result.back_image_url } };
+        }));
+      } else if (!result.skipped) {
+        alert(`Failed: ${result.error || 'Unknown error'}`);
+      }
+    } catch (err: unknown) {
+      alert(`Network error: ${(err as Error).message}`);
+    } finally {
+      setGeneratingBack(prev => ({ ...prev, [cardId]: false }));
+    }
+  }
+
+  async function handleBatchGenerateCardBacks(force = false) {
+    const targets = force ? cards : cards.filter(c => !c.back.back_image_url);
+    if (targets.length === 0) { alert('All cards already have AI back images.'); return; }
+    if (!confirm(`Generate AI card backs for ${targets.length} cards?\nThis will take ~${Math.ceil(targets.length * 4 / 60)} min and use Imagen 4 credits.`)) return;
+    setBatchGeneratingBacks(true);
+    for (const card of targets) {
+      await handleGenerateCardBack(card.id, force);
+    }
+    setBatchGeneratingBacks(false);
+  }
+
   async function handleRestoreVersion(cardId: string, versionUrl: string) {
     setSaving(true);
     try {
@@ -91,7 +128,7 @@ export default function AdminEditionEditor() {
         art_versions: newVersions,
       };
 
-      const response = await fetch('/api/admin/save-edition', {
+      const response = await fetch('/__cms__/save-edition', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -125,7 +162,7 @@ export default function AdminEditionEditor() {
     
     setSaving(true);
     try {
-      const response = await fetch('/api/admin/save-edition', {
+      const response = await fetch('/__cms__/save-edition', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -159,7 +196,7 @@ export default function AdminEditionEditor() {
     if (!confirmDelete) return;
 
     try {
-      const res = await fetch(`/api/admin/delete-edition/${deckId}`, {
+      const res = await fetch(`/__cms__/delete-edition/${deckId}`, {
         method: 'DELETE'
       });
       if (res.ok) {
@@ -236,17 +273,31 @@ export default function AdminEditionEditor() {
             </div>
             <button
               onClick={() => handleBatchGenerate(false)}
-              disabled={batchGenerating}
+              disabled={batchGenerating || batchGeneratingBacks}
               style={{ background: 'transparent', border: '1px solid #4ade80', color: '#4ade80', padding: '0.5rem 1rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem', opacity: batchGenerating ? 0.5 : 1 }}
             >
               {batchGenerating ? '🎨 Generating...' : '🎨 Generate Missing Art'}
             </button>
             <button
               onClick={() => handleBatchGenerate(true)}
-              disabled={batchGenerating}
+              disabled={batchGenerating || batchGeneratingBacks}
               style={{ background: 'transparent', border: '1px solid #f97316', color: '#f97316', padding: '0.5rem 1rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem', opacity: batchGenerating ? 0.5 : 1 }}
             >
               🔄 Regen ALL Art
+            </button>
+            <button
+              onClick={() => handleBatchGenerateCardBacks(false)}
+              disabled={batchGenerating || batchGeneratingBacks}
+              style={{ background: 'transparent', border: '1px solid #a78bfa', color: '#a78bfa', padding: '0.5rem 1rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem', opacity: batchGeneratingBacks ? 0.5 : 1 }}
+            >
+              {batchGeneratingBacks ? '🎴 Generating Backs...' : '🎴 Generate Missing Backs'}
+            </button>
+            <button
+              onClick={() => handleBatchGenerateCardBacks(true)}
+              disabled={batchGenerating || batchGeneratingBacks}
+              style={{ background: 'transparent', border: '1px solid #c084fc', color: '#c084fc', padding: '0.5rem 1rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem', opacity: batchGeneratingBacks ? 0.5 : 1 }}
+            >
+              🔄 Regen ALL Backs
             </button>
             <button
               onClick={() => setShowSettingsModal(true)}
@@ -290,8 +341,10 @@ export default function AdminEditionEditor() {
                     deck={deck}
                     onEdit={setEditingCard}
                     onGenerateArt={(cId) => handleGenerateArt(cId)}
+                    onGenerateCardBack={(cId) => handleGenerateCardBack(cId)}
                     onRestoreVersion={handleRestoreVersion}
                     isGeneratingArt={!!generatingArt[card.id]}
+                    isGeneratingBack={!!generatingBack[card.id]}
                   />
                ))}
 
@@ -332,7 +385,15 @@ export default function AdminEditionEditor() {
                        disabled={!!generatingArt[card.id]}
                        style={{ background: 'rgba(0,0,0,0.7)', border: '1px solid #4ade80', padding: '0.2rem 0.5rem', color: '#4ade80', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem', opacity: generatingArt[card.id] ? 0.5 : 1 }}
                     >
-                       Regen
+                       {generatingArt[card.id] ? '...' : 'Art'}
+                    </button>
+                    <button 
+                       onClick={() => handleGenerateCardBack(card.id)}
+                       disabled={!!generatingBack[card.id]}
+                       style={{ background: 'rgba(0,0,0,0.7)', border: `1px solid ${card.back.back_image_url ? '#a78bfa' : 'rgba(167,139,250,0.4)'}`, padding: '0.2rem 0.5rem', color: '#a78bfa', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem', opacity: generatingBack[card.id] ? 0.5 : 1 }}
+                       title={card.back.back_image_url ? 'Regenerate AI card back' : 'Generate AI card back'}
+                    >
+                       {generatingBack[card.id] ? '...' : card.back.back_image_url ? '🎴✓' : '🎴'}
                     </button>
                  </div>
                  <CardCanvas

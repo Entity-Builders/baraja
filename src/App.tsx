@@ -3,15 +3,8 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import './index.css';
 
 const BarajaLanding = lazy(() => import('./pages/BarajaLanding'));
-const CableATierraLanding = lazy(() => import('./editions/cable-a-tierra/index'));
-const BarometroLanding = lazy(() => import('./editions/barometro/index'));
+const DynamicEditionLanding = lazy(() => import('./pages/DynamicEditionLanding'));
 const AdminApp = lazy(() => import('./pages/admin/AdminApp'));
-
-// Edition slug → component map
-const EDITION_COMPONENTS: Record<string, React.ComponentType> = {
-  'cable-a-tierra': CableATierraLanding,
-  'barometro': BarometroLanding,
-};
 
 function getEditionSlug(): string | null {
   const hostname = window.location.hostname;
@@ -50,11 +43,10 @@ function LoadingScreen() {
 
 function PublicApp() {
   const editionSlug = getEditionSlug();
-  const EditionComponent = editionSlug ? EDITION_COMPONENTS[editionSlug] : null;
 
   return (
     <Suspense fallback={<LoadingScreen />}>
-      {EditionComponent ? <EditionComponent /> : <BarajaLanding />}
+      {editionSlug ? <DynamicEditionLanding slug={editionSlug} /> : <BarajaLanding />}
     </Suspense>
   );
 }

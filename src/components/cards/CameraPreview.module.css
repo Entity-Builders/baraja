@@ -1,0 +1,338 @@
+/* ── CameraPreview.module.css ── v2
+   Premium camera overlay with gyroscope 3D, holographic shine,
+   dynamic shadows, and vignette depth.
+*/
+
+/* ── Fullscreen Overlay ── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(1.02); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* ── Camera Feed ── */
+.videoFeed {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+
+/* ── Vignette — cinematic depth, makes card pop ── */
+.vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 70% 70% at 50% 50%,
+    transparent 40%,
+    rgba(0, 0, 0, 0.45) 80%,
+    rgba(0, 0, 0, 0.7) 100%
+  );
+}
+
+/* ── Card Layer ── */
+.cardLayer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  touch-action: none;
+  perspective: 1000px;
+}
+
+.cardTransform {
+  position: relative;
+  will-change: transform;
+  transition: width 0.15s ease-out;
+  transform-style: preserve-3d;
+  /* Default perspective when gyro is off */
+  transform: perspective(800px) rotateY(0deg) rotateX(0deg);
+}
+
+.cardInner {
+  position: relative;
+  width: 100%;
+  border-radius: 12px;
+  overflow: visible;
+}
+
+/* ── Dynamic Shadow (under card, moves with gyro) ── */
+.dynamicShadow {
+  position: absolute;
+  inset: 5% 5% -5% 5%;
+  border-radius: 12px;
+  z-index: -1;
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.7),
+    0 0 80px rgba(0, 0, 0, 0.3);
+  transition: box-shadow 0.05s linear;
+}
+
+/* ── Holographic Shine (on top of card, moves with gyro) ── */
+.holoShine {
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  /* Default — will be overridden by JS */
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    rgba(255, 255, 255, 0.2) 0%,
+    rgba(255, 255, 255, 0.05) 30%,
+    transparent 70%
+  );
+  mix-blend-mode: overlay;
+}
+
+/* ── Top Bar ── */
+.topBar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  padding-top: max(1.25rem, env(safe-area-inset-top, 1.25rem));
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.55) 0%,
+    rgba(0, 0, 0, 0.2) 60%,
+    transparent 100%
+  );
+}
+
+.topBarTitle {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #d4af64;
+  letter-spacing: 0.05em;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8);
+  max-width: 70%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btnClose {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: white;
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.btnClose:active {
+  background: rgba(255, 255, 255, 0.15);
+  transform: scale(0.92);
+}
+
+/* ── Bottom Controls ── */
+.bottomBar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  padding: 1.5rem 1.25rem;
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 1.5rem));
+  background: linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.65) 0%,
+    rgba(0, 0, 0, 0.3) 60%,
+    transparent 100%
+  );
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.controlsRow {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.btnControl {
+  height: 42px;
+  padding: 0 1rem;
+  border-radius: 21px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  color: rgba(255, 255, 255, 0.85);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btnControl:active {
+  background: rgba(255, 255, 255, 0.1);
+  transform: scale(0.95);
+}
+
+.btnControlActive {
+  border-color: rgba(212, 175, 100, 0.6);
+  color: #d4af64;
+  background: rgba(212, 175, 100, 0.1);
+}
+
+/* Scale slider */
+.scaleControl {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.65rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.scaleSlider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 140px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 1px;
+  outline: none;
+}
+
+.scaleSlider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #d4af64, #c49b50);
+  cursor: pointer;
+  border: 2px solid rgba(0, 0, 0, 0.3);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.5),
+    0 0 12px rgba(212, 175, 100, 0.3);
+}
+
+/* ── Hint overlay ── */
+.hint {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  pointer-events: none;
+  animation: hintAppear 0.5s ease-out, hintFade 0.8s ease-in 3.2s forwards;
+}
+
+.hintIcon {
+  font-size: 2rem;
+  animation: hintTilt 1.5s ease-in-out infinite;
+}
+
+@keyframes hintTilt {
+  0%, 100% { transform: rotate(-15deg); }
+  50% { transform: rotate(15deg); }
+}
+
+.hint span {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.8);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+  letter-spacing: 0.03em;
+}
+
+.hintSub {
+  font-size: 0.65rem !important;
+  color: rgba(255, 255, 255, 0.45) !important;
+  letter-spacing: 0.06em !important;
+}
+
+@keyframes hintAppear {
+  from { opacity: 0; transform: translate(-50%, -40%); }
+  to { opacity: 1; transform: translate(-50%, -50%); }
+}
+
+@keyframes hintFade {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* ── Error / Permission state ── */
+.permissionError {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  background: rgba(0, 0, 0, 0.95);
+  color: white;
+  font-family: 'Inter', sans-serif;
+  z-index: 5;
+  padding: 2rem;
+  text-align: center;
+}
+
+.permissionError h3 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.4rem;
+  color: #d4af64;
+  margin: 0;
+}
+
+.permissionError p {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.55);
+  max-width: 320px;
+  line-height: 1.6;
+  margin: 0;
+}

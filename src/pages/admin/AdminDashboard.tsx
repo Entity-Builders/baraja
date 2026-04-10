@@ -25,6 +25,9 @@ export default function AdminDashboard() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
         <h1>Baraja Admin</h1>
         <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <Link to="/admin/frames" className="btn-ghost" style={{ textDecoration: 'none', fontSize: '0.8rem' }}>
+            🖼️ Frames
+          </Link>
           <Link to="/admin/templates" className="btn-ghost" style={{ textDecoration: 'none', fontSize: '0.8rem' }}>
             🎨 Templates
           </Link>

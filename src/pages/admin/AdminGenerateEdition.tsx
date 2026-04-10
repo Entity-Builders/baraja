@@ -81,7 +81,7 @@ export default function AdminGenerateEdition() {
     addLog('progress', `🔍 Enriching ${items.length} items via OMDB...`);
 
     try {
-      const res = await fetch('/api/admin/enrich', {
+      const res = await fetch('/__cms__/enrich', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -120,7 +120,7 @@ export default function AdminGenerateEdition() {
 
     try {
       const payload = buildPayload();
-      const res = await fetch('/api/admin/preview-prompt', {
+      const res = await fetch('/__cms__/preview-prompt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -168,7 +168,7 @@ export default function AdminGenerateEdition() {
 
     try {
       const payload = buildPayload();
-      const res = await fetch('/api/admin/generate-edition', {
+      const res = await fetch('/__cms__/generate-edition', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -243,7 +243,7 @@ export default function AdminGenerateEdition() {
     { label: '🍷 Primera cita', topic: 'Mazo para romper el hielo en la primera cita', context: 'Divertido pero no cursi. Preguntas que revelan personalidad sin ser invasivas.', type: 'party' as DeckType },
     { label: '⚽ Trivia fútbol', topic: 'Trivia sobre la historia del fútbol argentino', context: 'Mezcla de dificultades. Desde clásicos hasta datos poco conocidos.', type: 'trivia' as DeckType },
     { label: '🎬 Trivia cine', topic: 'Trivia sobre cine argentino y latinoamericano', context: 'Películas icónicas, directores, premios, behind-the-scenes.', type: 'trivia' as DeckType },
-    { label: '🎲 Party game', topic: 'Juego de cartas para jugar entre amigos en una juntada', context: 'Retos, verdad o consecuencia, preguntas absurdas. Para 3+ jugadores.', type: 'party' as DeckType },
+    { label: '🎲 Party game', topic: 'Juego de cartas para jugar entre amigos en una juntada', context: 'Retos, verdad o consecuencia, preguntas absurdas.', type: 'party' as DeckType },
     { label: '💼 Team building', topic: 'Mazo de team building para equipos de trabajo', context: 'Preguntas que generan conexión entre colegas sin ser incómodas.', type: 'party' as DeckType },
   ];
 

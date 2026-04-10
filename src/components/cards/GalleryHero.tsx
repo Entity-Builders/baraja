@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import type { Card, DeckSchema } from '@eb-packages/deck-engine';
 import { CardCanvas } from './CardCanvas';
+import { CameraPreview } from './CameraPreview';
 import styles from './GalleryHero.module.css';
 
 interface GalleryHeroProps {
@@ -9,26 +10,36 @@ interface GalleryHeroProps {
   deck: DeckSchema;
   onEdit: (card: Card) => void;
   onGenerateArt: (cardId: string) => void;
+  onGenerateCardBack: (cardId: string) => void;
   onRestoreVersion: (cardId: string, url: string) => void;
   isGeneratingArt: boolean;
+  isGeneratingBack: boolean;
 }
 
 export function GalleryHero({ 
   card, 
   deck, 
   onEdit, 
-  onGenerateArt, 
+  onGenerateArt,
+  onGenerateCardBack,
   onRestoreVersion, 
-  isGeneratingArt 
+  isGeneratingArt,
+  isGeneratingBack,
 }: GalleryHeroProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [flipped, setFlipped] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
 
   const versions = card.front.art_versions || [];
   const hasVersions = versions.length > 0;
 
   return (
     <div className={styles.heroWrapper}>
+      {/* Camera Preview Modal */}
+      {showCamera && (
+        <CameraPreview card={card} deck={deck} onClose={() => setShowCamera(false)} />
+      )}
+
       {/* Action Bar (Top) */}
       <div className={styles.actionsBar}>
         <button className={styles.btnAction} onClick={() => onEdit(card)}>
@@ -37,12 +48,24 @@ export function GalleryHero({
         <button 
           className={`${styles.btnAction} ${styles.btnPrimary}`} 
           onClick={() => onGenerateArt(card.id)}
-          disabled={isGeneratingArt}
+          disabled={isGeneratingArt || isGeneratingBack}
         >
-          {isGeneratingArt ? '⏳ Generando IA...' : '🎨 Regenerar Arte'}
+          {isGeneratingArt ? '⏳ Generando arte...' : '🎨 Regenerar Arte'}
+        </button>
+        <button 
+          className={`${styles.btnAction}`}
+          style={{ borderColor: card.back.back_image_url ? '#a78bfa' : 'rgba(167,139,250,0.5)', color: '#a78bfa' }}
+          onClick={() => onGenerateCardBack(card.id)}
+          disabled={isGeneratingArt || isGeneratingBack}
+          title={card.back.back_image_url ? 'Regenerar diseño completo del reverso con IA' : 'Generar diseño completo del reverso con IA'}
+        >
+          {isGeneratingBack ? '⏳ Generando reverso...' : card.back.back_image_url ? '🎴 Regenerar Reverso IA' : '🎴 Generar Reverso IA'}
         </button>
         <button className={styles.btnAction} onClick={() => setFlipped(!flipped)}>
           🔄 Voltear Carta
+        </button>
+        <button className={styles.btnAction} onClick={() => setShowCamera(true)}>
+          📷 Camera Preview
         </button>
       </div>
 

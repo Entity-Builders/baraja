@@ -28,8 +28,8 @@ export function TemplateDesigner({
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState(templateRow.name || '');
   const [slug, setSlug] = useState(templateRow.id || '');
-  const [cardWidth, setCardWidth] = useState(templateRow.card_width || 88);
-  const [cardHeight, setCardHeight] = useState(templateRow.card_height || 63);
+  const [cardWidth, setCardWidth] = useState(templateRow.card_width || 70);
+  const [cardHeight, setCardHeight] = useState(templateRow.card_height || 120);
 
   // Colors for metadata
   const [primaryColor, setPrimaryColor] = useState(templateRow.primary_color || '#0c0b09');
@@ -68,8 +68,6 @@ export function TemplateDesigner({
     
     const firstCard = deck.cards[0];
     const mockData: Record<string, string> = {
-      bg: '',
-      border: '',
       art: firstCard.front.art_url || '',
       art_url: firstCard.front.art_url || '',
       number: `#${String(firstCard.front.number).padStart(2, '0')}`,
@@ -98,25 +96,35 @@ export function TemplateDesigner({
   }
 
   useEffect(() => {
+    let mounted = true;
     if (!containerRef.current) return;
 
-    const fonts = buildPdfmeFonts();
-    const designer = new Designer({
-      domContainer: containerRef.current,
-      template,
-      options: { font: fonts, lang: 'en' },
-      plugins: pdfmePlugins,
+    buildPdfmeFonts().then(fonts => {
+      if (!mounted || !containerRef.current) return;
+      
+      const designer = new Designer({
+        domContainer: containerRef.current,
+        template,
+        options: { font: fonts, lang: 'en' },
+        plugins: pdfmePlugins,
+      });
+
+      designer.onSaveTemplate(async (savedTemplate) => {
+        if (saving) return;
+        handleSave(savedTemplate);
+      });
+
+      designerRef.current = designer;
+    }).catch(err => {
+      console.error("[TemplateDesigner] Failed to load fonts:", err);
     });
 
-    designer.onSaveTemplate(async (savedTemplate) => {
-      if (saving) return;
-      handleSave(savedTemplate);
-    });
-
-    designerRef.current = designer;
     return () => {
-      designer.destroy();
-      designerRef.current = null;
+      mounted = false;
+      if (designerRef.current) {
+        designerRef.current.destroy();
+        designerRef.current = null;
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

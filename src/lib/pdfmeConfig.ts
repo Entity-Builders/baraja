@@ -6,6 +6,30 @@ import type { Template, Font, Schema } from '@pdfme/common';
 import { text, image, barcodes, rectangle, svg, line, ellipse } from '@pdfme/schemas';
 import type { DeckSchema } from '@eb-packages/deck-engine';
 import { FONT_REGISTRY } from './fontRegistry';
+import { getFrameTypography, getFrameTheme } from './cardFrame';
+
+// ── Typography hints from AI (mirrors CardCanvas interface) ───────────────────
+export interface PdfTypographyZone {
+  fontSize?: number;    // pt (pdfme units)
+  fontFamily?: string;  // must match a registered font name
+  lineHeight?: number;
+  letterSpacing?: number;
+  color?: string;       // hex (#rrggbb)
+  topPct?: number;      // % spacing from top
+  heightPct?: number;   // % height bounds
+  leftPct?: number;     // % spacing from left edge
+  widthPct?: number;    // % bounding box width
+}
+
+export interface PdfTypographyHints {
+  whenToUse?: PdfTypographyZone;
+  phrase?: PdfTypographyZone;
+  instruction?: PdfTypographyZone;
+  answer?: PdfTypographyZone;
+  brand?: { color?: string; fontFamily?: string };
+  qrFgColor?: string;
+  ttfUrls?: Record<string, string>;
+}
 
 // ── Plugins available in Designer + Generator ────────
 
@@ -21,24 +45,76 @@ export const pdfmePlugins = {
 
 // ── Fonts (pdfme expects URL strings or binary) ──────
 
-export function buildPdfmeFonts(): Font {
-  // Build the font map from our existing FONT_REGISTRY
+// Convert ArrayBuffer to Base64 in browser
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  let binary = '';
+  const bytes = new Uint8Array(buffer);
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+// Safely fetch and convert array buffer to Base64 for pdf-lib compatibility
+async function fetchFontData(url: string): Promise<string> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const ab = await res.arrayBuffer();
+  // Provide as standard Base64 string that pdfme expects for fonts natively without buffer issues
+  return 'data:font/ttf;base64,' + arrayBufferToBase64(ab);
+}
+
+export async function buildPdfmeFonts(typographyOverride?: PdfTypographyHints | null): Promise<Font> {
+  const typo: PdfTypographyHints = typographyOverride ?? (getFrameTypography() as PdfTypographyHints | null) ?? {};
   const fonts: Font = {};
 
-  // Cormorant Garamond as default/fallback
+  // Default fallback fonts safely registered locally
   const cormorant = FONT_REGISTRY['Cormorant Garamond'];
   if (cormorant?.[0]) {
-    fonts['Cormorant Garamond'] = {
-      data: cormorant[0].src,
-      fallback: true,
-    };
+    try {
+      fonts['Cormorant Garamond'] = {
+        data: await fetchFontData(cormorant[0].src),
+        fallback: Object.keys(fonts).length === 0,
+      };
+    } catch(e) { console.warn('Failed to load Cormorant'); }
   }
 
   const inter = FONT_REGISTRY['Inter'];
   if (inter?.[0]) {
-    fonts['Inter'] = {
-      data: inter[0].src,
-    };
+    try {
+      fonts['Inter'] = {
+        data: await fetchFontData(inter[0].src),
+      };
+    } catch(e) { console.warn('Failed to load Inter'); }
+  }
+
+  const outfit = FONT_REGISTRY['Outfit'];
+  if (outfit?.[0]) {
+    try {
+      fonts['Outfit'] = {
+        data: await fetchFontData(outfit[0].src),
+      };
+    } catch(e) { console.warn('Failed to load Outfit'); }
+  }
+
+  // Inject AI suggested fonts dynamically
+  if (typo?.ttfUrls) {
+    await Promise.all(
+      Object.entries(typo.ttfUrls).map(async ([family, url]) => {
+        if (!fonts[family]) {
+          try {
+            fonts[family] = { 
+              data: await fetchFontData(url), 
+              fallback: Object.keys(fonts).length === 0 
+            };
+            console.log(`[buildPdfmeFonts] Hydrated dynamic font: ${family}`);
+          } catch (e) {
+            console.warn(`[buildPdfmeFonts] Failed to fetch dynamic font ${family} for PDF`, e);
+          }
+        }
+      })
+    );
   }
 
   return fonts;
@@ -47,20 +123,23 @@ export function buildPdfmeFonts(): Font {
 // ── Default card template (back face) ────────────────
 
 // Theme constants for default template
-const ACCENT_COLOR = '#d4af64';
-const TEXT_COLOR = '#f0ebe0';
-const BG_COLOR = '#111213';
+export const ACCENT_COLOR = '#d4af64';
+export const BG_COLOR = '#1e1e1e';
+
+
 
 /**
  * Creates a default pdfme Template for a card's back face.
- * Units are mm. basePdf defines the card dimensions.
- * Includes a full-bleed background, border frame, and all text elements
- * pre-configured with dark-premium theme colors matching the mockup.
+ * Accepts optional AI typography hints to override font sizes, colors, families.
+ * Units: mm for position/size, pt for fontSize.
  */
 export function createDefaultCardTemplate(
-  widthMm = 88,
-  heightMm = 63,
+  widthMm = 70,
+  heightMm = 120,
+  typographyOverride?: PdfTypographyHints | null,
 ): Template {
+  // Merge AI hints from localStorage if no explicit override passed
+  const typo: PdfTypographyHints = typographyOverride ?? (getFrameTypography() as PdfTypographyHints | null) ?? {};
   const isHorizontal = widthMm > heightMm;
   
   // Padding & frame
@@ -70,168 +149,195 @@ export function createDefaultCardTemplate(
   // Adjusted text box base widths
   const textW = widthMm - (safeArea * 2);
 
-  // SVG Frame for the QR Code (Curved text around it)
-  const qrFrameSvg = `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-    <!-- Decorative rings -->
-    <circle cx="50" cy="50" r="48" fill="none" stroke="${ACCENT_COLOR}" stroke-width="0.3" opacity="0.5" />
-    <circle cx="50" cy="50" r="45" fill="none" stroke="${ACCENT_COLOR}" stroke-width="0.5" stroke-dasharray="1.5 2" />
-    
-    <!-- Paths for curved text -->
-    <path id="pathTop" d="M 12 50 A 38 38 0 0 1 88 50" fill="none" />
-    <path id="pathBot" d="M 88 50 A 38 38 0 0 1 12 50" fill="none" />
-    
-    <text fill="${ACCENT_COLOR}" font-family="Inter, sans-serif" font-size="6.5" font-weight="600" letter-spacing="1">
-      <textPath href="#pathTop" startOffset="50%" text-anchor="middle">ESCANEA PARA MÁS</textPath>
-    </text>
-    <text fill="${ACCENT_COLOR}" font-family="Inter, sans-serif" font-size="6.5" font-weight="600" letter-spacing="1">
-      <textPath href="#pathBot" startOffset="50%" text-anchor="middle">CURIOSIDADES</textPath>
-    </text>
-  </svg>`;
-
   // ────────────────────────────────────────────────────────────────────────
-  // FRONT FACE LAYOUT
+  // FRONT FACE: Full-bleed art — illustration covers entire card
+  // Number and title overlay on top with text-shadow for legibility.
   // ────────────────────────────────────────────────────────────────────────
-  const frontBg = {
-    name: 'bg', type: 'rectangle', position: { x: 0, y: 0 }, width: widthMm, height: heightMm,
-    color: BG_COLOR, borderWidth: 0, readOnly: true,
-  };
-  const frontBorder = {
-    name: 'border', type: 'rectangle', position: { x: inset, y: inset }, width: widthMm - inset * 2, height: heightMm - inset * 2,
-    color: '', borderColor: ACCENT_COLOR, borderWidth: 0.2, readOnly: true,
-  };
-  // Art floats beautifully in the center leaving room for titles
-  const frontArtVertical = { x: inset + 2, y: inset + 12, w: widthMm - (inset + 2) * 2, h: heightMm - (inset + 12) * 2 - 8 };
-  const frontArtHorizontal = { x: safeArea, y: safeArea, w: widthMm - safeArea * 2, h: heightMm - safeArea * 2 };
-  const frontArtPos = isHorizontal ? frontArtHorizontal : frontArtVertical;
 
+  // Art covers the entire card (full bleed)
   const frontArt = {
     name: 'art', type: 'image',
-    position: { x: frontArtPos.x, y: frontArtPos.y },
-    width: frontArtPos.w, height: frontArtPos.h,
+    position: { x: 0, y: 0 },
+    width: widthMm, height: heightMm,
   };
   
+  // Number overlays top-left corner
   const frontNumber = {
     name: 'number', type: 'text',
-    position: { x: inset + 2, y: inset + 2 },
-    width: 15, height: 8,
-    fontSize: 16, alignment: 'left', verticalAlignment: 'middle',
-    fontName: 'Cormorant Garamond', fontColor: ACCENT_COLOR,
+    position: { x: 4, y: 3 },
+    width: 20, height: 8,
+    fontSize: 14, alignment: 'left', verticalAlignment: 'middle',
+    fontName: 'Cormorant Garamond', fontColor: '#ffffff',
   };
+  
+  // Title overlays bottom, centered
   const frontTitle = {
     name: 'title', type: 'text',
-    position: { x: inset + 2, y: heightMm - inset - 8 },
-    width: textW, height: 6,
-    fontSize: 12, alignment: 'right', verticalAlignment: 'middle',
-    fontName: 'Cormorant Garamond', fontColor: TEXT_COLOR,
+    position: { x: 4, y: heightMm - 10 },
+    width: widthMm - 8, height: 8,
+    fontSize: 11, alignment: 'center', verticalAlignment: 'middle',
+    fontName: 'Cormorant Garamond', fontColor: '#ffffff', letterSpacing: 3,
   };
 
   // ────────────────────────────────────────────────────────────────────────
-  // BACK FACE LAYOUT
+  // BACK FACE LAYOUT (high-res PNG frame — 300 DPI print-ready)
   // ────────────────────────────────────────────────────────────────────────
-  // The layout follows the mockup: Top hint -> Big Phrase -> Mid text -> Bottom QR + SVG Sello
   
-  const backBg = { ...frontBg };
-  const backBorder = { ...frontBorder };
+  // bg is IMAGE — content injected by PrintEngine with the frame data URI.
+  // NOT readOnly — pdfme needs to read the value from input data.
+  const backBg = {
+    name: 'bg', type: 'image', position: { x: 0, y: 0 }, width: widthMm, height: heightMm,
+  };
 
-  // Y-coordinates logic (based on vertical 63x88 ratios originally, scaled to actual height)
-  const hintY = isHorizontal ? safeArea + 2 : safeArea + 6;
-  const phraseY = isHorizontal ? hintY + 8 : hintY + 12;
-  const instructionY = isHorizontal ? phraseY + 18 : phraseY + 24;
+  const backSafeMargin = 8;
+  const backSafeArea = backSafeMargin;
+  const backTextW = widthMm - (backSafeMargin * 2);
+
+  const hintY = Math.round(heightMm * 0.095); // ~11mm (top 9.5%)
+  const qrSize = 7.5; 
+  // Anchor QR and Brand at fixed architectural coordinates that clear the bottom artwork gracefully
+  const qrY = heightMm - 24; // strictly 97mm
+  const brandY = heightMm - 14.5; // strictly 106.5mm
+  const minGapAboveQr = 4; // mm of guaranteed breathing room between text and QR
+  const textNoFlyZone = qrY - minGapAboveQr; // 93mm — text can NEVER bleed past this
   
-  const hintFontSize = isHorizontal ? 6 : 5.5;
-  const phraseFontSize = isHorizontal ? 12 : 14;
-  const instructionFontSize = isHorizontal ? 6 : 7;
-  
-  // QR positioning at the bottom
-  const qrSize = 10;
-  const svgFrameSize = qrSize + 10; // Extra room for the curved text
-  const qrY = heightMm - inset - svgFrameSize - 2;
+  const hintFontSize     = typo.whenToUse?.fontSize    ?? 4.5;
+  const phraseFontSize   = typo.phrase?.fontSize       ?? 15;
+  const instrFontSize    = typo.instruction?.fontSize  ?? 6.5;
+  const answerFontSize   = typo.answer?.fontSize       ?? 5.5;
+
+  const hintFont    = typo.whenToUse?.fontFamily   ?? 'Outfit';
+  const phraseFont  = typo.phrase?.fontFamily      ?? 'Cormorant Garamond';
+  const instrFont   = typo.instruction?.fontFamily ?? 'Cormorant Garamond';
+  const answerFont  = typo.answer?.fontFamily      ?? 'Outfit';
+
+  const hintColor   = typo.whenToUse?.color    ?? '#d6d6d6';
+  const phraseColor = typo.phrase?.color       ?? '#ffffff';
+  const instrColor  = typo.instruction?.color  ?? '#e0e0e0';
+  const answerColor = typo.answer?.color       ?? '#aaaaaa';
+  const brandColor  = typo.brand?.color        ?? '#444444';
   const qrX = (widthMm / 2) - (qrSize / 2);
-  const frameX = (widthMm / 2) - (svgFrameSize / 2);
+
+  // Padding used to give some mathematical breathing room to AI border suggestions
+  const pd = 4; // 4% horizontal padding to prevent kissing the borders
 
   const whenToUse = {
     name: 'when_to_use', type: 'text',
-    position: { x: safeArea, y: hintY },
-    width: textW, height: 6,
-    fontSize: hintFontSize, alignment: 'center',
-    fontName: 'Inter', fontColor: TEXT_COLOR,
-    lineHeight: 1, characterSpacing: 1.5,
+    position: { 
+      x: typo.whenToUse?.leftPct !== undefined ? ((typo.whenToUse.leftPct + pd) / 100) * widthMm : backSafeArea, 
+      y: typo.whenToUse?.topPct !== undefined ? (typo.whenToUse.topPct / 100) * heightMm : hintY 
+    },
+    width: typo.whenToUse?.widthPct !== undefined 
+      ? ((typo.whenToUse.widthPct - (pd * 2)) / 100) * widthMm 
+      : backTextW, 
+    height: typo.whenToUse?.heightPct !== undefined ? (typo.whenToUse.heightPct / 100) * heightMm : 8,
+    fontSize: hintFontSize, alignment: 'center', verticalAlignment: 'middle',
+    fontName: hintFont, fontColor: hintColor, letterSpacing: 2.0,
+    dynamicFontSize: { min: hintFontSize * 0.5, max: hintFontSize, fit: 'vertical' as const },
   };
+  
+  let phraseY = typo.phrase?.topPct !== undefined ? (typo.phrase.topPct / 100) * heightMm : 20;
+  let phraseHeight = typo.phrase?.heightPct !== undefined ? (typo.phrase.heightPct / 100) * heightMm : 42;
+  if (phraseY + phraseHeight > textNoFlyZone) phraseHeight = Math.max(10, textNoFlyZone - phraseY);
+
   const phrase = {
     name: 'phrase', type: 'text',
-    position: { x: safeArea, y: phraseY },
-    width: textW, height: isHorizontal ? 16 : 22,
-    fontSize: phraseFontSize, alignment: 'center', verticalAlignment: 'top',
-    fontName: 'Cormorant Garamond', fontColor: TEXT_COLOR,
-    lineHeight: 1.1,
+    position: { 
+      x: typo.phrase?.leftPct !== undefined ? ((typo.phrase.leftPct + pd) / 100) * widthMm : backSafeArea, 
+      y: phraseY 
+    },
+    width: typo.phrase?.widthPct !== undefined 
+      ? ((typo.phrase.widthPct - (pd * 2)) / 100) * widthMm 
+      : backTextW, 
+    height: phraseHeight,
+    fontSize: phraseFontSize, alignment: 'center', verticalAlignment: 'middle',
+    fontName: phraseFont, fontColor: phraseColor,
+    lineHeight: typo.phrase?.lineHeight ?? 1.1,
+    dynamicFontSize: { min: phraseFontSize * 0.45, max: phraseFontSize, fit: 'vertical' as const },
   };
+  
+  let instrY = typo.instruction?.topPct !== undefined ? (typo.instruction.topPct / 100) * heightMm : 62;
+  let instrHeight = typo.instruction?.heightPct !== undefined ? (typo.instruction.heightPct / 100) * heightMm : 30;
+  if (instrY + instrHeight > textNoFlyZone) instrHeight = Math.max(10, textNoFlyZone - instrY);
+
   const instruction = {
     name: 'instruction', type: 'text',
-    position: { x: safeArea + 4, y: instructionY },
-    width: textW - 8, height: isHorizontal ? 8 : 15,
-    fontSize: instructionFontSize, alignment: 'center', verticalAlignment: 'top',
-    fontName: 'Inter', fontColor: TEXT_COLOR, opacity: 0.85,
-    lineHeight: 1.3,
+    position: { 
+      x: typo.instruction?.leftPct !== undefined ? ((typo.instruction.leftPct + pd) / 100) * widthMm : backSafeArea, 
+      y: instrY 
+    },
+    width: typo.instruction?.widthPct !== undefined 
+      ? ((typo.instruction.widthPct - (pd * 2)) / 100) * widthMm 
+      : backTextW, 
+    height: instrHeight,
+    fontSize: instrFontSize, alignment: 'center', verticalAlignment: 'middle',
+    fontName: instrFont, fontColor: instrColor,
+    lineHeight: typo.instruction?.lineHeight ?? 1.3,
+    dynamicFontSize: { min: instrFontSize * 0.45, max: instrFontSize, fit: 'vertical' as const },
   };
-  // Answer & fun facts are pushed down to the remaining space or rotated
+  
+  let answerY = typo.answer?.topPct !== undefined ? (typo.answer.topPct / 100) * heightMm : 92;
+  let answerHeight = typo.answer?.heightPct !== undefined ? (typo.answer.heightPct / 100) * heightMm : 8;
+  if (answerY + answerHeight > textNoFlyZone) answerHeight = Math.max(5, textNoFlyZone - answerY);
+
   const answer = {
     name: 'answer', type: 'text',
-    position: { x: safeArea, y: qrY - 8 },
-    width: textW, height: 5,
-    fontSize: 5, alignment: 'center',
-    fontName: 'Inter', fontColor: ACCENT_COLOR,
-    rotate: 180,
+    position: { 
+      x: typo.answer?.leftPct !== undefined ? ((typo.answer.leftPct + pd) / 100) * widthMm : backSafeArea, 
+      y: answerY 
+    },
+    width: typo.answer?.widthPct !== undefined 
+      ? ((typo.answer.widthPct - (pd * 2)) / 100) * widthMm 
+      : backTextW, 
+    height: answerHeight,
+    fontSize: answerFontSize, alignment: 'center', verticalAlignment: 'middle',
+    fontName: answerFont, fontColor: answerColor,
+    dynamicFontSize: { min: answerFontSize * 0.5, max: answerFontSize, fit: 'vertical' as const },
   };
-  const qrFrame = {
-    name: 'qr_frame', type: 'svg',
-    position: { x: frameX, y: qrY - (svgFrameSize - qrSize) / 2 },
-    width: svgFrameSize, height: svgFrameSize,
-    content: qrFrameSvg, readOnly: true,
-  };
+
+  const _frameTheme = getFrameTheme();
+  const qrFgColor = typo?.qrFgColor ?? (_frameTheme === 'light' ? '#111111' : '#ffffff');
+
   const qr = {
     name: 'qr', type: 'qrcode',
     position: { x: qrX, y: qrY },
     width: qrSize, height: qrSize,
+    barColor: qrFgColor,
   };
+  
   const brand = {
     name: 'brand', type: 'text',
-    position: { x: safeArea, y: heightMm - inset - 3 },
-    width: textW, height: 3,
-    fontSize: 5, alignment: 'center',
-    fontName: 'Cormorant Garamond', fontColor: TEXT_COLOR,
-    characterSpacing: 2,
+    position: { x: backSafeArea, y: brandY },
+    width: backTextW, height: 4,
+    fontSize: 4, alignment: 'center', verticalAlignment: 'middle',
+    fontName: 'Outfit', fontColor: brandColor, letterSpacing: 2,
   };
 
+  // Convert mm to mm for pdfme template format
   return {
-    basePdf: {
-      width: widthMm,
-      height: heightMm,
-      padding: [0, 0, 0, 0],
-    },
+    basePdf: { width: widthMm, height: heightMm, padding: [0, 0, 0, 0] },
     schemas: [
-      // ── Page 0: FRONT FACE ──
-      [frontBg, frontBorder, frontArt, frontNumber, frontTitle] as Schema[],
+      // ── Page 0: FRONT FACE (full-bleed art, no frame) ──
+      [frontArt, frontNumber, frontTitle] as Schema[],
       
-      // ── Page 1: BACK FACE ──
-      [backBg, backBorder, qrFrame, qr, whenToUse, phrase, instruction, answer, brand] as Schema[],
+      // ── Page 1: BACK FACE (ornate SVG frame) ──
+      [backBg, whenToUse, phrase, instruction, answer, qr, brand] as Schema[],
     ],
     sampledata: [
       {
-        // Front default data
-        bg: '',
-        art: 'https://images.unsplash.com/photo-1541701494587-cb58502866ab?q=80&w=600&auto=format&fit=crop',
-        number: '7',
-        title: 'LA VUELTA',
-        // Back default data
-        border: '',
-        qr_frame: qrFrameSvg,
-        when_to_use: 'CUANDO SENTÍS QUE ESTÁS DANDO VUELTAS',
-        phrase: 'A veces volver al punto de partida es la forma más honesta de avanzar.',
+        // Front (Barómetro — Card #1: El Hielo)
+        bg: '',  // Back face frame — hydrated by PrintEngine with PNG data URI
+        art: 'https://images.unsplash.com/photo-1581022295087-35e593704911?q=80&w=600&auto=format&fit=crop',
+        number: '01',
+        title: 'EL HIELO',
+        // Back (real Barómetro data)
+        when_to_use: 'PARA CUANDO LA EMOCIÓN ES UN INCENDIO Y NO PODÉS PENSAR.',
+        phrase: 'Tu sistema nervioso no discute con la temperatura.',
         instruction: 'Sostené un hielo en la mano hasta que sea muy intenso. O llená un bol con agua fría y hielo y sumergí la cara por 15 segundos. Sentí el cambio. Respirá.',
-        answer: 'Rta: Dar vueltas no es perder el tiempo, es ganar perspectiva.',
-        fun_fact: '💡 El 80% de los proyectos abandonados tenían una solución a menos de 3 pasos.',
-        qr: 'https://baraja.cards',
-        brand: 'BARAJA',
+        answer: '',
+        fun_fact: '',
+        qr: 'https://baraja.cards/barometro',
+        brand: 'BARÓMETRO · BARAJA',
       },
     ],
   };
@@ -254,8 +360,73 @@ export function getTemplateForDeck(deck: DeckSchema): Template {
     return template;
   }
   
-  return createDefaultCardTemplate(
-    deck.print_specs?.dimensions?.width || 88,
-    deck.print_specs?.dimensions?.height || 63
-  );
+  return createDefaultCardTemplate(70, 120);
+}
+
+// ── Flujo B: AI-generated full card back + QR overlay ────────────────────────
+// Used when card.back.back_image_url is populated.
+// Back page: full-bleed AI image + small real QR code overlaid at the bottom.
+// Front page: unchanged (full-bleed art + number/title overlays).
+
+export function createFlujoBTemplate(
+  widthMm = 70,
+  heightMm = 120,
+): Template {
+  // Front schemas (same as default)
+  const frontArt = { name: 'art', type: 'image', position: { x: 0, y: 0 }, width: widthMm, height: heightMm };
+  const frontNumber = {
+    name: 'number', type: 'text', position: { x: 4, y: 3 }, width: 20, height: 8,
+    fontSize: 14, alignment: 'left' as const, verticalAlignment: 'middle' as const,
+    fontName: 'Cormorant Garamond', fontColor: '#ffffff',
+  };
+  const frontTitle = {
+    name: 'title', type: 'text', position: { x: 4, y: heightMm - 10 }, width: widthMm - 8, height: 8,
+    fontSize: 11, alignment: 'center' as const, verticalAlignment: 'middle' as const,
+    fontName: 'Cormorant Garamond', fontColor: '#ffffff', letterSpacing: 3,
+  };
+
+  // Back: AI-generated image covers the whole card
+  const backAiImage = {
+    name: 'back_ai_image',
+    type: 'image',
+    position: { x: 0, y: 0 },
+    width: widthMm,
+    height: heightMm,
+  };
+
+  // QR overlay: centered in bottom band — the AI prompt leaves a clean patch here
+  const qrSize = 9; // sync with default template size
+  const qrX = (widthMm / 2) - (qrSize / 2);
+  const qrY = heightMm - Math.round(heightMm * 0.085) - qrSize; // sync with default template bottom 8.5%
+
+  const qrOverlay = {
+    name: 'qr_overlay',
+    type: 'qrcode',
+    position: { x: qrX, y: qrY },
+    width: qrSize,
+    height: qrSize,
+    barColor: '#ffffff',
+  };
+
+  return {
+    basePdf: { width: widthMm, height: heightMm, padding: [0, 0, 0, 0] },
+    schemas: [
+      [frontArt, frontNumber, frontTitle] as Schema[],
+      [backAiImage, qrOverlay] as Schema[],
+    ],
+    sampledata: [
+      {
+        art: 'https://images.unsplash.com/photo-1581022295087-35e593704911?q=80&w=600&auto=format&fit=crop',
+        number: '01',
+        title: 'EL HIELO',
+        back_ai_image: '',  // hydrated by PrintEngine with card's back_image_url data URI
+        qr_overlay: 'https://baraja.cards/barometro',
+      },
+    ],
+  };
+}
+
+/** Returns true if a card has an AI-generated full back image (Flujo B). */
+export function cardUsesFlujob(card: { back?: { back_image_url?: string } }): boolean {
+  return !!card?.back?.back_image_url;
 }

@@ -67,13 +67,27 @@ async function generateCardArt(
   const height = deck.print_specs?.dimensions?.height || 138;
   const isLandscape = width > height;
 
-  // Set the precise ratio flag for Imagen 4
-  // 88x63 (Landscape) is ~1.39 ratio. "4:3" (1.33) is the closest fit.
-  // 63x88 (Portrait) is ~0.71 ratio. "3:4" (0.75) is the closest fit.
-  const targetRatio = isLandscape ? "4:3" : "3:4";
+  // Pick the closest Imagen 4 supported aspect ratio for the card dimensions.
+  // Imagen 4 supports: 1:1, 3:4, 4:3, 9:16, 16:9
+  // 88x138mm = 0.638 ratio → 9:16 (0.5625) is closest for tall portrait cards.
+  // 88x63mm  = 1.397 ratio → 4:3  (1.333) is closest for landscape cards.
+  const cardRatio = width / height;
+  let targetRatio: string;
+  if (cardRatio >= 1) {
+    targetRatio = cardRatio > 1.33 ? '16:9' : '4:3';
+  } else {
+    targetRatio = cardRatio < 0.65 ? '9:16' : '3:4';
+  }
 
-  // Add safe zone instructions to prevent subject cropping
-  promptParts.push('CRITICAL FORMATTING REQUIREMENT: Keep the main subject and action perfectly centered. Leave generous breathing room (padding) around the edges of the canvas to ensure no important details get cropped out when fitting the illustration into a standard playing card frame.');
+  // Clean canvas instructions — prevent the AI from rendering the art as a physical object
+  // (photo of a painting on wall, canvas with edges, framed artwork, etc.)
+  promptParts.push(`CRITICAL OUTPUT RULES:
+- The output IS the artwork itself — NOT a photograph of a painting, NOT a canvas on a wall, NOT a framed picture.
+- DO NOT render the artwork as a physical object (no canvas edges, no frame, no wall behind it, no shadow, no 3D perspective of a painting).
+- The artwork MUST fill the ENTIRE image edge-to-edge with absolutely NO margins, borders, white space, or empty background.
+- Colors, textures, and visual elements MUST extend all the way to every single edge of the image.
+- DO NOT paint any card shape, rounded corners, or decorative border into the image.
+- Think of the output as a seamless texture/artwork that will be cropped — every pixel must be part of the art.`);
 
 
   const prompt = promptParts.join('\n');
@@ -254,7 +268,7 @@ function localDeckCmsPlugin() {
       server.middlewares.use(async (req: any, res: any, next: any) => {
 
         // ── Delete edition ──────────────────────────────────
-        if (req.url?.startsWith('/api/admin/delete-edition/') && req.method === 'DELETE') {
+        if (req.url?.startsWith('/__cms__/delete-edition/') && req.method === 'DELETE') {
           try {
             const slug = req.url.split('/').pop()?.split('?')[0];
             if (!slug) throw new Error('Edition slug required');
@@ -285,7 +299,7 @@ function localDeckCmsPlugin() {
         }
 
         // ── Save card edits ──────────────────────────────────
-        if (req.url === '/api/admin/save-edition' && req.method === 'POST') {
+        if (req.url === '/__cms__/save-edition' && req.method === 'POST') {
           try {
             const body = await readBody(req);
             const { deckId, cardId, updates } = JSON.parse(body);
@@ -319,7 +333,7 @@ function localDeckCmsPlugin() {
 
 
         // ── Generate art (single or batch) ───────────────────
-        if (req.url === '/api/admin/generate-art' && req.method === 'POST') {
+        if (req.url === '/__cms__/generate-art' && req.method === 'POST') {
           const apiKey = process.env.GEMINI_API_KEY;
           if (!apiKey) {
             res.statusCode = 500;
@@ -374,7 +388,7 @@ function localDeckCmsPlugin() {
         }
 
         // ── Enrich seed items via OMDB ─────────────────────
-        if (req.url === '/api/admin/enrich' && req.method === 'POST') {
+        if (req.url === '/__cms__/enrich' && req.method === 'POST') {
           try {
             const body = await readBody(req);
             const { seedItems, enrichmentType } = JSON.parse(body);
@@ -414,7 +428,7 @@ function localDeckCmsPlugin() {
         }
 
         // ── Preview assembled prompt ──────────────────────
-        if (req.url === '/api/admin/preview-prompt' && req.method === 'POST') {
+        if (req.url === '/__cms__/preview-prompt' && req.method === 'POST') {
           try {
             const body = await readBody(req);
             const params = JSON.parse(body);
@@ -450,7 +464,7 @@ function localDeckCmsPlugin() {
         }
 
         // ── Generate full edition via AI ─────────────────────
-        if (req.url === '/api/admin/generate-edition' && req.method === 'POST') {
+        if (req.url === '/__cms__/generate-edition' && req.method === 'POST') {
           const apiKey = process.env.GEMINI_API_KEY;
           if (!apiKey) {
             res.statusCode = 500;
@@ -680,6 +694,990 @@ function localDeckCmsPlugin() {
             }
             return;
           }
+        }
+
+        // ── Generate frame via Gemini ────────────────────────
+        if (req.url === '/__cms__/generate-frame' && req.method === 'POST') {
+          const apiKey = process.env.GEMINI_API_KEY;
+          if (!apiKey) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: 'GEMINI_API_KEY not set in root .env' }));
+            return;
+          }
+
+          try {
+            const body = await readBody(req);
+            const { prompt, artDirectorPrompt, structuralConstraints, face, widthMm, heightMm, cardContent, edition, refinement, customVisualPrompt, customConstraints, enforceBorderless, layout, cardType } = JSON.parse(body);
+
+            if (!face) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: false, error: 'face is required' }));
+              return;
+            }
+
+            // ── STEP 1: Flash Art Director (generates visual prompt dynamically) ──
+            let visualPrompt = '';
+            
+            // If the user provided a custom visual prompt override, bypass Flash entirely
+            if (customVisualPrompt) {
+              console.log(`\n🎨 [Art Director] Bypassing Flash: User provided manual Image prompt...`);
+              visualPrompt = customVisualPrompt;
+            } else if (artDirectorPrompt) {
+              console.log(`\n🎨 [Art Director] Asking Flash to generate visual prompt...`);
+              try {
+                const flashUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                const flashRes = await fetch(flashUrl, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    contents: [{ parts: [{ text: artDirectorPrompt }] }],
+                    generationConfig: { temperature: 1.0, maxOutputTokens: 400 },
+                  }),
+                });
+                if (flashRes.ok) {
+                  const flashData: any = await flashRes.json();
+                  visualPrompt = flashData.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+                  console.log(`🎨 [Art Director] Visual prompt:\n${visualPrompt}`);
+                }
+              } catch (artErr) {
+                console.warn('[Art Director] Flash call failed, falling back to legacy prompt:', artErr);
+              }
+            }
+            
+            // Fallback: if Flash failed or wasn't available, use the legacy prompt
+            let activePrompt = visualPrompt || prompt || '';
+
+            // ── PROMPT REFINER (Conversational iteration) ──────────────────────
+            if (refinement) {
+              console.log(`\n💬 [Frame Refiner] The user requested a tweak: "${refinement}"`);
+              const flashUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+              
+              const rewritePrompt = [
+                `You are an expert prompt engineer for an image generation model.`,
+                `I have an existing aesthetic prompt for a playing card frame design:`,
+                `---`,
+                `${prompt}`,
+                `---`,
+                `The user wants to make this specific change to the design: "${refinement}"`,
+                `Please rewrite the prompt to incorporate the user's request. Keep the overall artistic style and details intact, just modify or add the parts requested by the user.`,
+                `IMPORTANT: Return ONLY the raw rewritten prompt text. No markdown formatting, no conversational filler, no quotation marks. Do not include structure rules (like "no text"), just the aesthetic description.`
+              ].join('\n');
+
+              try {
+                const rewriteRes = await fetch(flashUrl, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ instances: [{ contents: [{ role: 'user', parts: [{ text: rewritePrompt }] }] }] })
+                });
+                
+                if (rewriteRes.ok) {
+                  const rewriteData: any = await rewriteRes.json();
+                  const rawNewPrompt = rewriteData.candidates?.[0]?.content?.parts?.[0]?.text;
+                  if (rawNewPrompt) {
+                    activePrompt = rawNewPrompt.trim();
+                    console.log(`✨ [Frame Refiner] Rewritten prompt:\n${activePrompt}`);
+                  }
+                }
+              } catch (err) {
+                console.warn('[Frame Refiner] Failed to rewrite prompt, using original.', err);
+              }
+            }
+
+            const w = widthMm || 70;
+            const h = heightMm || 120;
+
+            // Content zone dimensions (for logging only)
+            const topZoneMm = Math.round(h * 0.18);
+            const bottomStartMm = Math.round(h * 0.82);
+
+            // ── FRAME IMAGE PROMPT ────────────────────────────────────────
+            // activePrompt: visual direction from Flash Art Director
+            // activeConstraints: layout + forbidden rules (rebuilt dynamically if layout provided)
+
+            // If the client sent layout + cardType, rebuild structural constraints server-side
+            // so they always reflect the actual configuration (not stale client-built strings)
+            let derivedConstraints = structuralConstraints || '';
+            if (layout && typeof layout === 'object') {
+              try {
+                const { buildStructuralConstraints: buildSC } = await import(
+                  path.resolve(__dirname, '../../packages/deck-engine/src/generator/template-prompts.ts') + '?t=' + Date.now()
+                );
+                derivedConstraints = buildSC({ themeDescription: '', layout, cardType: cardType || 'custom', face });
+                console.log(`🗂️  [Frame Generator] Rebuilt dynamic constraints (cardType: ${cardType || 'custom'})`);
+              } catch (scErr) {
+                console.warn('[Frame Generator] Could not rebuild constraints, using client-sent version:', scErr);
+              }
+            }
+
+            const activeConstraints = customConstraints !== undefined ? customConstraints : derivedConstraints;
+            
+            // Assemble: Flash visual prompt + structural constraints
+            const fullPrompt = [
+              activePrompt,
+              activeConstraints,
+            ].filter(Boolean).join('\n\n');
+
+            console.log(`\n🖼️  [Frame Generator] Generating ${face} frame ${w}×${h}mm...`);
+
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`;
+            const cardRatio = w / h;
+            let finalRatio: string;
+            if (cardRatio >= 1) {
+              finalRatio = cardRatio > 1.33 ? '16:9' : '4:3';
+            } else {
+              finalRatio = cardRatio < 0.65 ? '9:16' : '3:4';
+            }
+            const response = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                instances: [{ prompt: fullPrompt }],
+                parameters: {
+                  sampleCount: 1,
+                  aspectRatio: finalRatio,
+                  outputOptions: { mimeType: 'image/png' },
+                },
+              }),
+            });
+
+            if (!response.ok) {
+              const errText = await response.text();
+              throw new Error(`Gemini Image API ${response.status}: ${errText.slice(0, 300)}`);
+            }
+
+            const data: any = await response.json();
+            const base64Data: string = data.predictions?.[0]?.bytesBase64Encoded;
+
+            if (!base64Data) {
+              throw new Error('Imagen 4 no devolvió una imagen. Intentá de nuevo.');
+            }
+
+            const mimeType = 'image/png';
+            const sizeKB = Math.round(base64Data.length * 0.75 / 1024);
+
+            console.log(`\u2705 Frame generated: ${mimeType} (${sizeKB}KB)`);
+
+            // ── MULTIMODAL TYPOGRAPHY & LAYOUT ENGINE (Gemini Vision) ────────────────────
+            // Now that we have the generated image, we use Vision to analyze the safe margins
+            let typographySuggestion: Record<string, any> | null = null;
+            if (cardContent && typeof cardContent === 'object') {
+              const { when_to_use, phrase, instruction, answer } = cardContent as any;
+              
+              const deckLabel = edition?.label || 'Custom';
+              const deckDescription = edition?.description || 'General purpose card deck.';
+              const fieldDescriptions = (edition?.fields as Array<{label: string; description: string; typicalLength: string}> | undefined)
+                ?.map(f => `  - ${f.label} (${f.typicalLength} text): ${f.description}`)
+                .join('\n') || '';
+
+              const typographyPromptText = [
+                `You are a professional card game typographer and spatial layout engine. Analyze the PROVIDED RENDERED CARD BACKGROUND alongside this text content.`,
+                `The card image is exactly ${w}mm x ${h}mm in ratio.`,
+                ``,
+                `DECK EDITION: "${deckLabel}"`,
+                `CARD CONTENT STRUCTURE:`,
+                fieldDescriptions,
+                `SAMPLE TEXT TO FIT:`,
+                `  HEADER: "${when_to_use || ''}"`,
+                `  PHRASE: "${phrase || ''}"`,
+                `  INSTRUCTION: "${instruction || ''}"`,
+                `  ANSWER: "${answer || ''}"`,
+                '',
+                `CRITICAL LAYOUT TASK:`,
+                `Look at the provided image. Detect the thick ornate borders, ribbons, and decorative graphics on the edges and corners.`,
+                `Find the innermost "clean" safe areas for text to avoid overlapping the borders.`,
+                `For each of the 4 text blocks, define EXACT spatial bounding boxes (topPct, heightPct, leftPct, widthPct).`,
+                `These are percentages (0 to 100).`,
+                `For example, if the generated image has a 15% thick visual border on all sides, the text MUST have leftPct: 15, widthPct: 70.`,
+                `Vertical spacing guidelines:`,
+                `  - Header (top part): typically topPct: 8, heightPct: 8`,
+                `  - Phrase (center): typically topPct: 20, heightPct: 40`,
+                `  - Instruction (lower): typically topPct: 62, heightPct: 20`,
+                `  - Answer (bottom): typically topPct: 88, heightPct: 6`,
+                `CRITICAL: Adjust these boxes to perfectly match the empty spaces in the provided image! Vary the layout if the image has content on one side!`,
+                `CRITICAL CONTRAST & COLOR METADATA EXTRACTION:`,
+                `1. You MUST analyze the average color of the background EXACTLY within the bounding box you defined for each text block.`,
+                `2. Pick a text color that provides MAXIMUM contrast (AAA Accessibility) against that specific zone.`,
+                `3. DO NOT just use plain black '#0a0a0a' or white '#ffffff'. Be creative! Extract a deeply saturated dark tone from the image's shadows (e.g., dark navy '#081224', dark forest green, rich elegant burgundy) for bright backgrounds. Extract a bright tint from the image's highlights (e.g., warm cream '#fdfbf7', soft gold '#ecdba5', ice blue) for dark backgrounds.`,
+                `4. ENSURE the color hex accurately matches the aesthetic atmosphere of the illustration!`,
+                '',
+                `TYPOGRAPHY & BRANDING:`,
+                `Select a font pairing that MATCHES the visual theme of the image. DO NOT just use "Inter" and "Cormorant Garamond" every time. Mix and match creatively from the list below based on whether the image is futuristic, classic, playful, etc.`,
+                `AVAILABLE GOOGLE FONTS (use exact names from this list):`,
+                `  Serif (elegant, classic): "Cormorant Garamond", "Playfair Display", "Lora", "DM Serif Display", "EB Garamond"`,
+                `  Sans-serif (clean, modern): "Inter", "DM Sans", "Outfit", "Plus Jakarta Sans", "Montserrat", "Space Grotesk"`,
+                `  Display (impactful): "Bebas Neue", "Oswald", "Syne", "Cinzel"`,
+                `Font sizes MUST be in points (pt), typically 8pt to 28pt.`,
+                '',
+                `Return ONLY a valid JSON object. Example structure:`,
+                `{"whenToUse":{"fontSize":10,"fontFamily":"Plus Jakarta Sans","letterSpacing":2,"color":"#fdfbf7","topPct":8,"heightPct":8,"leftPct":15,"widthPct":70},"phrase":{"fontSize":18,"fontFamily":"Playfair Display","lineHeight":1.15,"color":"#ecdba5","topPct":20,"heightPct":40,"leftPct":15,"widthPct":70},"instruction":{"fontSize":12,"fontFamily":"Lora","lineHeight":1.35,"color":"#fdfbf7","topPct":62,"heightPct":20,"leftPct":15,"widthPct":70},"answer":{"fontSize":9,"fontFamily":"Montserrat","color":"#fdfbf7","topPct":85,"heightPct":6,"leftPct":15,"widthPct":70},"brand":{"color":"#fdfbf7"},"qrFgColor":"#fdfbf7","qrSizeMm":12}`
+              ].join('\n');
+
+              try {
+                console.log(`\n👁️  [Vision Engine] Analyzing boundaries and computing typography...`);
+                const geminiVisionUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                const textRes = await fetch(geminiVisionUrl, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    contents: [{ 
+                        parts: [
+                            { text: typographyPromptText },
+                            { inlineData: { mimeType: 'image/png', data: base64Data } }
+                        ] 
+                    }],
+                    generationConfig: { 
+                      temperature: 0.1, 
+                      maxOutputTokens: 512,
+                      responseMimeType: 'application/json',
+                      responseSchema: {
+                        type: 'OBJECT',
+                        properties: {
+                          whenToUse: {
+                            type: 'OBJECT',
+                            properties: {
+                              fontSize: { type: 'NUMBER' },
+                              fontFamily: { type: 'STRING' },
+                              letterSpacing: { type: 'NUMBER' },
+                              color: { type: 'STRING' },
+                              topPct: { type: 'NUMBER' },
+                              heightPct: { type: 'NUMBER' },
+                              leftPct: { type: 'NUMBER' },
+                              widthPct: { type: 'NUMBER' }
+                            },
+                            required: ['topPct', 'heightPct', 'leftPct', 'widthPct']
+                          },
+                          phrase: {
+                            type: 'OBJECT',
+                            properties: {
+                              fontSize: { type: 'NUMBER' },
+                              fontFamily: { type: 'STRING' },
+                              lineHeight: { type: 'NUMBER' },
+                              color: { type: 'STRING' },
+                              topPct: { type: 'NUMBER' },
+                              heightPct: { type: 'NUMBER' },
+                              leftPct: { type: 'NUMBER' },
+                              widthPct: { type: 'NUMBER' }
+                            },
+                            required: ['topPct', 'heightPct', 'leftPct', 'widthPct']
+                          },
+                          instruction: {
+                            type: 'OBJECT',
+                            properties: {
+                              fontSize: { type: 'NUMBER' },
+                              fontFamily: { type: 'STRING' },
+                              lineHeight: { type: 'NUMBER' },
+                              color: { type: 'STRING' },
+                              topPct: { type: 'NUMBER' },
+                              heightPct: { type: 'NUMBER' },
+                              leftPct: { type: 'NUMBER' },
+                              widthPct: { type: 'NUMBER' }
+                            },
+                            required: ['topPct', 'heightPct', 'leftPct', 'widthPct']
+                          },
+                          answer: {
+                            type: 'OBJECT',
+                            properties: {
+                              fontSize: { type: 'NUMBER' },
+                              fontFamily: { type: 'STRING' },
+                              color: { type: 'STRING' },
+                              topPct: { type: 'NUMBER' },
+                              heightPct: { type: 'NUMBER' },
+                              leftPct: { type: 'NUMBER' },
+                              widthPct: { type: 'NUMBER' }
+                            },
+                            required: ['topPct', 'heightPct', 'leftPct', 'widthPct']
+                          },
+                          brand: { type: 'OBJECT', properties: { color: { type: 'STRING' } } },
+                          qrFgColor: { type: 'STRING' },
+                          qrSizeMm: { type: 'NUMBER' }
+                        },
+                        required: ['whenToUse', 'phrase', 'instruction', 'answer']
+                      }
+                    },
+                  }),
+                });
+                if (textRes.ok) {
+                  const textData: any = await textRes.json();
+                  const rawText: string = textData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+                  const jsonStr = rawText.replace(/```json\n?|```\n?/g, '').trim();
+                  typographySuggestion = JSON.parse(jsonStr);
+                  
+                  // Resolve TTF
+                  const fontFamilies = new Set<string>();
+                  Object.values(typographySuggestion as any).forEach((v: any) => {
+                    if (v && typeof v === 'object' && v.fontFamily) fontFamilies.add(v.fontFamily);
+                  });
+                  
+                  const resolved: Record<string, string> = {};
+                  for (const family of fontFamilies) {
+                    const slug = family.toLowerCase().replace(/\s+/g, '-');
+                    try {
+                      const fRes = await fetch(`https://gwfh.mranftl.com/api/fonts/${slug}`);
+                      if (fRes.ok) {
+                        const fData: any = await fRes.json();
+                        const regular = fData.variants?.find((v: any) => v.id === 'regular' || v.id === '400') || fData.variants?.[0];
+                        if (regular && regular.ttf) {
+                          resolved[family] = regular.ttf;
+                        }
+                      }
+                    } catch (e) {
+                      console.warn(`Could not resolve TTF for ${family}`);
+                    }
+                  }
+                  
+                  typographySuggestion!.ttfUrls = resolved;
+                  console.log('📝 Multimodal Layout Engine resolved:', JSON.stringify(typographySuggestion, null, 2));
+                }
+              } catch (typErr) {
+                console.warn('[generate-frame] Typography suggestion failed (non-blocking):', typErr);
+              }
+            }
+
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({
+              success: true,
+              dataUrl: `data:${mimeType};base64,${base64Data}`,
+              typography: typographySuggestion,
+              rewrittenPrompt: refinement ? activePrompt : undefined
+            }));
+          } catch (err: any) {
+            console.error('[generate-frame]', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: err.message || String(err) }));
+          }
+          return;
+        }
+
+        if (req.url === '/__cms__/analyze-typography' && req.method === 'POST') {
+          try {
+            const body = await readBody(req);
+            const { dataUrl, w, h, edition, cardContent, remixInstruction } = JSON.parse(body);
+            
+            if (!dataUrl) throw new Error('No image provided');
+            const base64Data = dataUrl.split(',')[1] || dataUrl;
+
+            const apiKey = process.env.GEMINI_API_KEY;
+            if (!apiKey) throw new Error('Missing GEMINI_API_KEY — check your .env file');
+
+
+            const deckLabel = edition?.label || 'Custom';
+            const deckDescription = edition?.description || 'General purpose card deck.';
+            const fieldDescriptions = (edition?.fields as Array<any> | undefined)
+              ?.map(f => `  - ${f.label} (${f.typicalLength} text): ${f.description}`)
+              .join('\n') || '';
+
+            const { when_to_use, phrase, instruction, answer } = cardContent || {} as any;
+
+            const typographyPromptText = [
+                `You are a professional card game typographer and spatial layout engine. Analyze the PROVIDED RENDERED CARD BACKGROUND alongside this text content.`,
+                `The card image is exactly ${w}mm x ${h}mm in ratio.`,
+                ``,
+                `DECK EDITION: "${deckLabel}"`,
+                `CARD CONTENT STRUCTURE:`,
+                fieldDescriptions,
+                `SAMPLE TEXT TO FIT:`,
+                `  HEADER: "${when_to_use || ''}"`,
+                `  PHRASE: "${phrase || ''}"`,
+                `  INSTRUCTION: "${instruction || ''}"`,
+                `  ANSWER: "${answer || ''}"`,
+                '',
+                remixInstruction ? `USER REMIX DIRECTIVE: ${remixInstruction}` : '',
+                '',
+                `CRITICAL LAYOUT TASK:`,
+                `Look at the provided image. Detect the thick ornate borders, ribbons, and decorative graphics on the edges and corners.`,
+                `Find the innermost "clean" safe areas for text to avoid overlapping the borders.`,
+                `For each of the 4 text blocks, define EXACT spatial bounding boxes (topPct, heightPct, leftPct, widthPct).`,
+                `These are percentages (0 to 100).`,
+                `For example, if the generated image has a 15% thick visual border on all sides, the text MUST have leftPct: 15, widthPct: 70.`,
+                `Vertical spacing guidelines:`,
+                `  - Header (top part): typically topPct: 8, heightPct: 8`,
+                `  - Phrase (center): typically topPct: 20, heightPct: 40`,
+                `  - Instruction (lower): typically topPct: 62, heightPct: 20`,
+                `  - Answer (bottom): typically topPct: 88, heightPct: 6`,
+                `CRITICAL: Adjust these boxes to perfectly match the empty spaces in the provided image! Vary the layout if the image has content on one side!`,
+                `CRITICAL CONTRAST & COLOR METADATA EXTRACTION:`,
+                `1. You MUST analyze the average color of the background EXACTLY within the bounding box you defined for each text block.`,
+                `2. Pick a text color that provides MAXIMUM contrast (AAA Accessibility) against that specific zone.`,
+                `3. DO NOT just use plain black '#0a0a0a' or white '#ffffff'. Be creative! Extract a deeply saturated dark tone from the image's shadows for bright backgrounds. Extract a bright tint from the image's highlights for dark backgrounds.`,
+                `4. ENSURE the color hex accurately matches the aesthetic atmosphere of the illustration!`,
+                '',
+                `FONT WEIGHT RULES:`,
+                `For each text zone pick a fontWeight that creates VISUAL CONTRAST between zones. Mix aggressively:`,
+                `  - Use '300' or 'thin' for secondary labels / headers that should feel delicate`,
+                `  - Use 'bold' or '700' for the main phrase when the image is energetic/bold`,
+                `  - Use '900' for a single dramatic zone if the illustration calls for heavy impact`,
+                `  - Think like a magazine designer: hierarchy through weight, not just size`,
+                '',
+                `TYPOGRAPHY & BRANDING:`,
+                `Select a font pairing that MATCHES the visual theme of the image. DO NOT just use "Inter" and "Cormorant Garamond" every time.`,
+                `AVAILABLE GOOGLE FONTS (use exact names from this list):`,
+                `  Serif (elegant, classic): "Cormorant Garamond", "Playfair Display", "Lora", "DM Serif Display", "EB Garamond"`,
+                `  Sans-serif (clean, modern): "Inter", "DM Sans", "Outfit", "Plus Jakarta Sans", "Montserrat", "Space Grotesk"`,
+                `  Display (impactful): "Bebas Neue", "Oswald", "Syne", "Cinzel"`,
+                `Font sizes MUST be in points (pt), typically 8pt to 28pt.`,
+                '',
+                `FOCAL POINTS DETECTION:`,
+                `Scan the image for the 1-4 largest, most visually prominent elements (e.g. "Large crescent moon", "Diagonal pink stripe", "Cluster of speech bubbles in center").`,
+                `For each element report: description (short label), xPct (horizontal center as 0-100% of width), yPct (vertical center as 0-100% of height), sizePct (approximate radius as % of image height, e.g. 20 means the element spans ~20% of the card height).`,
+                '',
+                `Return ONLY a valid JSON object. Example structure:`,
+                `{"whenToUse":{"fontSize":10,"fontFamily":"Plus Jakarta Sans","fontWeight":"300","letterSpacing":2,"color":"#fdfbf7","topPct":8,"heightPct":8,"leftPct":15,"widthPct":70},"phrase":{"fontSize":20,"fontFamily":"Playfair Display","fontWeight":"bold","lineHeight":1.15,"color":"#ecdba5","topPct":20,"heightPct":40,"leftPct":15,"widthPct":70},"instruction":{"fontSize":11,"fontFamily":"Lora","fontWeight":"regular","lineHeight":1.35,"color":"#fdfbf7","topPct":62,"heightPct":20,"leftPct":15,"widthPct":70},"answer":{"fontSize":9,"fontFamily":"Montserrat","fontWeight":"300","color":"#fdfbf7","topPct":85,"heightPct":6,"leftPct":15,"widthPct":70},"brand":{"color":"#fdfbf7"},"qrFgColor":"#fdfbf7","qrSizeMm":12,"focalPoints":[{"description":"Large crescent moon","xPct":70,"yPct":25,"sizePct":22}]}`
+            ].filter(Boolean).join('\n');
+
+            console.log(`\n👁️  [Vision Engine] Standalone Typography Analysis...`);
+            const geminiVisionUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+            const textRes = await fetch(geminiVisionUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ 
+                    parts: [
+                        { text: typographyPromptText },
+                        { inlineData: { mimeType: 'image/png', data: base64Data } }
+                    ] 
+                }],
+                generationConfig: { 
+                  temperature: remixInstruction ? 1.2 : 0.2, 
+                  maxOutputTokens: 4096,
+
+                  responseMimeType: 'application/json',
+                  responseSchema: {
+                    type: 'OBJECT',
+                    properties: {
+                      whenToUse: {
+                        type: 'OBJECT',
+                        properties: {
+                          fontSize: { type: 'NUMBER' },
+                          fontFamily: { type: 'STRING' },
+                          fontWeight: { type: 'STRING' },
+                          letterSpacing: { type: 'NUMBER' },
+                          color: { type: 'STRING' },
+                          topPct: { type: 'NUMBER' },
+                          heightPct: { type: 'NUMBER' },
+                          leftPct: { type: 'NUMBER' },
+                          widthPct: { type: 'NUMBER' }
+                        },
+                        required: ['topPct', 'heightPct', 'leftPct', 'widthPct']
+                      },
+                      phrase: {
+                        type: 'OBJECT',
+                        properties: {
+                          fontSize: { type: 'NUMBER' },
+                          fontFamily: { type: 'STRING' },
+                          fontWeight: { type: 'STRING' },
+                          lineHeight: { type: 'NUMBER' },
+                          color: { type: 'STRING' },
+                          topPct: { type: 'NUMBER' },
+                          heightPct: { type: 'NUMBER' },
+                          leftPct: { type: 'NUMBER' },
+                          widthPct: { type: 'NUMBER' }
+                        },
+                        required: ['topPct', 'heightPct', 'leftPct', 'widthPct']
+                      },
+                      instruction: {
+                        type: 'OBJECT',
+                        properties: {
+                          fontSize: { type: 'NUMBER' },
+                          fontFamily: { type: 'STRING' },
+                          fontWeight: { type: 'STRING' },
+                          lineHeight: { type: 'NUMBER' },
+                          color: { type: 'STRING' },
+                          topPct: { type: 'NUMBER' },
+                          heightPct: { type: 'NUMBER' },
+                          leftPct: { type: 'NUMBER' },
+                          widthPct: { type: 'NUMBER' }
+                        },
+                        required: ['topPct', 'heightPct', 'leftPct', 'widthPct']
+                      },
+                      answer: {
+                        type: 'OBJECT',
+                        properties: {
+                          fontSize: { type: 'NUMBER' },
+                          fontFamily: { type: 'STRING' },
+                          fontWeight: { type: 'STRING' },
+                          color: { type: 'STRING' },
+                          topPct: { type: 'NUMBER' },
+                          heightPct: { type: 'NUMBER' },
+                          leftPct: { type: 'NUMBER' },
+                          widthPct: { type: 'NUMBER' }
+                        },
+                        required: ['topPct', 'heightPct', 'leftPct', 'widthPct']
+                      },
+                      brand: { type: 'OBJECT' },
+                      qrFgColor: { type: 'STRING' },
+                      qrSizeMm: { type: 'NUMBER' },
+                      focalPoints: {
+                        type: 'ARRAY',
+                        items: {
+                          type: 'OBJECT',
+                          properties: {
+                            description: { type: 'STRING' },
+                            xPct: { type: 'NUMBER' },
+                            yPct: { type: 'NUMBER' },
+                            sizePct: { type: 'NUMBER' }
+                          },
+                          required: ['description', 'xPct', 'yPct', 'sizePct']
+                        }
+                      }
+                    }
+                  }
+                }
+              })
+            });
+
+            if (!textRes.ok) {
+              const errDetails = await textRes.text();
+              throw new Error(`Gemini Vision API Failed: ${errDetails.slice(0, 300)}`);
+            }
+
+            const textData = await textRes.json() as any;
+            const finishReason = textData.candidates?.[0]?.finishReason;
+            const rawText: string = textData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            const jsonStr = rawText.replace(/```json\n?|```\n?/g, '').trim();
+            
+            let typographySuggestion: any;
+            try {
+              typographySuggestion = JSON.parse(jsonStr);
+            } catch (parseErr) {
+              console.error('[analyze-typography] JSON parse failed. finishReason:', finishReason, '\nRaw (first 300):', jsonStr.slice(0, 300));
+              throw new Error(`La IA devolvio un JSON incompleto (finishReason: ${finishReason}). Intentá de nuevo.`);
+            }
+
+
+            // Resolve TTF
+            const fontFamilies = new Set<string>();
+            Object.values(typographySuggestion as any).forEach((v: any) => {
+              if (v && typeof v === 'object' && v.fontFamily) fontFamilies.add(v.fontFamily);
+            });
+            const resolved: Record<string, string> = {};
+            for (const family of fontFamilies) {
+              const slug = family.toLowerCase().replace(/\s+/g, '-');
+              try {
+                const fRes = await fetch(`https://gwfh.mranftl.com/api/fonts/${slug}`);
+                if (fRes.ok) {
+                  const fData: any = await fRes.json();
+                  const regular = fData.variants?.find((v: any) => v.id === 'regular' || v.id === '400') || fData.variants?.[0];
+                  if (regular && regular.ttf) resolved[family] = regular.ttf;
+                }
+              } catch (e) { }
+            }
+            typographySuggestion.ttfUrls = resolved;
+
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true, typography: typographySuggestion }));
+          } catch (err: any) {
+            console.error('[analyze-typography]', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: err.message || String(err) }));
+          }
+          return;
+        }
+
+        // ── Save frame to public/frames/ (or public/frames/{deckId}/) ──
+        if (req.url === '/__cms__/set-frame' && req.method === 'POST') {
+          try {
+            const body = await readBody(req);
+            const { dataUrl, face, deckId } = JSON.parse(body);
+
+            if (!dataUrl || !face) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: false, error: 'dataUrl and face are required' }));
+              return;
+            }
+
+            // Per-deck frames go to public/frames/{deckId}/, global to public/frames/
+            const framesDir = deckId
+              ? path.resolve(__dirname, `public/frames/${deckId}`)
+              : path.resolve(__dirname, 'public/frames');
+            await fs.mkdir(framesDir, { recursive: true });
+
+            let ext = 'png';
+            let finalBuffer: Buffer;
+
+            if (dataUrl.startsWith('data:')) {
+              const matches = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+              if (!matches) {
+                throw new Error('Invalid base64 data URL format');
+              }
+              const mimeType = matches[1];
+              ext = mimeType === 'image/png' ? 'png' : 'jpg';
+              finalBuffer = Buffer.from(matches[2], 'base64');
+            } else if (dataUrl.startsWith('/assets/')) {
+              // Local path: /assets/frames/... -> public/assets/frames/...
+              const srcPath = path.resolve(__dirname, 'public', dataUrl.replace(/^\//, ''));
+              ext = srcPath.endsWith('.jpg') || srcPath.endsWith('.jpeg') ? 'jpg' : 'png';
+              finalBuffer = await fs.readFile(srcPath);
+            } else {
+              throw new Error('Unsupported dataUrl format. Must be base64 or /assets/ path');
+            }
+
+            // We ALWAYS save the active frame as .png because the frontend (cardFrame.ts)
+            // has hardcoded dependencies on back-frame.png / front-frame.png.
+            // Modern browsers and canvas will correctly render JPEG bytes even if the file extension is .png.
+            const filename = `${face}-frame.png`;
+            const destPath = path.resolve(framesDir, filename);
+
+            // Archive existing frame
+            try {
+              await fs.access(destPath);
+              const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+              const archiveName = `${face}-frame_prev_${ts}.png`;
+              await fs.rename(destPath, path.resolve(framesDir, archiveName));
+              console.log(`📦 Archived previous frame as: ${archiveName}`);
+            } catch {
+              // No existing file, skip archive
+            }
+
+            // Write new frame
+            await fs.writeFile(destPath, finalBuffer);
+            const sizeKB = Math.round(finalBuffer.length / 1024);
+
+            const relativePath = deckId
+              ? `public/frames/${deckId}/${filename}`
+              : `public/frames/${filename}`;
+            console.log(`✅ Frame saved: ${relativePath} (${sizeKB}KB)`);
+
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true, filename, sizeKB, deckId: deckId || null }));
+          } catch (err: any) {
+            console.error('[set-frame]', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: err.message || String(err) }));
+          }
+          return;
+        }
+
+        // ── List frames from library ────────────────────────
+        if (req.url === '/__cms__/list-frames-library' && req.method === 'GET') {
+          try {
+            const libraryPath = path.resolve(CONTENT_DIR, 'frames_library.json');
+            let frames = [];
+            try {
+              const content = await fs.readFile(libraryPath, 'utf-8');
+              frames = JSON.parse(content);
+            } catch (e) {
+              // File doesn't exist yet, it's fine
+            }
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true, frames }));
+          } catch (err: any) {
+            console.error('[list-frames-library]', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: err.message || String(err) }));
+          }
+          return;
+        }
+
+        // ── Save frame to library ────────────────────────
+        if (req.url === '/__cms__/save-frame-library' && req.method === 'POST') {
+          try {
+            const body = await readBody(req);
+            const { dataUrl, prompt, typography, face, widthMm, heightMm, presetId } = JSON.parse(body);
+
+            if (!dataUrl || !face) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: false, error: 'dataUrl and face are required' }));
+              return;
+            }
+
+            const matches = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+            if (!matches) throw new Error('Invalid base64 data URL format');
+            
+            const mimeType: string = matches[1];
+            const base64Data: string = matches[2];
+            const ext = mimeType === 'image/png' ? 'png' : 'jpg';
+
+            // Generate unique ID
+            const id = Date.now().toString();
+            const filename = `library-${face}-${id}.${ext}`;
+            const destPath = path.resolve(__dirname, `public/assets/frames/${filename}`);
+            
+            await fs.mkdir(path.dirname(destPath), { recursive: true });
+            
+            // Save Image
+            await fs.writeFile(destPath, Buffer.from(base64Data, 'base64'));
+
+            // Save Metadata to JSON
+            const libraryPath = path.resolve(CONTENT_DIR, 'frames_library.json');
+            let frames = [];
+            try {
+              const content = await fs.readFile(libraryPath, 'utf-8');
+              frames = JSON.parse(content);
+            } catch (e) {
+              // Ignore
+            }
+
+            const newFrame = {
+              id,
+              url: `/assets/frames/${filename}`,
+              prompt,
+              typography,
+              face,
+              widthMm: widthMm || 70,
+              heightMm: heightMm || 120,
+              presetId: presetId || 'custom',
+              timestamp: parseInt(id),
+            };
+
+            frames.unshift(newFrame); // Newest first
+            await fs.writeFile(libraryPath, JSON.stringify(frames, null, 2));
+
+            console.log(`✅ Frame added to library: ${filename}`);
+
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true, frame: newFrame }));
+          } catch (err: any) {
+            console.error('[save-frame-library]', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: err.message || String(err) }));
+          }
+          return;
+        }
+
+        // ── Generate frame prompt ideas via Gemini Flash ──────────────────
+        if (req.url === '/__cms__/generate-frame-ideas' && req.method === 'POST') {
+          const apiKey = process.env.GEMINI_API_KEY;
+          if (!apiKey) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: 'GEMINI_API_KEY not set' }));
+            return;
+          }
+
+          try {
+            const body = await readBody(req);
+            const { count = 8, seed, existingIds = [] } = JSON.parse(body || '{}');
+
+            const diversityNote = existingIds.length > 0
+              ? `Already shown styles: ${existingIds.join(', ')}. Generate COMPLETELY DIFFERENT styles.`
+              : '';
+
+            const seed_context = seed
+              ? `The card deck theme/mood is: "${seed}". Adapt the palette and mood to that theme.`
+              : '';
+
+            const ideaPrompt = [
+              `You are a professional card game art director specializing in print-ready playing card frames.`,
+              `Generate exactly ${count} completely distinct frame design concepts for a 70mm × 120mm portrait card back.`,
+              seed_context,
+              diversityNote,
+              ``,
+              `Each concept must explore a different visual approach. Vary across these axes:`,
+              `  CORNER TREATMENT: cornered (ornamental corners), cornerless (clean cuts), radius (rounded), cropped (geometric clip)`,
+              `  BORDER STYLE: single line, double line, triple line, no border, dashed, dotted`,
+              `  DECORATION: none, botanical/flora, geometric, Art Deco, minimal symbol, filigree, abstract brush, diagonal gradient from corner`,
+              `  BACKGROUND: solid flat, subtle texture, grain, vignette, cross-hatch, linen, noise, diagonal stripe, radial gradient`,
+              `  PALETTE: dark (near-black), light (cream/white), bold (jewel tones), neutral (warm gray)`,
+              ``,
+              `Frame rules (ALL concepts must follow):`,
+              `  - The CENTER 64% of the card (from 18% to 82% from top) MUST be plain flat background — NO ornaments`,
+              `  - Decorations ONLY in top strip (top 18%) and bottom strip (bottom 18%)`,
+              `  - ABSOLUTELY NO text, letters, numbers, or words in the image`,
+              `  - Colors must be CMYK-safe for offset printing`,
+              ``,
+              `Return ONLY a valid JSON array with no markdown fences, no explanation. Each element:`,
+              `{`,
+              `  "id": "unique-kebab-case-id",`,
+              `  "label": "Emoji + Short Name (3 words max)",`,
+              `  "description": "One evocative sentence describing the visual feel",`,
+              `  "cornerStyle": "cornered|cornerless|radius|cropped",`,
+              `  "borderStyle": "single|double|triple|none|dashed",`,  
+              `  "decorationStyle": "botanical|geometric|art-deco|minimal|filigree|gradient|none",`,
+              `  "palette": "dark|light|bold|neutral",`,
+              `  "prompt": "Full 3-5 sentence detailed image generation prompt. Be specific about exact colors (hex or descriptive), line weights, corner ornament sizes, background texture intensity, and composition. Mention that the large center area must be a plain flat solid color. NO text in the image."`,
+              `}`,
+            ].filter(Boolean).join('\n');
+
+            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+            const geminiRes = await fetch(geminiUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: ideaPrompt }] }],
+                generationConfig: { temperature: 0.9, maxOutputTokens: 4096 },
+              }),
+            });
+
+            if (!geminiRes.ok) {
+              const errText = await geminiRes.text();
+              throw new Error(`Gemini API ${geminiRes.status}: ${errText.slice(0, 200)}`);
+            }
+
+            const geminiData: any = await geminiRes.json();
+            const rawText: string = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+            const jsonStr = rawText.replace(/```json\n?|```\n?/g, '').trim();
+            const ideas = JSON.parse(jsonStr);
+
+            console.log(`💡 Generated ${ideas.length} frame ideas`);
+
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true, ideas }));
+          } catch (err: any) {
+            console.error('[generate-frame-ideas]', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: err.message || String(err) }));
+          }
+          return;
+        }
+
+        // ── Generate full card back image via Imagen 4 (Flujo B) ──────────
+        if (req.url === '/__cms__/generate-card-image' && req.method === 'POST') {
+          const apiKey = process.env.GEMINI_API_KEY;
+          if (!apiKey) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: 'GEMINI_API_KEY not set' }));
+            return;
+          }
+
+          try {
+            const body = await readBody(req);
+            const { deckId, cardId, force } = JSON.parse(body);
+
+            if (!deckId || !cardId) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: false, error: 'deckId and cardId are required' }));
+              return;
+            }
+
+            // Load deck JSON
+            const contentDir = path.resolve(__dirname, '../../packages/deck-engine/src/content');
+            const deckFile = path.resolve(contentDir, `${deckId}.json`);
+            const deckRaw = JSON.parse(await fs.readFile(deckFile, 'utf-8'));
+
+            const card = deckRaw.cards?.find((c: any) => c.id === cardId);
+            if (!card) {
+              throw new Error(`Card "${cardId}" not found in deck "${deckId}"`);
+            }
+
+            // Skip if already has back image and not forcing
+            if (card.back?.back_image_url && !force) {
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: true, back_image_url: card.back.back_image_url, skipped: true }));
+              return;
+            }
+
+            // Deck design info for aesthetic brief
+            const deckName = deckRaw.name || deckId;
+            const deckSlug = deckRaw.slug || deckId;
+            const primaryColor = deckRaw.design_template_overrides?.primary_color || '#1a1435';
+            const accentColor = deckRaw.design_template_overrides?.accent_color || '#d4af64';
+            const tone = deckRaw.metadata?.tone || 'honest, calm, grounded';
+            const topic = deckRaw.metadata?.topic || '';
+
+            // Card content
+            const { when_to_use, phrase, instruction, answer, fun_fact } = card.back;
+            const cardNumber = String(card.front.number).padStart(2, '0');
+            const cardTitle = card.front.title || '';
+
+            // Build the full-card design prompt (Flujo B)
+            const prompt = [
+              `Design a complete playing card back face for "${deckName}" — a ${topic} card deck.`,
+              `Card size: 70mm x 120mm portrait. Print-ready at 300 DPI. CMYK colors.`,
+              ``,
+              `AESTHETIC:`,
+              `Background color: ${primaryColor} (deep dark navy/indigo). Accent color: ${accentColor} (warm gold).`,
+              `Tone: ${tone}. Elegant, minimal, premium feel. Think high-end card game.`,
+              `Decorative elements only at the TOP and BOTTOM edges of the card (thin borders, small corner ornaments).`,
+              `The large CENTER panel must be clean and flat (just the background color) — this is where the typography lives.`,
+              ``,
+              `TYPOGRAPHY LAYOUT (render this text on the card):`,
+              ``,
+              `At the TOP (small, uppercase, spaced-out, gold/muted text, centered):`,
+              when_to_use ? `  "${when_to_use.toUpperCase()}"` : `  (no header text)`,
+              ``,
+              `In the CENTER (large elegant serif font, white, centered, 2-4 lines max):`,
+              `  "${phrase}"`,
+              ``,
+              `Below the phrase (small, readable body text, light gray, centered):`,
+              instruction ? `  "${instruction}"` : `  (no instruction)`,
+              answer ? `Below instruction (very small, muted): "Rta: ${answer}"` : '',
+              ``,
+              `At the BOTTOM CENTER leave a clean 14mm x 14mm square space — this area will have a QR code placed on top programmatically, do not draw anything there.`,
+              ``,
+              `Card number "N° ${cardNumber}" in tiny text at bottom left corner (inside the bottom decorative band).`,
+              `Deck name "${deckName}" in tiny spaced uppercase at the very bottom center (inside decorative band).`,
+              ``,
+              `STRICT RULES:`,
+              `- Do NOT add placeholder text, zone labels, or wireframe annotations.`,
+              `- Do NOT add a QR code (it will be overlaid separately).`,
+              `- No lorem ipsum, no random text.`,
+              `- All text must be exactly as specified above, nothing more.`,
+              `- Colors: dark background, gold accents, white main text, light-gray secondary text.`,
+            ].filter(Boolean).join('\n');
+
+            console.log(`\n🎴 [Card Back Generator] ${deckId}/${cardId} — ${cardTitle}`);
+
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-fast-generate-001:predict?key=${apiKey}`;
+            const response = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                instances: [{ prompt }],
+                parameters: { sampleCount: 1, aspectRatio: '9:16', outputOptions: { mimeType: 'image/png' } },
+              }),
+            });
+
+            if (!response.ok) {
+              const errText = await response.text();
+              throw new Error(`Imagen 4 API ${response.status}: ${errText.slice(0, 300)}`);
+            }
+
+            const data: any = await response.json();
+            const base64Data: string = data.predictions?.[0]?.bytesBase64Encoded;
+            if (!base64Data) throw new Error('Imagen 4 did not return an image.');
+
+            // Save PNG to public/assets/editions/{slug}/
+            const editionsDir = path.resolve(__dirname, 'public/assets/editions', deckSlug);
+            await fs.mkdir(editionsDir, { recursive: true });
+            const filename = `${cardId}-back.png`;
+            const destPath = path.resolve(editionsDir, filename);
+
+            // Archive existing
+            try {
+              await fs.access(destPath);
+              const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+              await fs.rename(destPath, path.resolve(editionsDir, `${cardId}-back_prev_${ts}.png`));
+            } catch { /* no existing file */ }
+
+            await fs.writeFile(destPath, Buffer.from(base64Data, 'base64'));
+            const sizeKB = Math.round(Buffer.from(base64Data, 'base64').length / 1024);
+
+            // Public URL served by Vite dev server
+            const back_image_url = `/assets/editions/${deckSlug}/${filename}`;
+
+            // Persist to deck JSON
+            const prevBackImageUrl = card.back.back_image_url;
+            const prevVersions: string[] = card.back.back_image_versions || [];
+            if (prevBackImageUrl) prevVersions.unshift(prevBackImageUrl);
+
+            card.back.back_image_url = back_image_url;
+            card.back.back_image_versions = prevVersions.slice(0, 5);
+
+            await fs.writeFile(deckFile, JSON.stringify(deckRaw, null, 2));
+
+            console.log(`✅ Card back saved: ${back_image_url} (${sizeKB}KB)`);
+
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true, back_image_url, sizeKB }));
+          } catch (err: any) {
+            console.error('[generate-card-image]', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: err.message || String(err) }));
+          }
+          return;
         }
 
         next();

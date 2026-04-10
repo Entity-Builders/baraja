@@ -27,9 +27,10 @@ export default function AdminPrintView() {
         const blob = new Blob([new Uint8Array(uint8Array)], { type: 'application/pdf' });
         const url = URL.createObjectURL(blob);
         setPdfUrl(url);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Failed to generate PDF', err);
-        if (isActive) setGenError(err.stack || err.toString());
+        const errorMessage = err instanceof Error ? err.stack || err.message : String(err);
+        if (isActive) setGenError(errorMessage);
       } finally {
         if (isActive) setIsGenerating(false);
       }
@@ -85,6 +86,7 @@ export default function AdminPrintView() {
             <ul style={{ margin: '0', paddingLeft: '1.2rem', fontSize: '13px', color: 'white', opacity: 0.9, lineHeight: '1.5' }}>
               <li><strong>Medida de cada carta:</strong> {widthMm} × {heightMm} mm {widthMm > heightMm ? '(horizontal / landscape)' : '(vertical / portrait)'}</li>
               <li><strong>Sangría (bleed):</strong> {bleedMm} mm por lado → Medida total: {totalWidthMm} × {totalHeightMm} mm</li>
+              <li><strong>Marcas de corte:</strong> Incluidas en todas las esquinas de cada carta.</li>
               <li>El PDF tiene imposición doble faz 1:1, voltear horizontalmente al imprimir.</li>
             </ul>
           </div>

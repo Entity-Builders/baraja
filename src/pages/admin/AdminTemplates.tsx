@@ -1,234 +1,340 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { Designer } from '@pdfme/ui';
 import type { Template, Schema } from '@pdfme/common';
-import { DesignTemplateRepository } from '../../lib/deckRepository';
-import type { DesignTemplateRow, DesignTemplateInput } from '../../lib/deckRepository';
-import { createDefaultCardTemplate } from '../../lib/pdfmeConfig';
-import { TemplateDesigner } from '../../components/admin/TemplateDesigner';
+import { SupabaseDeckRepository } from '../../lib/deckRepository';
+import type { RawDeckContent } from '@eb-packages/deck-engine';
+import { getTemplateForDeck, buildPdfmeFonts, pdfmePlugins, cardUsesFlujob } from '../../lib/pdfmeConfig';
+import { getFrameDataUri } from '../../lib/cardFrame';
+import { coverCropToJpeg } from '../../lib/PrintEngine';
+import { getCardQrUrl } from '@eb-packages/deck-engine';
 
-const repo = new DesignTemplateRepository();
+const deckRepo = new SupabaseDeckRepository();
 
-export default function AdminTemplates() {
-  const [templates, setTemplates] = useState<DesignTemplateRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [creating, setCreating] = useState(false);
+// A local designer wrapper to handle pdfme lifecycle per-deck
+function DeckDesignerRunner({ 
+  deck, 
+  template,
+  mockData,
+  onSave,
+}: { 
+  deck: RawDeckContent;
+  template: Template;
+  mockData: Record<string, string>;
+  onSave: (tpl: Template) => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const designerRef = useRef<Designer | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  async function loadTemplates() {
-    setLoading(true);
-    try { setTemplates(await repo.getAll()); }
-    catch (err) { console.error(err); }
-    finally { setLoading(false); }
-  }
+  useEffect(() => {
+    let mounted = true;
+    if (!containerRef.current) return;
 
-  useEffect(() => { loadTemplates(); }, []);
-
-  const editingTemplate = editingId ? templates.find(t => t.id === editingId) : null;
-
-  // Resolve the pdfme Template from the stored layout_config
-  function getPdfmeTemplate(row: DesignTemplateRow): Template {
-    const config = row.layout_config;
-    // If layout_config has a pdfme_template, use it directly (and auto-upgrade old ones)
-    if (config && 'basePdf' in config && 'schemas' in config) {
-      const template = JSON.parse(JSON.stringify(config)) as Template;
-      const defaults = createDefaultCardTemplate(row.card_width, row.card_height);
-
-      // Auto-inject missing sampledata so old DB templates aren't blank
-      const currentSample = Array.isArray(template.sampledata) ? template.sampledata : [];
-      if (currentSample.length === 0) {
-        const defaultSample = (defaults.sampledata as Record<string, string>[])?.[0] || {};
-        template.sampledata = [{ ...defaultSample }];
-      }
-
-      // LEGACY UPGRADE: If schema only has 1 page, it was the BACK face.
-      if (template.schemas && template.schemas.length === 1) {
-        // Move the back face to index 1, and insert the default front face at index 0
-        template.schemas = [defaults.schemas[0], template.schemas[0]];
-      }
-
-      // Auto-upgrade legacy bg and border to rectangle type, and inject missing elements for both pages
-      if (template.schemas && template.schemas.length >= 2) {
-        template.schemas.forEach((schemaPage, pageIndex) => {
-          // Remove old 'text' type bg/border
-          ['bg', 'border'].forEach(name => {
-            const index = schemaPage.findIndex(s => s.name === name);
-            if (index >= 0 && schemaPage[index].type !== 'rectangle') {
-              schemaPage.splice(index, 1);
-            }
-          });
-
-          // Re-inject missing layout essentials from the corresponding default page
-          const defaultPage = defaults.schemas[pageIndex] || [];
-          const missingObjects: Schema[] = [];
-          defaultPage.forEach(defaultObj => {
-            if (!schemaPage.some(s => s.name === defaultObj.name)) {
-              missingObjects.push(defaultObj);
-            }
-          });
-
-          // Background and border go to the bottom of the stack (index 0)
-          const bgBorder = missingObjects.filter(obj => obj.name === 'bg' || obj.name === 'border');
-          // Other items go on top of the stack
-          const textStuff = missingObjects.filter(obj => obj.name !== 'bg' && obj.name !== 'border');
-
-          // Unshift adds to the beginning. Add border first, then bg
-          bgBorder.reverse().forEach(obj => {
-            if (obj) schemaPage.unshift(obj);
-          });
-
-          textStuff.forEach(obj => {
-            if (obj) schemaPage.push(obj);
-          });
+    // Load actual fonts so it looks just like the PDF
+    buildPdfmeFonts().then(fonts => {
+      if (!mounted || !containerRef.current) return;
+      
+      // Inject mock data directly into schemas so we see visuals perfectly
+      const hydratedTpl = JSON.parse(JSON.stringify(template)) as Template;
+      hydratedTpl.schemas = hydratedTpl.schemas.map(pageSchema => {
+        return pageSchema.map(schema => {
+          const s = { ...schema };
+          if (mockData[s.name] !== undefined) {
+             (s as any).content = String(mockData[s.name]);
+          }
+          return s;
         });
-      }
+      });
 
-      return template;
-    }
-    // Otherwise create a default one from card dimensions
-    return createDefaultCardTemplate(row.card_width, row.card_height);
-  }
+      const designer = new Designer({
+        domContainer: containerRef.current,
+        template: hydratedTpl,
+        options: { font: fonts, lang: 'en' },
+        plugins: pdfmePlugins,
+      });
 
-  async function handleCreate(pdfmeTemplate: Template, meta: Partial<DesignTemplateInput>) {
-    const input: DesignTemplateInput = {
-      id: meta.id || 'untitled',
-      name: meta.name || 'Untitled',
-      primary_color: meta.primary_color || '#0c0b09',
-      accent_color: meta.accent_color || '#d4af64',
-      font_heading: meta.font_heading || 'Cormorant Garamond',
-      font_body: meta.font_body || 'Inter',
-      background: meta.primary_color || '#0c0b09',
-      text_color: meta.text_color || '#f0ebe0',
-      surface_color: null,
-      card_width: meta.card_width || 88,
-      card_height: meta.card_height || 63,
-      card_unit: 'mm',
-      // Store the full pdfme template as layout_config
-      layout_config: pdfmeTemplate as unknown as DesignTemplateRow['layout_config'],
-    };
-    await repo.create(input);
-    setCreating(false);
-    await loadTemplates();
+      designer.onSaveTemplate(async (savedTemplate) => {
+        if (saving) return;
+        setSaving(true);
+        try {
+          // Clean out the mock content from the saved template before storing to DB
+          const cleanTpl = JSON.parse(JSON.stringify(savedTemplate)) as Template;
+          cleanTpl.schemas = cleanTpl.schemas.map(pageSchema => {
+             return pageSchema.map(schema => {
+                const s = { ...schema };
+                delete (s as any).content;
+                return s;
+             });
+          });
+          await onSave(cleanTpl);
+        } finally {
+          setSaving(false);
+        }
+      });
 
-    const channel = new BroadcastChannel('baraja_template_updates');
-    channel.postMessage({ type: 'TEMPLATE_UPDATED', id: input.id });
-    channel.close();
-  }
-
-  async function handleUpdate(pdfmeTemplate: Template, meta: Partial<DesignTemplateInput>) {
-    if (!editingId) return;
-    await repo.update(editingId, {
-      ...meta,
-      background: meta.primary_color,
-      layout_config: pdfmeTemplate as unknown as DesignTemplateRow['layout_config'],
+      designerRef.current = designer;
+    }).catch(err => {
+      console.error("[DeckDesignerRunner] Failed to load fonts:", err);
     });
-    setEditingId(null);
-    await loadTemplates();
 
-    const channel = new BroadcastChannel('baraja_template_updates');
-    channel.postMessage({ type: 'TEMPLATE_UPDATED', id: editingId });
-    channel.close();
-  }
+    // Hack: Mover la barra flotante de PDFMe (zoom/páginas) hacia arriba
+    // para que no tape el código QR en la parte inferior de la carta.
+    const observer = new MutationObserver(() => {
+      if (!containerRef.current) return;
+      // Buscamos cualquier texto con el símbolo % (ej. "100%") o texto de paginación
+      const zoomText = Array.from(containerRef.current.querySelectorAll('span, div, button')).find(
+        el => el.textContent && (el.textContent.includes('%') || el.textContent.includes('/')) && el.textContent.length <= 5
+      );
+      if (zoomText) {
+        let parent = zoomText.parentElement;
+        while (parent && parent !== containerRef.current) {
+          const style = window.getComputedStyle(parent);
+          // Ojo: hay que checar si pdfme lo inyectó con style.position
+          if ((style.position === 'absolute' || style.position === 'sticky') && style.bottom !== 'auto') {
+            parent.style.left = '16px';
+            parent.style.bottom = '16px';
+            parent.style.top = 'auto';
+            parent.style.transform = 'none'; // Quitar el translateX(-50%) que lo centra
+            parent.style.zIndex = '9999';
+            observer.disconnect(); // Dejar de observar una vez modificado
+            break;
+          }
+          parent = parent.parentElement;
+        }
+      }
+    });
+    observer.observe(containerRef.current, { childList: true, subtree: true });
 
-  async function handleDelete(id: string) {
-    if (!confirm(`Delete "${id}"?`)) return;
-    await repo.delete(id);
-    await loadTemplates();
-  }
+    return () => {
+      observer.disconnect();
+      mounted = false;
+      if (designerRef.current) {
+        designerRef.current.destroy();
+        designerRef.current = null;
+      }
+    };
+  }, [deck.id]); // Re-mount entirely when deck changes
 
-  // ── Editor views ──
-
-  if (creating) {
-    const defaultTemplate = createDefaultCardTemplate(88, 63);
-    return (
-      <TemplateDesigner
-        template={defaultTemplate}
-        onSave={handleCreate}
-        onCancel={() => setCreating(false)}
-        templateRow={{
-          font_heading: 'Cormorant Garamond',
-          font_body: 'Inter',
-          primary_color: '#0c0b09',
-          accent_color: '#d4af64',
-          text_color: '#f0ebe0',
-          card_width: 88,
-          card_height: 63,
-          card_unit: 'mm',
-        }}
-        isNew
-      />
-    );
-  }
-
-  if (editingTemplate) {
-    return (
-      <TemplateDesigner
-        template={getPdfmeTemplate(editingTemplate)}
-        onSave={handleUpdate}
-        onCancel={() => setEditingId(null)}
-        templateRow={editingTemplate}
-        isNew={false}
-      />
-    );
-  }
-
-  // ── List view ──
+  // Hot-swap card texts when mockData changes without losing current layout edits
+  useEffect(() => {
+    if (!designerRef.current) return;
+    try {
+      const currentTpl = designerRef.current.getTemplate();
+      const updatedTpl = JSON.parse(JSON.stringify(currentTpl)) as Template;
+      updatedTpl.schemas = updatedTpl.schemas.map(pageSchema => {
+        return pageSchema.map(schema => {
+          const s = { ...schema };
+          if (mockData[s.name] !== undefined) {
+             (s as any).content = String(mockData[s.name]);
+          }
+          return s;
+        });
+      });
+      designerRef.current.updateTemplate(updatedTpl);
+    } catch (err) {
+      console.warn("[DeckDesignerRunner] Hot-swap failed:", err);
+    }
+  }, [mockData]);
 
   return (
-    <div style={{ padding: '2rem', maxWidth: '1000px', margin: '0 auto', color: 'white' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem 1rem', background: '#131313', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>Editando Layout de: <strong style={{ color: '#fff', opacity: 1 }}>{deck.name}</strong></span>
+          <span style={{ fontSize: '0.7rem', padding: '2px 6px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px' }}>
+            {template.basePdf && typeof template.basePdf === 'object' ? `${template.basePdf.width}x${template.basePdf.height}mm` : ''}
+          </span>
+        </div>
+        <button 
+          onClick={() => designerRef.current?.saveTemplate()}
+          disabled={saving}
+          style={{
+            background: 'var(--color-gold)', color: '#000', border: 'none', padding: '0.4rem 1.2rem', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem'
+          }}
+        >
+          {saving ? 'Guardando Layout...' : '💾 Guardar Layout en Mazo'}
+        </button>
+      </div>
+      <div ref={containerRef} style={{ flex: 1, width: '100%' }} />
+    </div>
+  );
+}
+
+
+export default function AdminTemplates() {
+  const [decks, setDecks] = useState<RawDeckContent[]>([]);
+  const [selectedDeckId, setSelectedDeckId] = useState<string>('');
+  const [loading, setLoading] = useState(true);
+  
+  // Specific deck state
+  const [activeRawDeck, setActiveRawDeck] = useState<RawDeckContent | null>(null);
+  const [activeResolvedDeck, setActiveResolvedDeck] = useState<any>(null);
+  const [activeTemplate, setActiveTemplate] = useState<Template | null>(null);
+  const [mockData, setMockData] = useState<Record<string, string> | null>(null);
+  const [activeCardIndex, setActiveCardIndex] = useState<number>(0);
+
+  useEffect(() => {
+    deckRepo.getAllDecks().then(data => {
+      setDecks(data);
+      setLoading(false);
+    });
+  }, []);
+
+  const loadMockDataForCard = async (deck: any, template: Template, cardIndex: number) => {
+    const card = deck.cards[cardIndex];
+    if (!card) return;
+
+    const w = (typeof template.basePdf === 'object' && 'width' in template.basePdf) ? template.basePdf.width : 70;
+    const h = (typeof template.basePdf === 'object' && 'height' in template.basePdf) ? template.basePdf.height : 120;
+
+    const mData: Record<string, string> = {
+      number: `#${String(card.front.number).padStart(2, '0')}`,
+      title: card.front.title,
+    };
+
+    if (card.front.art_url) {
+      mData.art = await coverCropToJpeg(card.front.art_url, w, h);
+    }
+
+    if (cardUsesFlujob(card)) {
+       mData.back_ai_image = card.back?.back_image_url || '';
+       mData.qr_overlay = card.back?.qr_url || getCardQrUrl(deck.slug ?? 'baraja', card.front.number);
+    } else {
+       const frameUri = await getFrameDataUri(deck.slug);
+       mData.bg = await coverCropToJpeg(frameUri, w, h);
+       
+       mData.when_to_use = card.back?.when_to_use || '';
+       mData.phrase = card.back?.phrase ? `"${card.back.phrase}"` : '';
+       mData.instruction = card.back?.instruction || '';
+       mData.answer = card.back?.answer ? `Rta: ${card.back.answer}` : '';
+       mData.fun_fact = card.back?.fun_fact ? `💡 ${card.back.fun_fact}` : '';
+       mData.qr = card.back?.qr_url || getCardQrUrl(deck.slug ?? 'baraja', card.front.number);
+       mData.brand = `Baraja · ${deck.name}`;
+    }
+
+    setMockData(mData);
+  };
+
+  const loadDeckLayout = useCallback(async (deckId: string) => {
+    const rawDeck = decks.find(d => d.id === deckId);
+    if (!rawDeck) return;
+    
+    // 1. Resolve to DeckSchema to map design properly
+    const { resolveDeck } = await import('@eb-packages/deck-engine');
+    const deck = resolveDeck(rawDeck);
+
+    // 2. Get Base Template for this deck
+    const template = getTemplateForDeck(deck);
+    
+    setActiveRawDeck(rawDeck);
+    setActiveResolvedDeck(deck);
+    setActiveTemplate(template);
+    setActiveCardIndex(0);
+
+    // Load up the first card
+    await loadMockDataForCard(deck, template, 0);
+  }, [decks]);
+
+
+  useEffect(() => {
+    if (selectedDeckId) {
+      loadDeckLayout(selectedDeckId);
+    } else {
+      setActiveRawDeck(null);
+      setActiveResolvedDeck(null);
+      setActiveTemplate(null);
+      setMockData(null);
+    }
+  }, [selectedDeckId, loadDeckLayout]);
+
+  const handleNextCard = () => {
+    if (!activeResolvedDeck || !activeTemplate) return;
+    const maxIdx = activeResolvedDeck.cards.length - 1;
+    const nextIdx = activeCardIndex < maxIdx ? activeCardIndex + 1 : 0;
+    setActiveCardIndex(nextIdx);
+    loadMockDataForCard(activeResolvedDeck, activeTemplate, nextIdx);
+  };
+
+  const handlePrevCard = () => {
+    if (!activeResolvedDeck || !activeTemplate) return;
+    const maxIdx = activeResolvedDeck.cards.length - 1;
+    const prevIdx = activeCardIndex > 0 ? activeCardIndex - 1 : maxIdx;
+    setActiveCardIndex(prevIdx);
+    loadMockDataForCard(activeResolvedDeck, activeTemplate, prevIdx);
+  };
+
+  async function handleSaveDeckTemplate(savedTpl: Template) {
+    if (!activeRawDeck) return;
+    
+    // Save the layout config strictly to the deck's overrides!
+    await deckRepo.updateDeckSettings(activeRawDeck.id, {
+      design_template_overrides: {
+        ...(activeRawDeck.design_template_overrides || {}),
+        layout_config: savedTpl as any
+      }
+    });
+    alert('✅ Layout guardado correctamente para el mazo ' + activeRawDeck.name);
+  }
+
+  if (loading) return <div style={{ padding: '2rem', color: 'white' }}>Cargando...</div>;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#0a0a10', color: 'white' }}>
+      
+      {/* HEADER */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 2rem', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         <div>
-          <Link to="/admin" style={{ color: '#d4af64', textDecoration: 'none', fontSize: '0.85rem' }}>&larr; Dashboard</Link>
-          <h1 style={{ margin: '0.5rem 0 0' }}>🎨 Design Templates</h1>
+          <Link to="/admin" style={{ color: '#d4af64', textDecoration: 'none', fontSize: '0.85rem' }}>← Dashboard</Link>
+          <h1 style={{ margin: '0.5rem 0 0', fontFamily: 'var(--font-serif)', fontSize: '1.4rem' }}>🃏 Editor Visual por Mazo</h1>
         </div>
-        <button onClick={() => setCreating(true)} className="btn-primary" style={{ fontSize: '0.85rem' }}>+ New Template</button>
-      </div>
-      <p style={{ opacity: 0.5, marginBottom: '2rem', fontSize: '0.9rem' }}>
-        Powered by <strong>pdfme</strong> — drag & drop template designer. What you design is what the PDF outputs.
-      </p>
 
-      {loading && <p style={{ opacity: 0.5 }}>Loading...</p>}
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1rem' }}>
-        {templates.map((tpl) => {
-          const bg = tpl.background || tpl.primary_color;
-          const accent = tpl.accent_color;
-          return (
-            <div key={tpl.id} onClick={() => setEditingId(tpl.id)} style={{
-              background: '#1a1a1a', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.07)',
-              overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.15s, box-shadow 0.15s',
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+          <label style={{ fontSize: '0.8rem', opacity: 0.6 }}>Seleccionar Mazo:</label>
+          <select 
+            value={selectedDeckId} 
+            onChange={e => setSelectedDeckId(e.target.value)}
+            style={{
+              background: 'rgba(0,0,0,0.5)', color: 'white', border: '1px solid var(--color-gold)',
+              borderRadius: '6px', padding: '0.5rem 1rem', fontSize: '0.9rem', cursor: 'pointer', outline: 'none'
             }}
-              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.3)'; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; }}
-            >
-              <div style={{ height: '50px', display: 'flex' }}>
-                <div style={{ flex: 2, background: bg }} />
-                <div style={{ flex: 1, background: accent }} />
-              </div>
-              <div style={{ padding: '0.6rem 0.8rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h3 style={{ margin: 0, fontSize: '0.85rem' }}>{tpl.name}</h3>
-                  <button onClick={e => { e.stopPropagation(); handleDelete(tpl.id); }} style={{
-                    background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.7rem', opacity: 0.4,
-                  }}>🗑️</button>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.2rem' }}>
-                  <code style={{ fontSize: '0.6rem', opacity: 0.25 }}>{tpl.id}</code>
-                  <span style={{ fontSize: '0.6rem', opacity: 0.25, fontFamily: 'monospace' }}>
-                    {tpl.card_width}×{tpl.card_height}mm
-                  </span>
-                </div>
-              </div>
+          >
+            <option value="">-- Elige un mazo para editar --</option>
+            {decks.map(d => (
+              <option key={d.id} value={d.id}>{d.name}</option>
+            ))}
+          </select>
+
+          {activeResolvedDeck && activeResolvedDeck.cards.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '1rem', background: '#222', borderRadius: '6px', padding: '0.2rem' }}>
+               <button onClick={handlePrevCard} style={{ background: 'transparent', color: '#fff', border: 'none', cursor: 'pointer', padding: '0.3rem 0.6rem' }}>◀</button>
+               <span style={{ fontSize: '0.8rem', minWidth: '60px', textAlign: 'center' }}>
+                 Card {activeCardIndex + 1} / {activeResolvedDeck.cards.length}
+               </span>
+               <button onClick={handleNextCard} style={{ background: 'transparent', color: '#fff', border: 'none', cursor: 'pointer', padding: '0.3rem 0.6rem' }}>▶</button>
             </div>
-          );
-        })}
+          )}
+        </div>
       </div>
 
-      {!loading && templates.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '4rem 0', opacity: 0.4 }}>
-          <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🎨</p>
-          <p>No templates yet. Click <strong>+ New Template</strong> to start designing.</p>
-        </div>
-      )}
+      {/* EDITOR AREA */}
+      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+        {!activeRawDeck || !activeTemplate || !mockData ? (
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', alignItems: 'center', justifyContent: 'center', opacity: 0.4 }}>
+             <span style={{ fontSize: '3rem', marginBottom: '1rem' }}>☝️</span>
+             <p>Selecciona un mazo arriba para comenzar a editar su diseño.</p>
+             <p style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>Verás el fondo (frame) y el contenido exactamente igual que al Imprimir el PDF.</p>
+          </div>
+        ) : (
+          <DeckDesignerRunner 
+            deck={activeRawDeck}
+            template={activeTemplate}
+            mockData={mockData}
+            onSave={handleSaveDeckTemplate}
+          />
+        )}
+      </div>
+
     </div>
   );
 }

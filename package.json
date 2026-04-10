@@ -20,6 +20,7 @@
     "@pdfme/schemas": "^6.0.6",
     "@pdfme/ui": "^6.0.6",
     "buffer": "^6.0.3",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.13.1"
