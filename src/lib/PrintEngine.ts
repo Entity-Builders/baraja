@@ -365,13 +365,23 @@ async function buildImpositionTemplateAndInputs(
           } else {
             // ── STANDARD: frame image + text overlay ──
             pageInputs[`bg_${suffix}`] = frameDataUri;
-            pageInputs[`when_to_use_${suffix}`] = card.back.when_to_use;
-            pageInputs[`phrase_${suffix}`] = `"${card.back.phrase}"`;
-            pageInputs[`instruction_${suffix}`] = card.back.instruction;
-            pageInputs[`answer_${suffix}`] = card.back.answer ? `Rta: ${card.back.answer}` : '';
-            pageInputs[`fun_fact_${suffix}`] = card.back.fun_fact ? `💡 ${card.back.fun_fact}` : '';
-            pageInputs[`qr_${suffix}`] = card.back.qr_url || getCardQrUrl(deck.slug ?? 'baraja', card.front.number);
-            pageInputs[`brand_${suffix}`] = `Baraja · ${deck.name}`;
+
+            const hiddenFields = deck.design_template_overrides?.hidden_fields || {};
+            // Legacy fallback
+            if (deck.design?.layout_config?.hide_player_count || deck.design_template_overrides?.hide_player_count) {
+               hiddenFields.player_count = true;
+            }
+
+            const rawWhenToUse = card.back.when_to_use || '';
+            const cleanWhenToUse = hiddenFields.player_count ? rawWhenToUse.replace(/([.¡!]\s*)?[Pp]ara\s*\d+[+-]?\s*jugador(es)?\.?/g, '').trim() : rawWhenToUse;
+            
+            pageInputs[`when_to_use_${suffix}`] = hiddenFields.when_to_use ? '' : cleanWhenToUse;
+            pageInputs[`phrase_${suffix}`] = hiddenFields.phrase ? '' : `"${card.back.phrase}"`;
+            pageInputs[`instruction_${suffix}`] = hiddenFields.instruction ? '' : card.back.instruction;
+            pageInputs[`answer_${suffix}`] = hiddenFields.answer ? '' : (card.back.answer ? `Rta: ${card.back.answer}` : '');
+            pageInputs[`fun_fact_${suffix}`] = hiddenFields.fun_fact ? '' : (card.back.fun_fact ? `💡 ${card.back.fun_fact}` : '');
+            pageInputs[`qr_${suffix}`] = hiddenFields.qr ? '' : (card.back.qr_url || getCardQrUrl(deck.slug ?? 'baraja', card.front.number));
+            pageInputs[`brand_${suffix}`] = hiddenFields.brand ? '' : `Baraja · ${deck.name}`;
 
             // ── PrintEngine now relies natively on pdfme's `dynamicFontSize` which is safely injected above. ──
           }
@@ -409,8 +419,8 @@ async function buildImpositionTemplateAndInputs(
 
 export async function generatePrintPdf(deck: DeckSchema, options: PrintOptions): Promise<Uint8Array> {
   const { template, inputs } = await buildImpositionTemplateAndInputs(deck, options.sheetSize);
-  const typo = getFrameTypography() as any;
-  const fonts = await buildPdfmeFonts(typo);
+  const typo = deck.layout_config || getFrameTypography();
+  const fonts = await buildPdfmeFonts(typo as any, template);
 
   const pdf = await generate({
     template,

@@ -22,13 +22,11 @@ export interface PdfTypographyZone {
 }
 
 export interface PdfTypographyHints {
-  whenToUse?: PdfTypographyZone;
-  phrase?: PdfTypographyZone;
-  instruction?: PdfTypographyZone;
-  answer?: PdfTypographyZone;
   brand?: { color?: string; fontFamily?: string };
   qrFgColor?: string;
   ttfUrls?: Record<string, string>;
+  // Dynamic zones based on the deck's edition model (e.g., 'cita', 'prenda', 'whenToUse')
+  [key: string]: PdfTypographyZone | any;
 }
 
 // ── Plugins available in Designer + Generator ────────
@@ -65,7 +63,7 @@ async function fetchFontData(url: string): Promise<string> {
   return 'data:font/ttf;base64,' + arrayBufferToBase64(ab);
 }
 
-export async function buildPdfmeFonts(typographyOverride?: PdfTypographyHints | null): Promise<Font> {
+export async function buildPdfmeFonts(typographyOverride?: PdfTypographyHints | null, pdfmeTemplate?: Template | null): Promise<Font> {
   const typo: PdfTypographyHints = typographyOverride ?? (getFrameTypography() as PdfTypographyHints | null) ?? {};
   const fonts: Font = {};
 
@@ -115,6 +113,19 @@ export async function buildPdfmeFonts(typographyOverride?: PdfTypographyHints | 
         }
       })
     );
+  }
+
+  // Bulletproof fallback: If the template uses fonts we couldn't resolve, alias them to Inter
+  if (pdfmeTemplate?.schemas && fonts['Inter']) {
+    pdfmeTemplate.schemas.forEach(page => {
+      page.forEach(schema => {
+        const family = (schema as any).fontFamily || (schema as any).fontName;
+        if (family && typeof family === 'string' && !fonts[family]) {
+          console.warn(`[buildPdfmeFonts] Missing font "${family}" in template. Aliasing to Inter fallback to prevent crash.`);
+          fonts[family] = { ...fonts['Inter'], fallback: false };
+        }
+      });
+    });
   }
 
   return fonts;
@@ -201,17 +212,12 @@ export function createDefaultCardTemplate(
   const minGapAboveQr = 4; // mm of guaranteed breathing room between text and QR
   const textNoFlyZone = qrY - minGapAboveQr; // 93mm — text can NEVER bleed past this
   
-  const hintFontSize     = typo.whenToUse?.fontSize    ?? 4.5;
-  const phraseFontSize   = typo.phrase?.fontSize       ?? 15;
-  const instrFontSize    = typo.instruction?.fontSize  ?? 6.5;
-  const answerFontSize   = typo.answer?.fontSize       ?? 5.5;
-
-  const hintFont    = typo.whenToUse?.fontFamily   ?? 'Outfit';
+  const hintFont    = typo.when_to_use?.fontFamily   ?? 'Outfit';
   const phraseFont  = typo.phrase?.fontFamily      ?? 'Cormorant Garamond';
   const instrFont   = typo.instruction?.fontFamily ?? 'Cormorant Garamond';
   const answerFont  = typo.answer?.fontFamily      ?? 'Outfit';
 
-  const hintColor   = typo.whenToUse?.color    ?? '#d6d6d6';
+  const hintColor   = typo.when_to_use?.color    ?? '#d6d6d6';
   const phraseColor = typo.phrase?.color       ?? '#ffffff';
   const instrColor  = typo.instruction?.color  ?? '#e0e0e0';
   const answerColor = typo.answer?.color       ?? '#aaaaaa';
@@ -221,79 +227,113 @@ export function createDefaultCardTemplate(
   // Padding used to give some mathematical breathing room to AI border suggestions
   const pd = 4; // 4% horizontal padding to prevent kissing the borders
 
-  const whenToUse = {
-    name: 'when_to_use', type: 'text',
-    position: { 
-      x: typo.whenToUse?.leftPct !== undefined ? ((typo.whenToUse.leftPct + pd) / 100) * widthMm : backSafeArea, 
-      y: typo.whenToUse?.topPct !== undefined ? (typo.whenToUse.topPct / 100) * heightMm : hintY 
-    },
-    width: typo.whenToUse?.widthPct !== undefined 
-      ? ((typo.whenToUse.widthPct - (pd * 2)) / 100) * widthMm 
-      : backTextW, 
-    height: typo.whenToUse?.heightPct !== undefined ? (typo.whenToUse.heightPct / 100) * heightMm : 8,
-    fontSize: hintFontSize, alignment: 'center', verticalAlignment: 'middle',
-    fontName: hintFont, fontColor: hintColor, letterSpacing: 2.0,
-    dynamicFontSize: { min: hintFontSize * 0.5, max: hintFontSize, fit: 'vertical' as const },
-  };
+  // ────────────────────────────────────────────────────────────────────────
+  // DYNAMIC TEXT ZONES
+  // ────────────────────────────────────────────────────────────────────────
   
-  let phraseY = typo.phrase?.topPct !== undefined ? (typo.phrase.topPct / 100) * heightMm : 20;
-  let phraseHeight = typo.phrase?.heightPct !== undefined ? (typo.phrase.heightPct / 100) * heightMm : 42;
-  if (phraseY + phraseHeight > textNoFlyZone) phraseHeight = Math.max(10, textNoFlyZone - phraseY);
-
-  const phrase = {
-    name: 'phrase', type: 'text',
-    position: { 
-      x: typo.phrase?.leftPct !== undefined ? ((typo.phrase.leftPct + pd) / 100) * widthMm : backSafeArea, 
-      y: phraseY 
-    },
-    width: typo.phrase?.widthPct !== undefined 
-      ? ((typo.phrase.widthPct - (pd * 2)) / 100) * widthMm 
-      : backTextW, 
-    height: phraseHeight,
-    fontSize: phraseFontSize, alignment: 'center', verticalAlignment: 'middle',
-    fontName: phraseFont, fontColor: phraseColor,
-    lineHeight: typo.phrase?.lineHeight ?? 1.1,
-    dynamicFontSize: { min: phraseFontSize * 0.45, max: phraseFontSize, fit: 'vertical' as const },
-  };
+  // We extract all keys from the AI typography that look like text zones (they have topPct, widthPct, etc)
+  const dynamicTextZones: Schema[] = [];
   
-  let instrY = typo.instruction?.topPct !== undefined ? (typo.instruction.topPct / 100) * heightMm : 62;
-  let instrHeight = typo.instruction?.heightPct !== undefined ? (typo.instruction.heightPct / 100) * heightMm : 30;
-  if (instrY + instrHeight > textNoFlyZone) instrHeight = Math.max(10, textNoFlyZone - instrY);
-
-  const instruction = {
-    name: 'instruction', type: 'text',
-    position: { 
-      x: typo.instruction?.leftPct !== undefined ? ((typo.instruction.leftPct + pd) / 100) * widthMm : backSafeArea, 
-      y: instrY 
-    },
-    width: typo.instruction?.widthPct !== undefined 
-      ? ((typo.instruction.widthPct - (pd * 2)) / 100) * widthMm 
-      : backTextW, 
-    height: instrHeight,
-    fontSize: instrFontSize, alignment: 'center', verticalAlignment: 'middle',
-    fontName: instrFont, fontColor: instrColor,
-    lineHeight: typo.instruction?.lineHeight ?? 1.3,
-    dynamicFontSize: { min: instrFontSize * 0.45, max: instrFontSize, fit: 'vertical' as const },
-  };
+  const ignoreKeys = ['brand', 'qrFgColor', 'ttfUrls', 'focalPoints'];
   
-  let answerY = typo.answer?.topPct !== undefined ? (typo.answer.topPct / 100) * heightMm : 92;
-  let answerHeight = typo.answer?.heightPct !== undefined ? (typo.answer.heightPct / 100) * heightMm : 8;
-  if (answerY + answerHeight > textNoFlyZone) answerHeight = Math.max(5, textNoFlyZone - answerY);
+  Object.keys(typo).forEach(key => {
+    if (ignoreKeys.includes(key)) return;
+    const zoneInfo = typo[key];
+    if (!zoneInfo || typeof zoneInfo !== 'object') return;
+    
+    // If it lacks constraints, skip it
+    if (zoneInfo.leftPct === undefined || zoneInfo.topPct === undefined) return;
 
-  const answer = {
-    name: 'answer', type: 'text',
-    position: { 
-      x: typo.answer?.leftPct !== undefined ? ((typo.answer.leftPct + pd) / 100) * widthMm : backSafeArea, 
-      y: answerY 
-    },
-    width: typo.answer?.widthPct !== undefined 
-      ? ((typo.answer.widthPct - (pd * 2)) / 100) * widthMm 
-      : backTextW, 
-    height: answerHeight,
-    fontSize: answerFontSize, alignment: 'center', verticalAlignment: 'middle',
-    fontName: answerFont, fontColor: answerColor,
-    dynamicFontSize: { min: answerFontSize * 0.5, max: answerFontSize, fit: 'vertical' as const },
-  };
+    let zY = (zoneInfo.topPct / 100) * heightMm;
+    let zHeight = (zoneInfo.heightPct / 100) * heightMm;
+    
+    // Collision detection with QR code area at bottom
+    if (zY + zHeight > textNoFlyZone) {
+      zHeight = Math.max(10, textNoFlyZone - zY);
+    }
+
+    // If the AI generated an SVG container for this text block, inject it directly behind the text!
+    if (zoneInfo.containerSvg && typeof zoneInfo.containerSvg === 'string' && zoneInfo.containerSvg.trim().length > 0) {
+      // The AI returns raw shapes (e.g. <rect ...> or <path ...>), so we wrap it mathematically
+      const wrappedSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" preserveAspectRatio="none">${zoneInfo.containerSvg.trim()}</svg>`;
+      
+      dynamicTextZones.push({
+        name: `${key}_container_bg`, // background element suffix
+        type: 'svg',
+        content: wrappedSvg,
+        position: {
+          x: ((zoneInfo.leftPct) / 100) * widthMm, 
+          y: zY
+        },
+        width: ((zoneInfo.widthPct) / 100) * widthMm,
+        height: zHeight,
+      });
+    }
+
+    dynamicTextZones.push({
+      name: key, // IMPORTANT: Maps directly to the deck schema key!
+      type: 'text',
+      position: { 
+        x: ((zoneInfo.leftPct + pd) / 100) * widthMm, 
+        y: zY 
+      },
+      width: ((zoneInfo.widthPct - (pd * 2)) / 100) * widthMm,
+      height: zHeight,
+      fontSize: zoneInfo.fontSize || 12,
+      fontName: zoneInfo.fontFamily || 'Inter',
+      fontColor: zoneInfo.color || '#ffffff',
+      alignment: 'center',
+      verticalAlignment: 'middle',
+      // Safe shrinking so text never spills out of its box
+      dynamicFontSize: { min: (zoneInfo.fontSize || 12) * 0.4, max: zoneInfo.fontSize || 12, fit: 'vertical' },
+    });
+  });
+
+  // If no dynamic zones were generated, we produce fallbacks 
+  // (we keep the legacy hardcoded blocks if the typography object was completely empty, 
+  // this ensures old decks don't break until regenerated)
+  if (dynamicTextZones.length === 0) {
+    const hintFontSize     = 4.5;
+    const phraseFontSize   = 15;
+    const instrFontSize    = 6.5;
+    const answerFontSize   = 5.5;
+
+    dynamicTextZones.push({
+      name: 'when_to_use', type: 'text',
+      position: { x: backSafeArea, y: hintY },
+      width: backTextW, height: 8,
+      fontSize: hintFontSize, alignment: 'center', verticalAlignment: 'middle',
+      fontName: hintFont, fontColor: hintColor, letterSpacing: 2.0,
+      dynamicFontSize: { min: hintFontSize * 0.5, max: hintFontSize, fit: 'vertical' as const },
+    });
+
+    dynamicTextZones.push({
+      name: 'phrase', type: 'text',
+      position: { x: backSafeArea, y: 20 },
+      width: backTextW, height: 42,
+      fontSize: phraseFontSize, alignment: 'center', verticalAlignment: 'middle',
+      fontName: phraseFont, fontColor: phraseColor,
+      dynamicFontSize: { min: phraseFontSize * 0.5, max: phraseFontSize, fit: 'vertical' as const },
+    });
+
+    dynamicTextZones.push({
+      name: 'instruction', type: 'text',
+      position: { x: backSafeArea, y: 65 },
+      width: backTextW, height: 20,
+      fontSize: instrFontSize, alignment: 'center', verticalAlignment: 'middle',
+      fontName: instrFont, fontColor: instrColor,
+      dynamicFontSize: { min: instrFontSize * 0.5, max: instrFontSize, fit: 'vertical' as const },
+    });
+    
+    dynamicTextZones.push({
+      name: 'answer', type: 'text',
+      position: { x: backSafeArea, y: 88 },
+      width: backTextW, height: 4,
+      fontSize: answerFontSize, alignment: 'center', verticalAlignment: 'middle',
+      fontName: answerFont, fontColor: answerColor,
+      dynamicFontSize: { min: answerFontSize * 0.5, max: answerFontSize, fit: 'vertical' as const },
+    });
+  }
 
   const _frameTheme = getFrameTheme();
   const qrFgColor = typo?.qrFgColor ?? (_frameTheme === 'light' ? '#111111' : '#ffffff');
@@ -321,7 +361,7 @@ export function createDefaultCardTemplate(
       [frontArt, frontNumber, frontTitle] as Schema[],
       
       // ── Page 1: BACK FACE (ornate SVG frame) ──
-      [backBg, whenToUse, phrase, instruction, answer, qr, brand] as Schema[],
+      [backBg, ...dynamicTextZones, qr, brand] as Schema[],
     ],
     sampledata: [
       {

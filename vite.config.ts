@@ -804,8 +804,16 @@ function localDeckCmsPlugin() {
                 const { buildStructuralConstraints: buildSC } = await import(
                   path.resolve(__dirname, '../../packages/deck-engine/src/generator/template-prompts.ts') + '?t=' + Date.now()
                 );
-                derivedConstraints = buildSC({ themeDescription: '', layout, cardType: cardType || 'custom', face });
-                console.log(`🗂️  [Frame Generator] Rebuilt dynamic constraints (cardType: ${cardType || 'custom'})`);
+                
+                let dynamicFields: string[] = [];
+                if (cardContent && typeof cardContent === 'object') {
+                  dynamicFields = Object.keys(cardContent).filter(k => 
+                    !['back_image_url', 'back_image_versions', 'qr_url'].includes(k) && typeof cardContent[k] === 'string' && !!cardContent[k]
+                  );
+                }
+                
+                derivedConstraints = buildSC({ themeDescription: '', layout, cardType: cardType || 'custom', face, dynamicFields });
+                console.log(`🗂️  [Frame Generator] Rebuilt dynamic constraints (cardType: ${cardType || 'custom'}, fields: ${dynamicFields.length})`);
               } catch (scErr) {
                 console.warn('[Frame Generator] Could not rebuild constraints, using client-sent version:', scErr);
               }
@@ -863,13 +871,24 @@ function localDeckCmsPlugin() {
             // Now that we have the generated image, we use Vision to analyze the safe margins
             let typographySuggestion: Record<string, any> | null = null;
             if (cardContent && typeof cardContent === 'object') {
-              const { when_to_use, phrase, instruction, answer } = cardContent as any;
-              
               const deckLabel = edition?.label || 'Custom';
               const deckDescription = edition?.description || 'General purpose card deck.';
               const fieldDescriptions = (edition?.fields as Array<{label: string; description: string; typicalLength: string}> | undefined)
                 ?.map(f => `  - ${f.label} (${f.typicalLength} text): ${f.description}`)
                 .join('\n') || '';
+
+              // Extract valid text fields to process
+              const textKeys: string[] = [];
+              const sampleTextLines: string[] = [];
+              
+              for (const key of Object.keys(cardContent || {})) {
+                 if (['back_image_url', 'back_image_versions', 'qr_url'].includes(key)) continue;
+                 const val = cardContent[key];
+                 if (typeof val === 'string' && val.trim().length > 0) {
+                    textKeys.push(key);
+                    sampleTextLines.push(`  ${key.toUpperCase()}: "${val}"`);
+                 }
+              }
 
               const typographyPromptText = [
                 `You are a professional card game typographer and spatial layout engine. Analyze the PROVIDED RENDERED CARD BACKGROUND alongside this text content.`,
@@ -878,41 +897,53 @@ function localDeckCmsPlugin() {
                 `DECK EDITION: "${deckLabel}"`,
                 `CARD CONTENT STRUCTURE:`,
                 fieldDescriptions,
-                `SAMPLE TEXT TO FIT:`,
-                `  HEADER: "${when_to_use || ''}"`,
-                `  PHRASE: "${phrase || ''}"`,
-                `  INSTRUCTION: "${instruction || ''}"`,
-                `  ANSWER: "${answer || ''}"`,
+                `DYNAMIC TEXT CONTENT TO FIT:`,
+                ...sampleTextLines,
                 '',
                 `CRITICAL LAYOUT TASK:`,
                 `Look at the provided image. Detect the thick ornate borders, ribbons, and decorative graphics on the edges and corners.`,
                 `Find the innermost "clean" safe areas for text to avoid overlapping the borders.`,
-                `For each of the 4 text blocks, define EXACT spatial bounding boxes (topPct, heightPct, leftPct, widthPct).`,
+                `For EACH of the text blocks listed above, define EXACT spatial bounding boxes (topPct, heightPct, leftPct, widthPct).`,
                 `These are percentages (0 to 100).`,
                 `For example, if the generated image has a 15% thick visual border on all sides, the text MUST have leftPct: 15, widthPct: 70.`,
-                `Vertical spacing guidelines:`,
-                `  - Header (top part): typically topPct: 8, heightPct: 8`,
-                `  - Phrase (center): typically topPct: 20, heightPct: 40`,
-                `  - Instruction (lower): typically topPct: 62, heightPct: 20`,
-                `  - Answer (bottom): typically topPct: 88, heightPct: 6`,
                 `CRITICAL: Adjust these boxes to perfectly match the empty spaces in the provided image! Vary the layout if the image has content on one side!`,
+                `Space them apart logically depending on the content length and hierarchy.`,
                 `CRITICAL CONTRAST & COLOR METADATA EXTRACTION:`,
                 `1. You MUST analyze the average color of the background EXACTLY within the bounding box you defined for each text block.`,
                 `2. Pick a text color that provides MAXIMUM contrast (AAA Accessibility) against that specific zone.`,
-                `3. DO NOT just use plain black '#0a0a0a' or white '#ffffff'. Be creative! Extract a deeply saturated dark tone from the image's shadows (e.g., dark navy '#081224', dark forest green, rich elegant burgundy) for bright backgrounds. Extract a bright tint from the image's highlights (e.g., warm cream '#fdfbf7', soft gold '#ecdba5', ice blue) for dark backgrounds.`,
+                `3. DO NOT just use plain black '#0a0a0a' or white '#ffffff'. Be creative! Extract a deeply saturated dark tone from the image's shadows for bright backgrounds. Extract a bright tint from the image's highlights for dark backgrounds.`,
                 `4. ENSURE the color hex accurately matches the aesthetic atmosphere of the illustration!`,
                 '',
+                `FONT WEIGHT RULES:`,
+                `For each text zone pick a fontWeight that creates VISUAL CONTRAST between zones. Mix aggressively:`,
+                `  - Use '300' or 'thin' for secondary labels / headers that should feel delicate`,
+                `  - Use 'bold' or '700' for the main phrase when the image is energetic/bold`,
+                `  - Use '900' for a single dramatic zone if the illustration calls for heavy impact`,
+                `  - Think like a magazine designer: hierarchy through weight, not just size`,
+                '',
                 `TYPOGRAPHY & BRANDING:`,
-                `Select a font pairing that MATCHES the visual theme of the image. DO NOT just use "Inter" and "Cormorant Garamond" every time. Mix and match creatively from the list below based on whether the image is futuristic, classic, playful, etc.`,
+                `Select a font pairing that MATCHES the visual theme of the image. DO NOT just use "Inter" and "Cormorant Garamond" every time.`,
                 `AVAILABLE GOOGLE FONTS (use exact names from this list):`,
                 `  Serif (elegant, classic): "Cormorant Garamond", "Playfair Display", "Lora", "DM Serif Display", "EB Garamond"`,
                 `  Sans-serif (clean, modern): "Inter", "DM Sans", "Outfit", "Plus Jakarta Sans", "Montserrat", "Space Grotesk"`,
                 `  Display (impactful): "Bebas Neue", "Oswald", "Syne", "Cinzel"`,
                 `Font sizes MUST be in points (pt), typically 8pt to 28pt.`,
                 '',
-                `Return ONLY a valid JSON object. Example structure:`,
-                `{"whenToUse":{"fontSize":10,"fontFamily":"Plus Jakarta Sans","letterSpacing":2,"color":"#fdfbf7","topPct":8,"heightPct":8,"leftPct":15,"widthPct":70},"phrase":{"fontSize":18,"fontFamily":"Playfair Display","lineHeight":1.15,"color":"#ecdba5","topPct":20,"heightPct":40,"leftPct":15,"widthPct":70},"instruction":{"fontSize":12,"fontFamily":"Lora","lineHeight":1.35,"color":"#fdfbf7","topPct":62,"heightPct":20,"leftPct":15,"widthPct":70},"answer":{"fontSize":9,"fontFamily":"Montserrat","color":"#fdfbf7","topPct":85,"heightPct":6,"leftPct":15,"widthPct":70},"brand":{"color":"#fdfbf7"},"qrFgColor":"#fdfbf7","qrSizeMm":12}`
-              ].join('\n');
+                `FOCAL POINTS DETECTION:`,
+                `Scan the image for the 1-4 largest, most visually prominent elements (e.g. "Large crescent moon", "Diagonal pink stripe", "Cluster of speech bubbles in center").`,
+                `For each element report: description (short label), xPct (horizontal center as 0-100% of width), yPct (vertical center as 0-100% of height), sizePct (approximate radius as % of image height, e.g. 20 means the element spans ~20% of the card height).`,
+                '',
+                `VECTOR CONTAINER DECORATION (CRITICAL):`,
+                `Instead of forcing the image background to paint boxes, YOU must generate an SVG string for EACH text block to act as a sleek container or backdrop (e.g., a frosted glass rectangle, a sleek rounded pill, an elegant ribbon, or a minimalist border).`,
+                `REQUIREMENTS FOR containerSvg:`,
+                `- Must be pure SVG markup representing the shapes ONLY. Do NOT wrap it in an <svg> or </svg> tag! (We will inject it into an existing svg wrapper).`,
+                `- Must use relative coordinates to stretch perfectly. For example: <rect width="100%" height="100%" rx="10" fill="rgba(0,0,0,0.4)" stroke="#d4af64" stroke-width="2"/>`,
+                `- Design the container to match the deck's aesthetic. Use fills, strokes, or even simple paths that fit perfectly behind the text.`,
+                `- If no container is needed (because the background is clear enough), generate a simple transparent invisible rect or an empty string.`,
+                '',
+                `Return ONLY a valid JSON object map that mirrors the keys of the dynamic text content provided. Example structure:`,
+                `{"quote":{"fontSize":20,"fontFamily":"Playfair Display","fontWeight":"bold","lineHeight":1.15,"color":"#ecdba5","topPct":20,"heightPct":40,"leftPct":15,"widthPct":70,"containerSvg":"<rect width=\\"100%\\" height=\\"100%\\" rx=\\"8\\" fill=\\"rgba(0,0,0,0.6)\\"/>"},"description":{"fontSize":11,"fontFamily":"Lora","fontWeight":"regular","lineHeight":1.35,"color":"#fdfbf7","topPct":62,"heightPct":20,"leftPct":15,"widthPct":70,"containerSvg":""},"brand":{"color":"#fdfbf7"},"qrFgColor":"#fdfbf7","qrSizeMm":12,"focalPoints":[{"description":"Large crescent moon","xPct":70,"yPct":25,"sizePct":22}]}`
+              ].filter(Boolean).join('\n');
 
               try {
                 console.log(`\n👁️  [Vision Engine] Analyzing boundaries and computing typography...`);
@@ -929,71 +960,49 @@ function localDeckCmsPlugin() {
                     }],
                     generationConfig: { 
                       temperature: 0.1, 
-                      maxOutputTokens: 512,
+                      maxOutputTokens: 4096,
                       responseMimeType: 'application/json',
                       responseSchema: {
                         type: 'OBJECT',
                         properties: {
-                          whenToUse: {
-                            type: 'OBJECT',
-                            properties: {
-                              fontSize: { type: 'NUMBER' },
-                              fontFamily: { type: 'STRING' },
-                              letterSpacing: { type: 'NUMBER' },
-                              color: { type: 'STRING' },
-                              topPct: { type: 'NUMBER' },
-                              heightPct: { type: 'NUMBER' },
-                              leftPct: { type: 'NUMBER' },
-                              widthPct: { type: 'NUMBER' }
-                            },
-                            required: ['topPct', 'heightPct', 'leftPct', 'widthPct']
-                          },
-                          phrase: {
-                            type: 'OBJECT',
-                            properties: {
-                              fontSize: { type: 'NUMBER' },
-                              fontFamily: { type: 'STRING' },
-                              lineHeight: { type: 'NUMBER' },
-                              color: { type: 'STRING' },
-                              topPct: { type: 'NUMBER' },
-                              heightPct: { type: 'NUMBER' },
-                              leftPct: { type: 'NUMBER' },
-                              widthPct: { type: 'NUMBER' }
-                            },
-                            required: ['topPct', 'heightPct', 'leftPct', 'widthPct']
-                          },
-                          instruction: {
-                            type: 'OBJECT',
-                            properties: {
-                              fontSize: { type: 'NUMBER' },
-                              fontFamily: { type: 'STRING' },
-                              lineHeight: { type: 'NUMBER' },
-                              color: { type: 'STRING' },
-                              topPct: { type: 'NUMBER' },
-                              heightPct: { type: 'NUMBER' },
-                              leftPct: { type: 'NUMBER' },
-                              widthPct: { type: 'NUMBER' }
-                            },
-                            required: ['topPct', 'heightPct', 'leftPct', 'widthPct']
-                          },
-                          answer: {
-                            type: 'OBJECT',
-                            properties: {
-                              fontSize: { type: 'NUMBER' },
-                              fontFamily: { type: 'STRING' },
-                              color: { type: 'STRING' },
-                              topPct: { type: 'NUMBER' },
-                              heightPct: { type: 'NUMBER' },
-                              leftPct: { type: 'NUMBER' },
-                              widthPct: { type: 'NUMBER' }
-                            },
-                            required: ['topPct', 'heightPct', 'leftPct', 'widthPct']
-                          },
+                          ...textKeys.reduce((acc, key) => {
+                            acc[key] = {
+                              type: 'OBJECT',
+                              properties: {
+                                fontSize: { type: 'NUMBER' },
+                                fontFamily: { type: 'STRING' },
+                                fontWeight: { type: 'STRING' },
+                                lineHeight: { type: 'NUMBER' },
+                                letterSpacing: { type: 'NUMBER' },
+                                color: { type: 'STRING' },
+                                topPct: { type: 'NUMBER' },
+                                heightPct: { type: 'NUMBER' },
+                                leftPct: { type: 'NUMBER' },
+                                widthPct: { type: 'NUMBER' },
+                                containerSvg: { type: 'STRING', description: 'Valid SVG string without enclosing <svg> tag that dynamically scales (width="100%" height="100%"). Background vectors/ribbons/boxes.' }
+                              },
+                              required: ['topPct', 'heightPct', 'leftPct', 'widthPct', 'containerSvg', 'fontSize', 'fontFamily', 'fontWeight', 'color']
+                            };
+                            return acc;
+                          }, {} as Record<string, any>),
                           brand: { type: 'OBJECT', properties: { color: { type: 'STRING' } } },
                           qrFgColor: { type: 'STRING' },
-                          qrSizeMm: { type: 'NUMBER' }
+                          qrSizeMm: { type: 'NUMBER' },
+                          focalPoints: {
+                            type: 'ARRAY',
+                            items: {
+                              type: 'OBJECT',
+                              properties: {
+                                description: { type: 'STRING' },
+                                xPct: { type: 'NUMBER' },
+                                yPct: { type: 'NUMBER' },
+                                sizePct: { type: 'NUMBER' }
+                              },
+                              required: ['description', 'xPct', 'yPct', 'sizePct']
+                            }
+                          }
                         },
-                        required: ['whenToUse', 'phrase', 'instruction', 'answer']
+                        required: [...textKeys]
                       }
                     },
                   }),
@@ -1057,7 +1066,20 @@ function localDeckCmsPlugin() {
             const { dataUrl, w, h, edition, cardContent, remixInstruction } = JSON.parse(body);
             
             if (!dataUrl) throw new Error('No image provided');
-            const base64Data = dataUrl.split(',')[1] || dataUrl;
+            
+            let base64Data = '';
+            if (dataUrl.startsWith('data:image')) {
+               base64Data = dataUrl.split(',')[1] || dataUrl;
+            } else if (dataUrl.startsWith('/')) {
+               // Load from local file system if it is a local asset (e.g., from Library)
+               const fs = await import('fs/promises');
+               const path = await import('path');
+               const filePath = path.resolve(__dirname, 'public', dataUrl.replace(/^\//, ''));
+               const fileBuffer = await fs.readFile(filePath);
+               base64Data = fileBuffer.toString('base64');
+            } else {
+               throw new Error('Unsupported image format for Vision analysis: must be a data URI or an absolute local path (/...)');
+            }
 
             const apiKey = process.env.GEMINI_API_KEY;
             if (!apiKey) throw new Error('Missing GEMINI_API_KEY — check your .env file');
@@ -1069,7 +1091,18 @@ function localDeckCmsPlugin() {
               ?.map(f => `  - ${f.label} (${f.typicalLength} text): ${f.description}`)
               .join('\n') || '';
 
-            const { when_to_use, phrase, instruction, answer } = cardContent || {} as any;
+            // Extract valid text fields to process
+            const textKeys: string[] = [];
+            const sampleTextLines: string[] = [];
+            
+            for (const key of Object.keys(cardContent || {})) {
+               if (['back_image_url', 'back_image_versions', 'qr_url'].includes(key)) continue;
+               const val = cardContent[key];
+               if (typeof val === 'string' && val.trim().length > 0) {
+                  textKeys.push(key);
+                  sampleTextLines.push(`  ${key.toUpperCase()}: "${val}"`);
+               }
+            }
 
             const typographyPromptText = [
                 `You are a professional card game typographer and spatial layout engine. Analyze the PROVIDED RENDERED CARD BACKGROUND alongside this text content.`,
@@ -1078,26 +1111,19 @@ function localDeckCmsPlugin() {
                 `DECK EDITION: "${deckLabel}"`,
                 `CARD CONTENT STRUCTURE:`,
                 fieldDescriptions,
-                `SAMPLE TEXT TO FIT:`,
-                `  HEADER: "${when_to_use || ''}"`,
-                `  PHRASE: "${phrase || ''}"`,
-                `  INSTRUCTION: "${instruction || ''}"`,
-                `  ANSWER: "${answer || ''}"`,
+                `DYNAMIC TEXT CONTENT TO FIT:`,
+                ...sampleTextLines,
                 '',
                 remixInstruction ? `USER REMIX DIRECTIVE: ${remixInstruction}` : '',
                 '',
                 `CRITICAL LAYOUT TASK:`,
                 `Look at the provided image. Detect the thick ornate borders, ribbons, and decorative graphics on the edges and corners.`,
                 `Find the innermost "clean" safe areas for text to avoid overlapping the borders.`,
-                `For each of the 4 text blocks, define EXACT spatial bounding boxes (topPct, heightPct, leftPct, widthPct).`,
+                `For EACH of the text blocks listed above, define EXACT spatial bounding boxes (topPct, heightPct, leftPct, widthPct).`,
                 `These are percentages (0 to 100).`,
                 `For example, if the generated image has a 15% thick visual border on all sides, the text MUST have leftPct: 15, widthPct: 70.`,
-                `Vertical spacing guidelines:`,
-                `  - Header (top part): typically topPct: 8, heightPct: 8`,
-                `  - Phrase (center): typically topPct: 20, heightPct: 40`,
-                `  - Instruction (lower): typically topPct: 62, heightPct: 20`,
-                `  - Answer (bottom): typically topPct: 88, heightPct: 6`,
                 `CRITICAL: Adjust these boxes to perfectly match the empty spaces in the provided image! Vary the layout if the image has content on one side!`,
+                `Space them apart logically depending on the content length and hierarchy.`,
                 `CRITICAL CONTRAST & COLOR METADATA EXTRACTION:`,
                 `1. You MUST analyze the average color of the background EXACTLY within the bounding box you defined for each text block.`,
                 `2. Pick a text color that provides MAXIMUM contrast (AAA Accessibility) against that specific zone.`,
@@ -1123,8 +1149,8 @@ function localDeckCmsPlugin() {
                 `Scan the image for the 1-4 largest, most visually prominent elements (e.g. "Large crescent moon", "Diagonal pink stripe", "Cluster of speech bubbles in center").`,
                 `For each element report: description (short label), xPct (horizontal center as 0-100% of width), yPct (vertical center as 0-100% of height), sizePct (approximate radius as % of image height, e.g. 20 means the element spans ~20% of the card height).`,
                 '',
-                `Return ONLY a valid JSON object. Example structure:`,
-                `{"whenToUse":{"fontSize":10,"fontFamily":"Plus Jakarta Sans","fontWeight":"300","letterSpacing":2,"color":"#fdfbf7","topPct":8,"heightPct":8,"leftPct":15,"widthPct":70},"phrase":{"fontSize":20,"fontFamily":"Playfair Display","fontWeight":"bold","lineHeight":1.15,"color":"#ecdba5","topPct":20,"heightPct":40,"leftPct":15,"widthPct":70},"instruction":{"fontSize":11,"fontFamily":"Lora","fontWeight":"regular","lineHeight":1.35,"color":"#fdfbf7","topPct":62,"heightPct":20,"leftPct":15,"widthPct":70},"answer":{"fontSize":9,"fontFamily":"Montserrat","fontWeight":"300","color":"#fdfbf7","topPct":85,"heightPct":6,"leftPct":15,"widthPct":70},"brand":{"color":"#fdfbf7"},"qrFgColor":"#fdfbf7","qrSizeMm":12,"focalPoints":[{"description":"Large crescent moon","xPct":70,"yPct":25,"sizePct":22}]}`
+                `Return ONLY a valid JSON object map that mirrors the keys of the dynamic text content provided. Example structure:`,
+                `{"quote":{"fontSize":20,"fontFamily":"Playfair Display","fontWeight":"bold","lineHeight":1.15,"color":"#ecdba5","topPct":20,"heightPct":40,"leftPct":15,"widthPct":70,"containerSvg":"<rect width=\\"100%\\" height=\\"100%\\" rx=\\"8\\" fill=\\"rgba(0,0,0,0.6)\\"/>"},"description":{"fontSize":11,"fontFamily":"Lora","fontWeight":"regular","lineHeight":1.35,"color":"#fdfbf7","topPct":62,"heightPct":20,"leftPct":15,"widthPct":70,"containerSvg":""},"brand":{"color":"#fdfbf7"},"qrFgColor":"#fdfbf7","qrSizeMm":12,"focalPoints":[{"description":"Large crescent moon","xPct":70,"yPct":25,"sizePct":22}]}`
             ].filter(Boolean).join('\n');
 
             console.log(`\n👁️  [Vision Engine] Standalone Typography Analysis...`);
@@ -1147,66 +1173,27 @@ function localDeckCmsPlugin() {
                   responseSchema: {
                     type: 'OBJECT',
                     properties: {
-                      whenToUse: {
-                        type: 'OBJECT',
-                        properties: {
-                          fontSize: { type: 'NUMBER' },
-                          fontFamily: { type: 'STRING' },
-                          fontWeight: { type: 'STRING' },
-                          letterSpacing: { type: 'NUMBER' },
-                          color: { type: 'STRING' },
-                          topPct: { type: 'NUMBER' },
-                          heightPct: { type: 'NUMBER' },
-                          leftPct: { type: 'NUMBER' },
-                          widthPct: { type: 'NUMBER' }
-                        },
-                        required: ['topPct', 'heightPct', 'leftPct', 'widthPct']
-                      },
-                      phrase: {
-                        type: 'OBJECT',
-                        properties: {
-                          fontSize: { type: 'NUMBER' },
-                          fontFamily: { type: 'STRING' },
-                          fontWeight: { type: 'STRING' },
-                          lineHeight: { type: 'NUMBER' },
-                          color: { type: 'STRING' },
-                          topPct: { type: 'NUMBER' },
-                          heightPct: { type: 'NUMBER' },
-                          leftPct: { type: 'NUMBER' },
-                          widthPct: { type: 'NUMBER' }
-                        },
-                        required: ['topPct', 'heightPct', 'leftPct', 'widthPct']
-                      },
-                      instruction: {
-                        type: 'OBJECT',
-                        properties: {
-                          fontSize: { type: 'NUMBER' },
-                          fontFamily: { type: 'STRING' },
-                          fontWeight: { type: 'STRING' },
-                          lineHeight: { type: 'NUMBER' },
-                          color: { type: 'STRING' },
-                          topPct: { type: 'NUMBER' },
-                          heightPct: { type: 'NUMBER' },
-                          leftPct: { type: 'NUMBER' },
-                          widthPct: { type: 'NUMBER' }
-                        },
-                        required: ['topPct', 'heightPct', 'leftPct', 'widthPct']
-                      },
-                      answer: {
-                        type: 'OBJECT',
-                        properties: {
-                          fontSize: { type: 'NUMBER' },
-                          fontFamily: { type: 'STRING' },
-                          fontWeight: { type: 'STRING' },
-                          color: { type: 'STRING' },
-                          topPct: { type: 'NUMBER' },
-                          heightPct: { type: 'NUMBER' },
-                          leftPct: { type: 'NUMBER' },
-                          widthPct: { type: 'NUMBER' }
-                        },
-                        required: ['topPct', 'heightPct', 'leftPct', 'widthPct']
-                      },
-                      brand: { type: 'OBJECT' },
+                      ...textKeys.reduce((acc, key) => {
+                        acc[key] = {
+                          type: 'OBJECT',
+                          properties: {
+                            fontSize: { type: 'NUMBER' },
+                            fontFamily: { type: 'STRING' },
+                            fontWeight: { type: 'STRING' },
+                            lineHeight: { type: 'NUMBER' },
+                            letterSpacing: { type: 'NUMBER' },
+                            color: { type: 'STRING' },
+                            topPct: { type: 'NUMBER' },
+                            heightPct: { type: 'NUMBER' },
+                            leftPct: { type: 'NUMBER' },
+                            widthPct: { type: 'NUMBER' },
+                            containerSvg: { type: 'STRING', description: 'Valid SVG string without enclosing <svg> tag that dynamically scales (width="100%" height="100%"). Background vectors/ribbons/boxes.' }
+                          },
+                          required: ['topPct', 'heightPct', 'leftPct', 'widthPct', 'containerSvg', 'fontSize', 'fontFamily', 'fontWeight', 'color']
+                        };
+                        return acc;
+                      }, {} as Record<string, any>),
+                      brand: { type: 'OBJECT', properties: { color: { type: 'STRING' } } },
                       qrFgColor: { type: 'STRING' },
                       qrSizeMm: { type: 'NUMBER' },
                       focalPoints: {
@@ -1222,7 +1209,8 @@ function localDeckCmsPlugin() {
                           required: ['description', 'xPct', 'yPct', 'sizePct']
                         }
                       }
-                    }
+                    },
+                    required: [...textKeys]
                   }
                 }
               })

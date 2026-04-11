@@ -3,6 +3,8 @@ import { setFrameTheme, setFrameTypography, setActiveDeckId, loadGoogleFonts } f
 import { Link } from 'react-router-dom';
 import { buildMasterTemplatePrompt, buildArtDirectorMetaPrompt, buildStructuralConstraints, LAYOUT_PRESETS, type BarajaTemplateMetadata, type CardType, DECKS, type DeckId } from '@eb-packages/deck-engine';
 import { DECK_EDITIONS, type DeckEdition } from '../../lib/editions';
+import { SupabaseDeckRepository } from '../../lib/deckRepository';
+import { createDefaultCardTemplate } from '../../lib/pdfmeConfig';
 
 
 const DIMENSION_PRESETS = [
@@ -36,16 +38,13 @@ interface FocalPoint {
 }
 
 interface TypographySuggestion {
-  whenToUse?: TypoZone;
-  phrase?: TypoZone;
-  instruction?: TypoZone;
-  answer?: TypoZone;
   brand?: { color?: string; fontFamily?: string };
   qrFgColor?: string;
   qrSizeMm?: number;
   overallNotes?: string;
   focalPoints?: FocalPoint[]; // Vision-detected major visual elements
   ttfUrls?: Record<string, string>;
+  [key: string]: TypoZone | any;
 }
 
 interface GeneratedFrame {
@@ -140,13 +139,20 @@ export default function AdminFrameGenerator() {
   useEffect(() => {
     if (!activePreview?.typography) return;
     const typo = activePreview.typography;
-    const families = [
-      typo.whenToUse?.fontFamily,
-      typo.phrase?.fontFamily,
-      typo.instruction?.fontFamily,
-      typo.answer?.fontFamily,
-      typo.brand?.fontFamily,
-    ].filter((f): f is string => !!f);
+    
+    const families: string[] = [];
+    Object.keys(typo).forEach(key => {
+      if (['brand', 'qrFgColor', 'ttfUrls', 'focalPoints'].includes(key)) {
+         if (key === 'brand' && typo.brand?.fontFamily) {
+            families.push(typo.brand.fontFamily);
+         }
+         return;
+      }
+      if (typo[key as keyof TypographySuggestion] && typeof typo[key as keyof TypographySuggestion] === 'object' && (typo[key as keyof TypographySuggestion] as any).fontFamily) {
+         families.push((typo[key as keyof TypographySuggestion] as any).fontFamily);
+      }
+    });
+
     if (families.length) {
       loadGoogleFonts(families);
     }
@@ -233,7 +239,15 @@ export default function AdminFrameGenerator() {
   const previewWidth = Math.round(previewHeight * aspectRatio);
 
   async function handleGenerate(refinementText?: string) {
-    const metadata: BarajaTemplateMetadata = { ...builderMetadata, face, cardType };
+    const activeFields = Object.keys(cardContent || {}).filter(k => 
+      !['back_image_url', 'back_image_versions', 'qr_url'].includes(k) && typeof cardContent[k] === 'string' && !!cardContent[k]
+    );
+    const metadata: BarajaTemplateMetadata = { 
+      ...builderMetadata, 
+      face, 
+      cardType,
+      dynamicFields: activeFields
+    };
     
     const artDirectorPrompt = buildArtDirectorMetaPrompt(metadata);
     const structuralConstraints = buildStructuralConstraints(metadata);
@@ -368,6 +382,27 @@ export default function AdminFrameGenerator() {
       setFrameTheme(frameThemeChoice);
       setFrameTypography(frame.typography ?? null);
       setActiveDeckId(selectedDeckId);
+      
+      if (selectedDeckId) {
+        try {
+          const deckRepo = new SupabaseDeckRepository();
+          const deckInfo = await deckRepo.getDeckById(selectedDeckId);
+          if (deckInfo) {
+            const newLayoutTemplate = createDefaultCardTemplate(frame.widthMm, frame.heightMm, frame.typography ?? undefined);
+            
+            await deckRepo.updateDeckSettings(selectedDeckId, {
+              design_template_overrides: {
+                ...(deckInfo.design_template_overrides || {}),
+                layout_config: newLayoutTemplate as any,
+              }
+            });
+            console.log(`[AdminFrameGenerator] Updated layout_config for deck ${selectedDeckId} in Supabase`);
+          }
+        } catch (err) {
+          console.error('[AdminFrameGenerator] Failed to update layout_config on deck in Supabase:', err);
+        }
+      }
+
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: any) {
@@ -841,77 +876,39 @@ export default function AdminFrameGenerator() {
                     `}</style>
                   ))}
 
-                  {cardContent.when_to_use && activePreview.typography.whenToUse && (
-                    <div style={{
-                      position: 'absolute', 
-                      left: activePreview.typography.whenToUse.leftPct !== undefined ? `${activePreview.typography.whenToUse.leftPct}%` : '11.4%',
-                      width: activePreview.typography.whenToUse.widthPct !== undefined ? `${activePreview.typography.whenToUse.widthPct}%` : '77.2%',
-                      top: activePreview.typography.whenToUse.topPct !== undefined ? `${activePreview.typography.whenToUse.topPct}%` : '9.5%',
-                      height: activePreview.typography.whenToUse.heightPct !== undefined ? `${activePreview.typography.whenToUse.heightPct}%` : '6%',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontFamily: `"${activePreview.typography.whenToUse.fontFamily}", sans-serif`,
-                      fontSize: `${getAdaptiveFontSizePx(cardContent.when_to_use, activePreview.typography.whenToUse.fontSize, 5.5, activePreview.heightMm, previewHeight)}px`,
-                      color: activePreview.typography.whenToUse.color,
-                      letterSpacing: activePreview.typography.whenToUse.letterSpacing ? `${activePreview.typography.whenToUse.letterSpacing}px` : '1px',
-                      textTransform: 'uppercase',
-                      textAlign: 'center',
-                    }}>
-                      <span style={{ display: 'block', width: '100%' }}>{cardContent.when_to_use}</span>
-                    </div>
-                  )}
+                  {Object.keys(cardContent).map(key => {
+                    if (['back_image_url', 'back_image_versions', 'qr_url'].includes(key)) return null;
+                    const text = cardContent[key];
+                    if (!text || typeof text !== 'string') return null;
+                    const zone = activePreview.typography?.[key];
+                    if (!zone || !zone.leftPct) return null;
 
-                  {cardContent.phrase && activePreview.typography.phrase && (
-                    <div style={{
-                      position: 'absolute', 
-                      left: activePreview.typography.phrase.leftPct !== undefined ? `${activePreview.typography.phrase.leftPct}%` : '11.4%',
-                      width: activePreview.typography.phrase.widthPct !== undefined ? `${activePreview.typography.phrase.widthPct}%` : '77.2%',
-                      top: activePreview.typography.phrase.topPct !== undefined ? `${activePreview.typography.phrase.topPct}%` : `${(20 / activePreview.heightMm) * 100}%`,
-                      height: activePreview.typography.phrase.heightPct !== undefined ? `${activePreview.typography.phrase.heightPct}%` : `${(42 / activePreview.heightMm) * 100}%`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontFamily: `"${activePreview.typography.phrase.fontFamily}", serif`,
-                      fontSize: `${getAdaptiveFontSizePx(cardContent.phrase, activePreview.typography.phrase.fontSize, 18, activePreview.heightMm, previewHeight)}px`,
-                      color: activePreview.typography.phrase.color,
-                      lineHeight: activePreview.typography.phrase.lineHeight || 1.15,
-                      textAlign: 'center',
-                    }}>
-                      <span style={{ display: 'block', width: '100%' }}>{cardContent.phrase}</span>
-                    </div>
-                  )}
-
-                  {cardContent.instruction && activePreview.typography.instruction && (
-                    <div style={{
-                      position: 'absolute', 
-                      left: activePreview.typography.instruction.leftPct !== undefined ? `${activePreview.typography.instruction.leftPct}%` : '11.4%',
-                      width: activePreview.typography.instruction.widthPct !== undefined ? `${activePreview.typography.instruction.widthPct}%` : '77.2%',
-                      top: activePreview.typography.instruction.topPct !== undefined ? `${activePreview.typography.instruction.topPct}%` : `${(62 / activePreview.heightMm) * 100}%`,
-                      height: activePreview.typography.instruction.heightPct !== undefined ? `${activePreview.typography.instruction.heightPct}%` : `${(30 / activePreview.heightMm) * 100}%`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontFamily: `"${activePreview.typography.instruction.fontFamily}", serif`,
-                      fontSize: `${getAdaptiveFontSizePx(cardContent.instruction, activePreview.typography.instruction.fontSize, 12, activePreview.heightMm, previewHeight)}px`,
-                      color: activePreview.typography.instruction.color,
-                      lineHeight: activePreview.typography.instruction.lineHeight || 1.35,
-                      textAlign: 'center',
-                    }}>
-                      <span style={{ display: 'block', width: '100%' }}>{cardContent.instruction}</span>
-                    </div>
-                  )}
-
-                  {cardContent.answer && activePreview.typography.answer && (
-                    <div style={{
-                      position: 'absolute', 
-                      left: activePreview.typography.answer.leftPct !== undefined ? `${activePreview.typography.answer.leftPct}%` : '11.4%',
-                      width: activePreview.typography.answer.widthPct !== undefined ? `${activePreview.typography.answer.widthPct}%` : '77.2%',
-                      top: activePreview.typography.answer.topPct !== undefined ? `${activePreview.typography.answer.topPct}%` : `${(92 / activePreview.heightMm) * 100}%`,
-                      height: activePreview.typography.answer.heightPct !== undefined ? `${activePreview.typography.answer.heightPct}%` : `${(8 / activePreview.heightMm) * 100}%`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontFamily: `"${activePreview.typography.answer.fontFamily}", sans-serif`,
-                      fontSize: `${getAdaptiveFontSizePx(cardContent.answer, activePreview.typography.answer.fontSize, 6, activePreview.heightMm, previewHeight)}px`,
-                      color: activePreview.typography.answer.color,
-                      textAlign: 'center',
-                    }}>
-                      <span style={{ display: 'block', width: '100%' }}>{cardContent.answer}</span>
-                    </div>
-                  )}
+                    return (
+                      <div key={key} style={{
+                        position: 'absolute', 
+                        left: `${zone.leftPct}%`,
+                        width: `${zone.widthPct}%`,
+                        top: `${zone.topPct}%`,
+                        height: `${zone.heightPct}%`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontFamily: `"${zone.fontFamily}", sans-serif`,
+                        fontSize: `${getAdaptiveFontSizePx(text, zone.fontSize || 12, Math.max(zone.fontSize || 12, 12), activePreview.heightMm, previewHeight)}px`,
+                        color: zone.color,
+                        letterSpacing: zone.letterSpacing ? `${zone.letterSpacing}px` : 'normal',
+                        lineHeight: zone.lineHeight || 1.15,
+                        textAlign: 'center',
+                        fontWeight: zone.fontWeight || 'normal',
+                      }}>
+                        {zone.containerSvg && (
+                           <div 
+                             dangerouslySetInnerHTML={{ __html: `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" preserveAspectRatio="none">${zone.containerSvg}</svg>` }}
+                             style={{ position: 'absolute', inset: 0, zIndex: -1, width: '100%', height: '100%' }} 
+                           />
+                        )}
+                        <span style={{ display: 'block', width: '100%', zIndex: 1, position: 'relative' }}>{text}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1093,35 +1090,37 @@ export default function AdminFrameGenerator() {
 
               {/* Typography table */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                {activePreview.typography.whenToUse && (
-                  <TypoRow
-                    label="HEADER (when_to_use)"
-                    field={activePreview.typography.whenToUse}
-                    uiColor="#94a3b8"
-                  />
-                )}
-                {activePreview.typography.phrase && (
-                  <TypoRow
-                    label="PHRASE (frase)"
-                    field={activePreview.typography.phrase}
-                    uiColor="#f8d56b"
-                    highlight
-                  />
-                )}
-                {activePreview.typography.instruction && (
-                  <TypoRow
-                    label="INSTRUCTION"
-                    field={activePreview.typography.instruction}
-                    uiColor="#94a3b8"
-                  />
-                )}
-                {activePreview.typography.answer && (
-                  <TypoRow
-                    label="ANSWER"
-                    field={activePreview.typography.answer}
-                    uiColor="#64748b"
-                  />
-                )}
+                {Object.keys(cardContent).map(key => {
+                  if (['back_image_url', 'back_image_versions', 'qr_url'].includes(key)) return null;
+                  const zone = activePreview.typography?.[key];
+                  if (!zone || !zone.leftPct) return null;
+                  return (
+                    <TypoRow
+                      key={key}
+                      label={key.toUpperCase()}
+                      field={zone}
+                      uiColor={key === 'phrase' ? '#f8d56b' : '#94a3b8'}
+                      highlight={key === 'phrase'}
+                      onUpdateSvg={(svg) => {
+                        setGeneratedFrames(prev => {
+                          const newFrames = [...prev];
+                          if (!newFrames[activeFrameIndex] || !newFrames[activeFrameIndex].typography) return prev;
+                          newFrames[activeFrameIndex] = {
+                            ...newFrames[activeFrameIndex],
+                            typography: {
+                              ...newFrames[activeFrameIndex].typography,
+                              [key]: {
+                                ...newFrames[activeFrameIndex].typography[key],
+                                containerSvg: svg
+                              }
+                            }
+                          };
+                          return newFrames;
+                        });
+                      }}
+                    />
+                  );
+                })}
               </div>
 
               {activePreview.typography.qrSizeMm && (
@@ -1486,79 +1485,104 @@ interface TypoRowProps {
   field: TypoZone;
   uiColor?: string;
   highlight?: boolean;
+  onUpdateSvg?: (svg: string) => void;
 }
 
-function TypoRow({ label, field, uiColor = 'white', highlight = false }: TypoRowProps) {
+function TypoRow({ label, field, uiColor = 'white', highlight = false, onUpdateSvg }: TypoRowProps) {
   const weightLabel = field.fontWeight
     ? { thin: 'Thin', '300': 'Light', regular: 'Regular', bold: 'Bold', '700': 'Bold', '900': 'Black' }[field.fontWeight] ?? field.fontWeight
     : null;
 
   return (
     <div style={{
-      display: 'grid',
-      gridTemplateColumns: '1fr auto',
+      display: 'flex',
+      flexDirection: 'column',
       gap: '0.5rem',
       padding: '0.5rem 0.65rem',
       background: highlight ? 'rgba(248,213,107,0.06)' : 'rgba(255,255,255,0.03)',
       borderRadius: '6px',
       border: `1px solid ${highlight ? 'rgba(248,213,107,0.2)' : 'rgba(255,255,255,0.06)'}`,
-      alignItems: 'start',
     }}>
-      <div>
-        <div style={{ fontSize: '0.65rem', opacity: 0.45, letterSpacing: '0.06em', marginBottom: '0.2rem' }}>
-          {label}
-        </div>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'min-content 1fr auto',
+        gap: '0.5rem',
+        alignItems: 'start',
+      }}>
+        {/* Color Indicator */}
+        {field.color ? (
+          <div style={{ marginTop: '3px', width: '12px', height: '12px', borderRadius: '4px', background: field.color, border: '1px solid rgba(255,255,255,0.2)' }} title={`Color IA: ${field.color}`} />
+        ) : <div style={{ width: '12px' }} />}
         
-        {field.color && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.65rem', fontFamily: 'monospace', opacity: 0.7, marginBottom: '0.2rem' }}>
-            <div style={{ width: '10px', height: '10px', borderRadius: '2px', background: field.color, border: '1px solid rgba(255,255,255,0.2)' }} title={`Color IA: ${field.color}`} />
-            {field.color}
+        <div>
+          <div style={{ fontSize: '0.65rem', fontWeight: 600, opacity: 0.7, letterSpacing: '0.06em', marginBottom: '0.2rem' }}>
+            {label}
           </div>
-        )}
-        
-        {field.notes && (
-          <div style={{ fontSize: '0.68rem', opacity: 0.45, fontStyle: 'italic', lineHeight: 1.3 }}>
-            {field.notes}
-          </div>
-        )}
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.15rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-          <div style={{ fontSize: '0.95rem', fontWeight: 700, color: uiColor, fontFamily: 'monospace' }}>
-            {field.fontSize}pt
-          </div>
-          {weightLabel && (
-            <div style={{
-              fontSize: '0.55rem',
-              fontWeight: 700,
-              padding: '1px 5px',
-              borderRadius: '4px',
-              background: weightLabel === 'Black' || weightLabel === 'Bold'
-                ? 'rgba(251,191,36,0.2)'
-                : weightLabel === 'Thin' || weightLabel === 'Light'
-                ? 'rgba(148,163,184,0.15)'
-                : 'rgba(255,255,255,0.08)',
-              color: weightLabel === 'Black' || weightLabel === 'Bold' ? '#fbbf24' : 'rgba(255,255,255,0.5)',
-              letterSpacing: '0.04em',
-            }}>
-              {weightLabel.toUpperCase()}
+          
+          {field.notes && (
+            <div style={{ fontSize: '0.68rem', opacity: 0.45, fontStyle: 'italic', lineHeight: 1.3 }}>
+              {field.notes}
             </div>
           )}
         </div>
-        <div style={{ fontSize: '0.65rem', opacity: 0.55 }}>
-          {field.fontFamily.includes('Cormorant') ? 'Cormorant Garamond' : field.fontFamily}
+
+        {/* Specs column */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.15rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+            <div style={{ fontSize: '0.95rem', fontWeight: 700, color: uiColor, fontFamily: 'monospace' }}>
+              {field.fontSize}pt
+            </div>
+            {weightLabel && (
+              <div style={{
+                fontSize: '0.55rem',
+                fontWeight: 700,
+                padding: '1px 5px',
+                borderRadius: '4px',
+                background: weightLabel === 'Black' || weightLabel === 'Bold'
+                  ? 'rgba(251,191,36,0.2)'
+                  : weightLabel === 'Thin' || weightLabel === 'Light'
+                  ? 'rgba(148,163,184,0.15)'
+                  : 'rgba(255,255,255,0.08)',
+                color: weightLabel === 'Black' || weightLabel === 'Bold' ? '#fbbf24' : 'rgba(255,255,255,0.5)',
+                letterSpacing: '0.04em',
+              }}>
+                {weightLabel.toUpperCase()}
+              </div>
+            )}
+          </div>
+          <div style={{ fontSize: '0.65rem', opacity: 0.55, textAlign: 'right' }}>
+            {field.fontFamily?.includes('Cormorant') ? 'Cormorant Garamond' : (field.fontFamily || 'Default Font')}
+          </div>
+          <div style={{ display: 'flex', gap: '8px', fontSize: '0.6rem', opacity: 0.4 }}>
+            {field.lineHeight && <span>lh:{field.lineHeight}</span>}
+            {field.letterSpacing && <span>ls:{field.letterSpacing}</span>}
+          </div>
         </div>
-        {field.lineHeight && (
-          <div style={{ fontSize: '0.6rem', opacity: 0.35 }}>
-            line-height: {field.lineHeight}
-          </div>
-        )}
-        {field.letterSpacing && (
-          <div style={{ fontSize: '0.6rem', opacity: 0.35 }}>
-            tracking: {field.letterSpacing}pt
-          </div>
-        )}
       </div>
+
+      {/* SVG Container Editor */}
+      {onUpdateSvg && (
+        <div style={{ marginTop: '0.2rem', padding: '0.4rem', background: 'rgba(0,0,0,0.2)', borderRadius: '4px' }}>
+          <div style={{ fontSize: '0.55rem', letterSpacing: '0.05em', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Container SVG (Fondo de texto)</div>
+          <textarea
+            value={field.containerSvg || ''}
+            onChange={(e) => onUpdateSvg(e.target.value)}
+            placeholder='Ej: <rect width="100%" height="100%" rx="10" fill="rgba(0,0,0,0.5)" />'
+            style={{
+              width: '100%',
+              minHeight: '40px',
+              background: 'transparent',
+              border: 'none',
+              color: 'rgba(255,255,255,0.7)',
+              fontSize: '0.65rem',
+              fontFamily: 'monospace',
+              resize: 'vertical',
+              outline: 'none',
+              padding: 0
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

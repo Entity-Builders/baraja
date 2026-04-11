@@ -26,13 +26,18 @@ function DeckDesignerRunner({
   const containerRef = useRef<HTMLDivElement>(null);
   const designerRef = useRef<Designer | null>(null);
   const [saving, setSaving] = useState(false);
+  
+  const onSaveRef = useRef(onSave);
+  useEffect(() => {
+    onSaveRef.current = onSave;
+  }, [onSave]);
 
   useEffect(() => {
     let mounted = true;
     if (!containerRef.current) return;
 
     // Load actual fonts so it looks just like the PDF
-    buildPdfmeFonts().then(fonts => {
+    buildPdfmeFonts(deck.layout_config as any, template).then(fonts => {
       if (!mounted || !containerRef.current) return;
       
       // Inject mock data directly into schemas so we see visuals perfectly
@@ -63,11 +68,15 @@ function DeckDesignerRunner({
           cleanTpl.schemas = cleanTpl.schemas.map(pageSchema => {
              return pageSchema.map(schema => {
                 const s = { ...schema };
-                delete (s as any).content;
+                // Only delete the content if it was injected by our mockData (e.g. text/images).
+                // DO NOT delete it for AI-generated svg containers!
+                if (mockData[s.name] !== undefined) {
+                  delete (s as any).content;
+                }
                 return s;
              });
           });
-          await onSave(cleanTpl);
+          await onSaveRef.current(cleanTpl);
         } finally {
           setSaving(false);
         }
@@ -174,6 +183,10 @@ export default function AdminTemplates() {
   const [mockData, setMockData] = useState<Record<string, string> | null>(null);
   const [activeCardIndex, setActiveCardIndex] = useState<number>(0);
 
+  // Content Configuration Overrides
+  const [hiddenFields, setHiddenFields] = useState<Record<string, boolean>>({});
+  const [showHideMenu, setShowHideMenu] = useState(false);
+
   useEffect(() => {
     deckRepo.getAllDecks().then(data => {
       setDecks(data);
@@ -181,7 +194,14 @@ export default function AdminTemplates() {
     });
   }, []);
 
-  const loadMockDataForCard = async (deck: any, template: Template, cardIndex: number) => {
+  const getCleanWhenToUse = (text: string, doHide: boolean) => {
+    if (!text) return '';
+    if (!doHide) return text;
+    // Strip things like "Para 3+ jugadores." or "Para 3- jugadores"
+    return text.replace(/([.¡!]\s*)?[Pp]ara\s*\d+[+-]?\s*jugador(es)?\.?/g, '').trim();
+  };
+
+  const loadMockDataForCard = async (deck: any, template: Template, cardIndex: number, overrideHiddenFields?: Record<string, boolean>) => {
     const card = deck.cards[cardIndex];
     if (!card) return;
 
@@ -199,22 +219,24 @@ export default function AdminTemplates() {
 
     if (cardUsesFlujob(card)) {
        mData.back_ai_image = card.back?.back_image_url || '';
-       mData.qr_overlay = card.back?.qr_url || getCardQrUrl(deck.slug ?? 'baraja', card.front.number);
+       mData.qr_overlay = overrideHiddenFields?.qr ? '' : (card.back?.qr_url || getCardQrUrl(deck.slug ?? 'baraja', card.front.number));
     } else {
        const frameUri = await getFrameDataUri(deck.slug);
        mData.bg = await coverCropToJpeg(frameUri, w, h);
        
-       mData.when_to_use = card.back?.when_to_use || '';
-       mData.phrase = card.back?.phrase ? `"${card.back.phrase}"` : '';
-       mData.instruction = card.back?.instruction || '';
-       mData.answer = card.back?.answer ? `Rta: ${card.back.answer}` : '';
-       mData.fun_fact = card.back?.fun_fact ? `💡 ${card.back.fun_fact}` : '';
-       mData.qr = card.back?.qr_url || getCardQrUrl(deck.slug ?? 'baraja', card.front.number);
-       mData.brand = `Baraja · ${deck.name}`;
+       const resolveHide = overrideHiddenFields || hiddenFields || {};
+       mData.when_to_use = resolveHide.when_to_use ? '' : getCleanWhenToUse(card.back?.when_to_use || '', !!resolveHide.player_count);
+       mData.phrase = resolveHide.phrase ? '' : (card.back?.phrase ? `"${card.back.phrase}"` : '');
+       mData.instruction = resolveHide.instruction ? '' : (card.back?.instruction || '');
+       mData.answer = resolveHide.answer ? '' : (card.back?.answer ? `Rta: ${card.back.answer}` : '');
+       mData.fun_fact = resolveHide.fun_fact ? '' : (card.back?.fun_fact ? `💡 ${card.back.fun_fact}` : '');
+       mData.qr = resolveHide.qr ? '' : (card.back?.qr_url || getCardQrUrl(deck.slug ?? 'baraja', card.front.number));
+       mData.brand = resolveHide.brand ? '' : `Baraja · ${deck.name}`;
     }
 
     setMockData(mData);
   };
+
 
   const loadDeckLayout = useCallback(async (deckId: string) => {
     const rawDeck = decks.find(d => d.id === deckId);
@@ -227,14 +249,21 @@ export default function AdminTemplates() {
     // 2. Get Base Template for this deck
     const template = getTemplateForDeck(deck);
     
+    // Support legacy hide_player_count and merge to new structure
+    const isPlayersHidden = !!rawDeck.design_template_overrides?.hide_player_count;
+    const initialHiddenFields = rawDeck.design_template_overrides?.hidden_fields || {};
+    if (isPlayersHidden) initialHiddenFields.player_count = true;
+
     setActiveRawDeck(rawDeck);
     setActiveResolvedDeck(deck);
     setActiveTemplate(template);
     setActiveCardIndex(0);
+    setHiddenFields(initialHiddenFields);
 
     // Load up the first card
-    await loadMockDataForCard(deck, template, 0);
+    await loadMockDataForCard(deck, template, 0, initialHiddenFields);
   }, [decks]);
+
 
 
   useEffect(() => {
@@ -271,11 +300,24 @@ export default function AdminTemplates() {
     await deckRepo.updateDeckSettings(activeRawDeck.id, {
       design_template_overrides: {
         ...(activeRawDeck.design_template_overrides || {}),
-        layout_config: savedTpl as any
+        layout_config: savedTpl as any,
+        hidden_fields: hiddenFields,
       }
     });
-    alert('✅ Layout guardado correctamente para el mazo ' + activeRawDeck.name);
+
+    // Also update our local active object so it persists between reloads
+    setActiveRawDeck({
+      ...activeRawDeck,
+      design_template_overrides: {
+        ...(activeRawDeck.design_template_overrides || {}),
+        layout_config: savedTpl as any,
+        hidden_fields: hiddenFields,
+      }
+    });
+
+    alert('✅ Layout y opciones de contenido guardados correctamente para ' + activeRawDeck.name);
   }
+
 
   if (loading) return <div style={{ padding: '2rem', color: 'white' }}>Cargando...</div>;
 
@@ -290,6 +332,58 @@ export default function AdminTemplates() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+          {activeRawDeck && (
+            <div style={{ position: 'relative' }}>
+              <button 
+                onClick={() => setShowHideMenu(!showHideMenu)}
+                style={{
+                  background: '#222', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer',
+                  color: 'white', padding: '0.5rem 1rem', borderRadius: '6px', fontSize: '0.85rem'
+                }}
+              >
+                👁️ Ocultar Campos...
+              </button>
+
+              {showHideMenu && (
+                <div style={{
+                   position: 'absolute', top: 'calc(100% + 5px)', right: 0,
+                   background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)',
+                   padding: '1rem', borderRadius: '8px', zIndex: 1000,
+                   boxShadow: '0 4px 20px rgba(0,0,0,0.5)', width: '220px',
+                   display: 'flex', flexDirection: 'column', gap: '0.5rem'
+                }}>
+                  <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.85rem', color: '#d4af64' }}>Ocultar Data</h4>
+                  {[
+                    { key: 'player_count', label: 'Ctd. Jugadores (en When)' },
+                    { key: 'brand', label: 'Marca / Nombre Mazo' },
+                    { key: 'qr', label: 'Código QR' },
+                    { key: 'when_to_use', label: 'Box: Cuándo Usar' },
+                    { key: 'phrase', label: 'Box: Frase Principal' },
+                    { key: 'instruction', label: 'Box: Instrucción' },
+                    { key: 'fun_fact', label: 'Box: Fun Fact' },
+                    { key: 'answer', label: 'Box: Respuesta' },
+                  ].map(field => (
+                    <label key={field.key} style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', opacity: 0.8 }}>
+                      <input 
+                        type="checkbox" 
+                        checked={!!hiddenFields[field.key]}
+                        onChange={e => {
+                          const val = e.target.checked;
+                          const newFields = { ...hiddenFields, [field.key]: val };
+                          setHiddenFields(newFields);
+                          if (activeResolvedDeck && activeTemplate) {
+                            loadMockDataForCard(activeResolvedDeck, activeTemplate, activeCardIndex, newFields);
+                          }
+                        }}
+                      />
+                      {field.label}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <label style={{ fontSize: '0.8rem', opacity: 0.6 }}>Seleccionar Mazo:</label>
           <select 
             value={selectedDeckId} 
