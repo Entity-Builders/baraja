@@ -169,14 +169,14 @@ export function createDefaultCardTemplate(
   const frontArt = {
     name: 'art', type: 'image',
     position: { x: 0, y: 0 },
-    width: widthMm, height: heightMm,
+    width: widthMm, height: heightMm, rotate: 0,
   };
   
   // Number overlays top-left corner
   const frontNumber = {
     name: 'number', type: 'text',
     position: { x: 4, y: 3 },
-    width: 20, height: 8,
+    width: 20, height: 8, rotate: 0,
     fontSize: 14, alignment: 'left', verticalAlignment: 'middle',
     fontName: 'Cormorant Garamond', fontColor: '#ffffff',
   };
@@ -185,7 +185,7 @@ export function createDefaultCardTemplate(
   const frontTitle = {
     name: 'title', type: 'text',
     position: { x: 4, y: heightMm - 10 },
-    width: widthMm - 8, height: 8,
+    width: widthMm - 8, height: 8, rotate: 0,
     fontSize: 11, alignment: 'center', verticalAlignment: 'middle',
     fontName: 'Cormorant Garamond', fontColor: '#ffffff', letterSpacing: 3,
   };
@@ -197,7 +197,7 @@ export function createDefaultCardTemplate(
   // bg is IMAGE — content injected by PrintEngine with the frame data URI.
   // NOT readOnly — pdfme needs to read the value from input data.
   const backBg = {
-    name: 'bg', type: 'image', position: { x: 0, y: 0 }, width: widthMm, height: heightMm,
+    name: 'bg', type: 'image', position: { x: 0, y: 0 }, width: widthMm, height: heightMm, rotate: 0,
   };
 
   const backSafeMargin = 8;
@@ -267,6 +267,7 @@ export function createDefaultCardTemplate(
         },
         width: ((zoneInfo.widthPct) / 100) * widthMm,
         height: zHeight,
+        rotate: 0,
       });
     }
 
@@ -284,6 +285,7 @@ export function createDefaultCardTemplate(
       fontColor: zoneInfo.color || '#ffffff',
       alignment: 'center',
       verticalAlignment: 'middle',
+      rotate: 0,
       // Safe shrinking so text never spills out of its box
       dynamicFontSize: { min: (zoneInfo.fontSize || 12) * 0.4, max: zoneInfo.fontSize || 12, fit: 'vertical' },
     });
@@ -303,7 +305,7 @@ export function createDefaultCardTemplate(
       position: { x: backSafeArea, y: hintY },
       width: backTextW, height: 8,
       fontSize: hintFontSize, alignment: 'center', verticalAlignment: 'middle',
-      fontName: hintFont, fontColor: hintColor, letterSpacing: 2.0,
+      fontName: hintFont, fontColor: hintColor, letterSpacing: 2.0, rotate: 0,
       dynamicFontSize: { min: hintFontSize * 0.5, max: hintFontSize, fit: 'vertical' as const },
     });
 
@@ -312,7 +314,7 @@ export function createDefaultCardTemplate(
       position: { x: backSafeArea, y: 20 },
       width: backTextW, height: 42,
       fontSize: phraseFontSize, alignment: 'center', verticalAlignment: 'middle',
-      fontName: phraseFont, fontColor: phraseColor,
+      fontName: phraseFont, fontColor: phraseColor, rotate: 0,
       dynamicFontSize: { min: phraseFontSize * 0.5, max: phraseFontSize, fit: 'vertical' as const },
     });
 
@@ -321,7 +323,7 @@ export function createDefaultCardTemplate(
       position: { x: backSafeArea, y: 65 },
       width: backTextW, height: 20,
       fontSize: instrFontSize, alignment: 'center', verticalAlignment: 'middle',
-      fontName: instrFont, fontColor: instrColor,
+      fontName: instrFont, fontColor: instrColor, rotate: 0,
       dynamicFontSize: { min: instrFontSize * 0.5, max: instrFontSize, fit: 'vertical' as const },
     });
     
@@ -330,7 +332,7 @@ export function createDefaultCardTemplate(
       position: { x: backSafeArea, y: 88 },
       width: backTextW, height: 4,
       fontSize: answerFontSize, alignment: 'center', verticalAlignment: 'middle',
-      fontName: answerFont, fontColor: answerColor,
+      fontName: answerFont, fontColor: answerColor, rotate: 0,
       dynamicFontSize: { min: answerFontSize * 0.5, max: answerFontSize, fit: 'vertical' as const },
     });
   }
@@ -342,7 +344,7 @@ export function createDefaultCardTemplate(
     name: 'qr', type: 'qrcode',
     position: { x: qrX, y: qrY },
     width: qrSize, height: qrSize,
-    barColor: qrFgColor,
+    barColor: qrFgColor, rotate: 0,
   };
   
   const brand = {
@@ -350,7 +352,7 @@ export function createDefaultCardTemplate(
     position: { x: backSafeArea, y: brandY },
     width: backTextW, height: 4,
     fontSize: 4, alignment: 'center', verticalAlignment: 'middle',
-    fontName: 'Outfit', fontColor: brandColor, letterSpacing: 2,
+    fontName: 'Outfit', fontColor: brandColor, letterSpacing: 2, rotate: 0,
   };
 
   // Convert mm to mm for pdfme template format
@@ -397,6 +399,18 @@ export function getTemplateForDeck(deck: DeckSchema): Template {
       );
       template.schemas = [defaults.schemas[0], template.schemas[0]];
     }
+
+    // Hydrate all schemas with 'rotate: 0' if missing to enable rotation UI in pdfme
+    if (template.schemas) {
+      template.schemas.forEach(page => {
+        page.forEach(schema => {
+          if (schema.rotate === undefined) {
+            schema.rotate = 0;
+          }
+        });
+      });
+    }
+
     return template;
   }
   
@@ -413,14 +427,14 @@ export function createFlujoBTemplate(
   heightMm = 120,
 ): Template {
   // Front schemas (same as default)
-  const frontArt = { name: 'art', type: 'image', position: { x: 0, y: 0 }, width: widthMm, height: heightMm };
+  const frontArt = { name: 'art', type: 'image', position: { x: 0, y: 0 }, width: widthMm, height: heightMm, rotate: 0 };
   const frontNumber = {
-    name: 'number', type: 'text', position: { x: 4, y: 3 }, width: 20, height: 8,
+    name: 'number', type: 'text', position: { x: 4, y: 3 }, width: 20, height: 8, rotate: 0,
     fontSize: 14, alignment: 'left' as const, verticalAlignment: 'middle' as const,
     fontName: 'Cormorant Garamond', fontColor: '#ffffff',
   };
   const frontTitle = {
-    name: 'title', type: 'text', position: { x: 4, y: heightMm - 10 }, width: widthMm - 8, height: 8,
+    name: 'title', type: 'text', position: { x: 4, y: heightMm - 10 }, width: widthMm - 8, height: 8, rotate: 0,
     fontSize: 11, alignment: 'center' as const, verticalAlignment: 'middle' as const,
     fontName: 'Cormorant Garamond', fontColor: '#ffffff', letterSpacing: 3,
   };
@@ -432,6 +446,7 @@ export function createFlujoBTemplate(
     position: { x: 0, y: 0 },
     width: widthMm,
     height: heightMm,
+    rotate: 0,
   };
 
   // QR overlay: centered in bottom band — the AI prompt leaves a clean patch here
@@ -446,6 +461,7 @@ export function createFlujoBTemplate(
     width: qrSize,
     height: qrSize,
     barColor: '#ffffff',
+    rotate: 0,
   };
 
   return {

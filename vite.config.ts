@@ -752,7 +752,7 @@ function localDeckCmsPlugin() {
             // ── PROMPT REFINER (Conversational iteration) ──────────────────────
             if (refinement) {
               console.log(`\n💬 [Frame Refiner] The user requested a tweak: "${refinement}"`);
-              const flashUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+              const flashUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
               
               const rewritePrompt = [
                 `You are an expert prompt engineer for an image generation model.`,
@@ -1063,7 +1063,7 @@ function localDeckCmsPlugin() {
         if (req.url === '/__cms__/analyze-typography' && req.method === 'POST') {
           try {
             const body = await readBody(req);
-            const { dataUrl, w, h, edition, cardContent, remixInstruction } = JSON.parse(body);
+            const { dataUrl, w, h, edition, cardContent, remixInstruction, hiddenFields } = JSON.parse(body);
             
             if (!dataUrl) throw new Error('No image provided');
             
@@ -1097,6 +1097,10 @@ function localDeckCmsPlugin() {
             
             for (const key of Object.keys(cardContent || {})) {
                if (['back_image_url', 'back_image_versions', 'qr_url'].includes(key)) continue;
+               
+               // Respect user UI visibility toggles! If they hid it in AdminTemplates, tell AI to skip it
+               if (hiddenFields?.[key] === true) continue;
+               
                const val = cardContent[key];
                if (typeof val === 'string' && val.trim().length > 0) {
                   textKeys.push(key);
@@ -1258,6 +1262,114 @@ function localDeckCmsPlugin() {
             res.end(JSON.stringify({ success: true, typography: typographySuggestion }));
           } catch (err: any) {
             console.error('[analyze-typography]', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: err.message || String(err) }));
+          }
+          return;
+        }
+
+        // ── Generate AI vector container ──
+        if (req.url === '/__cms__/generate-ornament-svg' && req.method === 'POST') {
+          try {
+            const body = await readBody(req);
+            const { shapePrompt, primaryColorHex } = JSON.parse(body);
+
+            const apiKey = process.env.GEMINI_API_KEY;
+            if (!apiKey) throw new Error('Missing GEMINI_API_KEY');
+
+            const systemPrompt = `You are a legendary SVG UI/UX vector artist. Your ONLY output is raw, valid, scalable SVG markup.
+You are tasked to generate a high quality vector graphical container (like a label, ribbon, banner, speech bubble, or badge): "${shapePrompt}".
+The base color palette is: ${primaryColorHex || '#d4af64'}.
+
+REQUIREMENTS FOR THE SVG CONTAINER:
+1. FUNCTIONAL TEXT BACKDROP: It MUST serve as a readable background container for text. Preserve a large empty or solid space in the center.
+2. POLISHED AESTHETICS: Use styles like thick strokes, drop shadows, layered backgrounds, or elegant ribbons. E.g., a speech bubble with a double border, a rugged scroll banner, or a die-cut badge.
+3. SCALABILITY: MUST use a scalable viewBox (e.g., viewBox="0 0 500 250"). Use percentages or flexible relative shapes if possible to allow for stretching.
+4. STRICT OUTPUT FORMAT: Output ONLY the <svg> element and its children. Do NOT wrap in markdown (like \`\`\`svg ... \`\`\`). Start absolutely with <svg...
+5. NO TEXT INSIDE: Do NOT include any <text> nodes. This is just the background shape.
+
+Do not say anything else. Just the pure valid SVG XML.`;
+
+            // Flash is fast enough for SVG generation (~2-5s vs 30-60s+ for Pro)
+            const resFetch = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: systemPrompt }] }],
+                generationConfig: { temperature: 0.85, maxOutputTokens: 2048 }
+              })
+            });
+
+            const aiData: any = await resFetch.json();
+            if (!resFetch.ok) throw new Error(aiData.error?.message || 'Error generating SVG from Gemini');
+            
+            let rawSvg = aiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            // Sanitize markdown wrapping
+            rawSvg = rawSvg.replace(/```xml\n?|```html\n?|```svg\n?|```\n?/gi, '').trim();
+
+            // Sanitize the root <svg> tag: remove hardcoded width/height and force it to be 100% so pdfme can scale it
+            rawSvg = rawSvg.replace(/^<svg([^>]+)>/i, (match, attrs) => {
+              let cleanAttrs = attrs.replace(/\bwidth\s*=\s*(["']?)[^"'\s>]+(["']?)/i, '');
+              cleanAttrs = cleanAttrs.replace(/\bheight\s*=\s*(["']?)[^"'\s>]+(["']?)/i, '');
+              // Optionally we can add preserveAspectRatio="none" if we want it to stretch without retaining ratio
+              if (!cleanAttrs.includes('preserveAspectRatio')) {
+                  cleanAttrs += ' preserveAspectRatio="none"';
+              }
+              return `<svg width="100%" height="100%"${cleanAttrs}>`;
+            });
+
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true, svg: rawSvg }));
+          } catch (err: any) {
+            console.error('[generate-ornament-svg]', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: err.message || String(err) }));
+          }
+          return;
+        }
+
+        // ── Generate AI PNG container (Imagen) ──
+        if (req.url === '/__cms__/generate-ornament-png' && req.method === 'POST') {
+          const apiKey = process.env.GEMINI_API_KEY;
+          if (!apiKey) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: 'GEMINI_API_KEY not set' }));
+            return;
+          }
+          try {
+            const body = await readBody(req);
+            const { shapePrompt, primaryColorHex } = JSON.parse(body);
+
+            const prompt = [
+              `A high-quality 2D detailed graphic element for a card game UI context: ${shapePrompt}.`,
+              `Base color accent: ${primaryColorHex}.`,
+              `It MUST be placed on a PURE ABSOLUTE WHITE (#FFFFFF) solid background so the background can be easily keyed out.`,
+              `The center area MUST be large, clean, and flat (or visibly empty) since this is functionally a container/backdrop for overlaying text. Do not put text in the image.`
+            ].join(' ');
+
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-fast-generate-001:predict?key=${apiKey}`;
+            const response = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                instances: [{ prompt }],
+                parameters: { sampleCount: 1, aspectRatio: '4:3', outputOptions: { mimeType: 'image/png' } },
+              }),
+            });
+            const data: any = await response.json();
+            const base64Data: string = data.predictions?.[0]?.bytesBase64Encoded;
+            if (!base64Data) {
+              const errText = JSON.stringify(data).slice(0, 300);
+              throw new Error(`Imagen 4 no devolvió una imagen: ${errText}`);
+            }
+            
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true, png: base64Data }));
+          } catch(err: any) {
+            console.error('[generate-ornament-png]', err);
             res.statusCode = 500;
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ success: false, error: err.message || String(err) }));
