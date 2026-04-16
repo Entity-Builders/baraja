@@ -47,7 +47,7 @@ export class SupabaseDeckRepository implements IDeckRepository {
     if (edition.design_template_id) {
       const { data: dt, error: dtError } = await this.client
         .from('baraja_design_templates')
-        .select('primary_color, accent_color, text_color, background, font_heading, font_body, layout_config, qr_color')
+        .select('primary_color, accent_color, text_color, background, font_heading, font_body, layout_config, qr_color, hidden_fields')
         .eq('id', edition.design_template_id)
         .single();
         
@@ -233,6 +233,7 @@ export interface DesignTemplateRow {
   card_height: number;
   card_unit: string;
   layout_config: LayoutConfig;
+  hidden_fields?: Record<string, boolean>;
   /** QR code foreground color for this preset. Null = use theme default. */
   qr_color: string | null;
   created_at: string;

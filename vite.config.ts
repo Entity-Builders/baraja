@@ -3,13 +3,79 @@ import react from '@vitejs/plugin-react';
 import { cloudflare } from '@cloudflare/vite-plugin';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { exec } from 'node:child_process';
 import dotenv from 'dotenv';
+import { createClient } from '@supabase/supabase-js';
+
+// Local Supabase — service key bypasses RLS for server-side writes
+const _supabaseLocal = createClient(
+  'http://127.0.0.1:54321',
+  'REDACTED_SUPABASE_SERVICE_KEY'
+);
 
 // Load root .env for GEMINI_API_KEY
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const CONTENT_DIR = path.resolve(__dirname, '../../packages/deck-engine/src/content');
 const ASSETS_DIR = path.resolve(__dirname, 'public/assets/editions');
+
+/** Regenerate decks.ts so Vite HMR picks up new JSON files */
+function triggerDeckSync() {
+  exec('npm run sync', { cwd: path.resolve(__dirname, '../../packages/deck-engine') }, (error) => {
+    if (error) {
+      console.error('⚠️ [Auto-Sync] Failed to regenerate decks.ts:', error);
+    } else {
+      console.log('🔄 [Auto-Sync] decks.ts regenerated.');
+    }
+  });
+}
+
+/** Persist a freshly-generated edition directly into Supabase */
+async function saveEditionToSupabase(rawDeckContent: any): Promise<void> {
+  const { slug, cards = [] } = rawDeckContent;
+
+  // Upsert edition row
+  const { error: editionErr } = await _supabaseLocal
+    .from('baraja_editions')
+    .upsert({
+      slug,
+      name: rawDeckContent.name,
+      description: rawDeckContent.description,
+      print_spec_id: rawDeckContent.print_spec_id,
+      design_template_id: rawDeckContent.design_template_id || null,
+      print_specs_overrides: rawDeckContent.print_specs_overrides || {},
+      design_template_overrides: rawDeckContent.design_template_overrides || {},
+    }, { onConflict: 'slug' });
+
+  if (editionErr) {
+    console.error(`❌ [Supabase] Failed to upsert edition ${slug}:`, editionErr.message);
+    return;
+  }
+
+  // Replace cards — delete existing then bulk insert
+  await _supabaseLocal.from('baraja_cards').delete().eq('edition_slug', slug);
+
+  if (cards.length > 0) {
+    const cardsToInsert = cards.map((card: any) => ({
+      id: card.id,
+      edition_slug: slug,
+      number: card.front.number,
+      front: card.front,
+      back: card.back,
+      tags: card.tags || [],
+    }));
+
+    const { error: cardsErr } = await _supabaseLocal
+      .from('baraja_cards')
+      .insert(cardsToInsert);
+
+    if (cardsErr) {
+      console.error(`❌ [Supabase] Failed to insert cards for ${slug}:`, cardsErr.message);
+    } else {
+      console.log(`✅ [Supabase] ${slug}: ${cards.length} cards saved.`);
+    }
+  }
+}
 
 /** Generate a single card's illustration via Gemini */
 async function generateCardArt(
@@ -287,6 +353,7 @@ function localDeckCmsPlugin() {
             }
 
             console.log(`✅ [Admin] Deleted edition: ${slug}`);
+            triggerDeckSync();
             res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify({ success: true }));
           } catch (err: any) {
@@ -664,11 +731,20 @@ function localDeckCmsPlugin() {
               cards: parsed.cards,
             };
 
+            // 1. Save JSON to disk (local backup & decks.ts source)
             const outputPath = path.resolve(CONTENT_DIR, `${slug}.json`);
             await fs.writeFile(outputPath, JSON.stringify(rawDeckContent, null, 2), 'utf-8');
+            sendEvent({ type: 'progress', message: '💾 JSON backup saved to disk' });
 
-            console.log(`✅ Edition saved: content/${slug}.json (${parsed.cards.length} cards)`);
-            sendEvent({ type: 'progress', message: '✅ Saved to disk successfully' });
+            // 2. Persist directly to Supabase (source of truth for Admin UI)
+            sendEvent({ type: 'progress', message: '🌱 Saving to database...' });
+            await saveEditionToSupabase(rawDeckContent);
+
+            // 3. Regenerate decks.ts for runtime client
+            triggerDeckSync();
+
+            console.log(`✅ Edition saved: ${slug} (${parsed.cards.length} cards) → DB + disk`);
+            sendEvent({ type: 'progress', message: '✅ Edition saved to database successfully' });
 
             sendEvent({
               type: 'done',
@@ -1278,16 +1354,43 @@ function localDeckCmsPlugin() {
             const apiKey = process.env.GEMINI_API_KEY;
             if (!apiKey) throw new Error('Missing GEMINI_API_KEY');
 
-            const systemPrompt = `You are a legendary SVG UI/UX vector artist. Your ONLY output is raw, valid, scalable SVG markup.
+            const VECTOR_STYLES = [
+              "Cyberpunk angular tech borders with sharp 45-degree chamfers",
+              "Retro 8-bit / Pixel Art blocky edges and rigid stair-stepping",
+              "Art Deco elegant geometric symmetry and intersecting parallel lines",
+              "Pop-art comic book style with thick black outlines and heavy offset drop shadows",
+              "Organic, smooth blob-like irregular overlapping curves",
+              "Origami / folded paper aesthetic with sharp polygon facets",
+              "Gothic/Fantasy sharp ornate edges and aggressive points",
+              "Minimalist Bauhaus using intersecting perfect abstract geometry",
+              "Scrapbook cutout style with jagged, asymmetrical borders",
+              "Steampunk mechanical panels with simulated rivets and layered plates"
+            ];
+            const randomStyle = VECTOR_STYLES[Math.floor(Math.random() * VECTOR_STYLES.length)];
+
+            const systemPrompt = `You are a legendary SVG UI/UX vector artist specializing in advanced composition and geometric depth. Your ONLY output is raw, valid, scalable SVG markup.
 You are tasked to generate a high quality vector graphical container (like a label, ribbon, banner, speech bubble, or badge): "${shapePrompt}".
 The base color palette is: ${primaryColorHex || '#d4af64'}.
 
-REQUIREMENTS FOR THE SVG CONTAINER:
-1. FUNCTIONAL TEXT BACKDROP: It MUST serve as a readable background container for text. Preserve a large empty or solid space in the center.
-2. POLISHED AESTHETICS: Use styles like thick strokes, drop shadows, layered backgrounds, or elegant ribbons. E.g., a speech bubble with a double border, a rugged scroll banner, or a die-cut badge.
-3. SCALABILITY: MUST use a scalable viewBox (e.g., viewBox="0 0 500 250"). Use percentages or flexible relative shapes if possible to allow for stretching.
-4. STRICT OUTPUT FORMAT: Output ONLY the <svg> element and its children. Do NOT wrap in markdown (like \`\`\`svg ... \`\`\`). Start absolutely with <svg...
-5. NO TEXT INSIDE: Do NOT include any <text> nodes. This is just the background shape.
+CREATIVE ROULETTE (MUST OBEY):
+To mathematically ensure you NEVER generate the same boring shape twice, apply THIS specific structural flavor to your design (blend it creatively with the user's prompt):
+>>> "${randomStyle}" <<<
+
+ADVANCED AESTHETIC REQUIREMENTS (NEVER GENERATE FLAT, BORING RECTANGLES):
+1. PSEUDO-3D & PERSPECTIVE: Don't think in flat x,y coordinates. Apply structural depth. You can use SVG transform (skew, rotate) or draw isometric perspectives to give the shape physical volume.
+2. SHADOW STACKING: Use layered dropshadows or sharp "Offset" solid background blocks to create intense forced perspective (pop-art/comic style).
+3. ASYMMETRY & EDGE CONTRAST: Use irregular corners, folded flaps, wrapping ribbons, or high-contrast bevel strokes (lighter edge on top, darker on bottom) to break visual monotony.
+4. VECTOR FLAT-SHADING ONLY: Achieve depth using overlapping solid paths with different hex colors or semi-transparent solid fills (e.g., fill="#000" fill-opacity="0.2").
+
+CRITICAL TECHNICAL LIMITATIONS (IF YOU VIOLATE THESE, THE RENDERER WILL CRASH):
+5. NO GRADIENTS ALLOWED: You MUST NOT use <linearGradient>, <radialGradient>, or <defs>. Use ONLY solid colors (fill="#FFFFFF").
+6. NO FILTERS ALLOWED: You MUST NOT use <filter>, <feGaussianBlur>, <feDropShadow>, or any complex SVG filters. Fake shadows using solid paths.
+7. NO URL REFERENCES: Never use colors like fill="url(#id)". Every path must have a hardcoded hex or rgb color.
+
+FUNCTIONAL REQUIREMENTS:
+8. FUNCTIONAL TEXT BACKDROP: It MUST serve as a highly readable container for overlaying text. The center area must be clean and not overly busy.
+9. SCALABILITY: MUST use a scalable viewBox (e.g., viewBox="0 0 500 250").
+10. STRICT OUTPUT FORMAT: Output ONLY the <svg> tag. NO markdown formatting. NO wrapping. NO <text> nodes.
 
 Do not say anything else. Just the pure valid SVG XML.`;
 
@@ -1297,7 +1400,7 @@ Do not say anything else. Just the pure valid SVG XML.`;
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 contents: [{ parts: [{ text: systemPrompt }] }],
-                generationConfig: { temperature: 0.85, maxOutputTokens: 2048 }
+                generationConfig: { temperature: 0.95, maxOutputTokens: 3000 }
               })
             });
 
@@ -1343,9 +1446,24 @@ Do not say anything else. Just the pure valid SVG XML.`;
             const body = await readBody(req);
             const { shapePrompt, primaryColorHex } = JSON.parse(body);
 
+            const PNG_STYLES = [
+              "3D rendered textured clay or matte acrylic material",
+              "Photorealistic metallic emblem with polished edges",
+              "Vibrant Gouache/Watercolor painting feeling",
+              "Dark fantasy RPG UI panel with stone/wood textures",
+              "Futuristic holographic volumetric glass",
+              "Vintage 1950s atomic-age retro advertising badge",
+              "Tactile folded cardboard or papercraft diorama styling",
+              "Neon-lit synthwave vector grid structure",
+              "Ornate Victorian frame with filigree",
+              "Modern soft Neumorphic UI element with diffuse shadows"
+            ];
+            const randomStyle = PNG_STYLES[Math.floor(Math.random() * PNG_STYLES.length)];
+
             const prompt = [
               `A high-quality 2D detailed graphic element for a card game UI context: ${shapePrompt}.`,
               `Base color accent: ${primaryColorHex}.`,
+              `STYLISTIC MODIFIER (Highly Important): Render this asset using a >>> ${randomStyle} <<< visual style.`,
               `It MUST be placed on a PURE ABSOLUTE WHITE (#FFFFFF) solid background so the background can be easily keyed out.`,
               `The center area MUST be large, clean, and flat (or visibly empty) since this is functionally a container/backdrop for overlaying text. Do not put text in the image.`
             ].join(' ');

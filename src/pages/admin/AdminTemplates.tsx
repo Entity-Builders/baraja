@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useDeckStudio } from './features/deck-studio/useDeckStudio';
-import { DeckDesignerRunner } from './features/deck-studio/DeckDesignerRunner';
+import { DeckDesignerRunner, type DeckDesignerRunnerRef } from './features/deck-studio/DeckDesignerRunner';
 import { FieldVisibilityMenu } from './features/deck-studio/FieldVisibilityMenu';
 import { CardNavigator } from './features/deck-studio/CardNavigator';
 import { AIPanelSidebar } from './components/AIPanelSidebar';
@@ -18,10 +18,13 @@ export default function AdminTemplates() {
     activeResolvedDeck,
     activeTemplate,
     mockData,
+    setMockData,
     activeCardIndex,
     hiddenFields,
     analyzing,
     activeFace,
+    cardWidth,
+    cardHeight,
     setSelectedDeckId,
     setActiveTemplate,
     setActiveFace,
@@ -30,7 +33,10 @@ export default function AdminTemplates() {
     handleHiddenFieldsChange,
     handleSaveDeckTemplate,
     handleAutoLayout,
+    handleCardSizeChange,
   } = useDeckStudio();
+
+  const designerRunnerRef = useRef<DeckDesignerRunnerRef>(null);
 
   if (loading) return <div style={{ padding: '2rem', color: 'white' }}>Cargando...</div>;
 
@@ -93,9 +99,10 @@ export default function AdminTemplates() {
                 const tName = prompt('Nombre de la Plantilla Global (ej: Accion Premium 2026):');
                 if (!tName) return;
                 try {
+                  const id = tName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || `template-${Date.now()}`;
                   const { error } = await deckRepo.client
                     .from('baraja_design_templates')
-                    .insert({ label: tName, layout_config: activeTemplate, hidden_fields: hiddenFields });
+                    .insert({ id, name: tName, layout_config: activeTemplate, hidden_fields: hiddenFields });
                   if (error) throw error;
                   alert('¡Plantilla Maestra Guardada exitosamente! Podrás asignarla a cualquier mazo globalmente.');
                 } catch (err: any) {
@@ -144,10 +151,15 @@ export default function AdminTemplates() {
               activeFace={activeFace}
               hiddenFields={hiddenFields}
               onBackgroundGenerated={async (dataUrl, w, h, face) => {
-                if (!activeTemplate) return;
-                const newTemplate = { ...activeTemplate, basePdf: { width: w, height: h, padding: [0, 0, 0, 0] as [number, number, number, number] } };
+                const liveTemplate = designerRunnerRef.current?.getLatestCombinedTemplate() || activeTemplate;
+                if (!liveTemplate) return;
+                const newTemplate = { ...liveTemplate, basePdf: { width: w, height: h, padding: [0, 0, 0, 0] as [number, number, number, number] } };
                 const pageIdx = face === 'front' ? 0 : 1;
                 const targetNode = face === 'front' ? 'art' : 'bg';
+                
+                // Immediately update the mockData so the designer's render cycle doesn't overwrite our new BG with the old cached one
+                setMockData(prev => prev ? { ...prev, [targetNode]: dataUrl } : prev);
+                
                 if (newTemplate.schemas[pageIdx]) {
                   const bgIdx = newTemplate.schemas[pageIdx].findIndex((s: any) => s.name === targetNode);
                   if (bgIdx >= 0) {
@@ -167,27 +179,39 @@ export default function AdminTemplates() {
                   console.error('Error setting frame globally:', err);
                 }
               }}
-              onAssetGenerated={async (content, type, face) => {
-                if (!activeTemplate) return;
-                const newTemplate = { ...activeTemplate };
+              onAssetGenerated={async (content, type, face, elementName) => {
+                const liveTemplate = designerRunnerRef.current?.getLatestCombinedTemplate() || activeTemplate;
+                if (!liveTemplate) return;
+                const newTemplate = { ...liveTemplate };
                 const pageIdx = face === 'front' ? 0 : 1;
                 if (!newTemplate.schemas[pageIdx]) return;
                 const arr = [...newTemplate.schemas[pageIdx]];
-                const bgIndex = arr.findIndex(node => node.name === 'bg' || node.name === 'art');
-                const insertPos = bgIndex >= 0 ? bgIndex + 1 : 0;
                 
-                // SVG dimensions look good default 50x30, PNGs might be better a bit bigger default (e.g. 60x40)
-                const defaultW = type === 'image' ? 60 : 50;
-                const defaultH = type === 'image' ? 40 : 30;
+                const finalName = elementName || `asset_${Date.now()}`;
+                const existingIdx = arr.findIndex(node => node.name === finalName);
 
-                arr.splice(insertPos, 0, {
-                  name: `asset_${Date.now()}`,
-                  type: type,
-                  position: { x: 10, y: 30 },
-                  width: defaultW,
-                  height: defaultH,
-                  content: content,
-                });
+                if (existingIdx >= 0) {
+                  // Update existing
+                  const sm = { ...arr[existingIdx] };
+                  (sm as any).content = content;
+                  arr[existingIdx] = sm as any;
+                } else {
+                  // Insert new
+                  const bgIndex = arr.findIndex(node => node.name === 'bg' || node.name === 'art');
+                  const insertPos = bgIndex >= 0 ? bgIndex + 1 : 0;
+                  
+                  const defaultW = type === 'image' ? 60 : 50;
+                  const defaultH = type === 'image' ? 40 : 30;
+
+                  arr.splice(insertPos, 0, {
+                    name: finalName,
+                    type: type,
+                    position: { x: 10, y: 30 },
+                    width: defaultW,
+                    height: defaultH,
+                    content: content,
+                  });
+                }
                 newTemplate.schemas[pageIdx] = arr;
                 setActiveTemplate(newTemplate);
               }}
@@ -207,11 +231,15 @@ export default function AdminTemplates() {
             </div>
           ) : (
             <DeckDesignerRunner
+              ref={designerRunnerRef}
               deck={activeRawDeck}
               template={activeTemplate}
               mockData={mockData}
               activeFace={activeFace}
+              cardWidth={cardWidth}
+              cardHeight={cardHeight}
               onFaceChange={setActiveFace}
+              onCardSizeChange={handleCardSizeChange}
               onSave={handleSaveDeckTemplate}
             />
           )}

@@ -133,7 +133,7 @@ export function AIPanelSidebar({
   activeFace: 'front' | 'back';
   hiddenFields?: Record<string, boolean>;
   onBackgroundGenerated: (dataUrl: string, widthMm: number, heightMm: number, face: 'front' | 'back') => void;
-  onAssetGenerated: (content: string, type: 'svg' | 'image', face: 'front' | 'back') => void;
+  onAssetGenerated: (content: string, type: 'svg' | 'image', face: 'front' | 'back', elementName?: string) => void;
   disabled?: boolean;
 }) {
   const face = activeFace;
@@ -141,6 +141,11 @@ export function AIPanelSidebar({
 
   // ── Resolve edition for this deck ──────────────────────────────────────────
   const edition = getEditionBySlug(deck.slug ?? deck.id) ?? DECK_EDITIONS.find(e => e.id === 'custom')!;
+
+  // Resolve which fields are currently visible and represent text blocks that might need boxes
+  const activeTextFields = edition.fields.filter(
+    f => !hiddenFields?.[f.key] && ['when_to_use', 'phrase', 'instruction', 'fun_fact', 'answer'].includes(f.key)
+  );
 
   const initialTheme = deck.metadata
     ? `${deck.name}. ${deck.metadata.topic || ''}. Ambientación: ${deck.metadata.tone || ''}. ${deck.description || ''}`
@@ -160,7 +165,6 @@ export function AIPanelSidebar({
   // ── Asset containers ──────────────────────────────────────────────────────────
   const [ornamentLoading, setOrnamentLoading] = useState(false);
   const [pngLoading, setPngLoading] = useState(false);
-  const [shapePrompt, setShapePrompt] = useState('Etiqueta tipo banner clásico, bordes gruesos, ideal para texto central');
 
   // ── Library / gallery ─────────────────────────────────────────────────────
   const [libraryFrames, setLibraryFrames]     = useState<any[]>([]);
@@ -252,33 +256,20 @@ export function AIPanelSidebar({
     }
   }
 
-  // ── Generate SVG Ornament ─────────────────────────────────────────────────
-  async function handleGenerateOrnament() {
-    setOrnamentLoading(true);
-    try {
-      const res = await fetch('/__cms__/generate-ornament-svg', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          shapePrompt,
-          primaryColorHex: builderMetadata.primaryColorHex || '#d4af64',
-        }),
-      });
-      const data = await res.json();
-      if (!data.success || !data.svg) throw new Error(data.error || 'Generación falló.');
-      onAssetGenerated(data.svg, 'svg', face);
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setOrnamentLoading(false);
-    }
-  }
+  // ── Generate Specific Field Box ───────────────────────────────────────────
+  async function handleGenerateFieldBox(fieldKey: string, fieldLabel: string, type: 'svg' | 'image') {
+    const isSvg = type === 'svg';
+    const loadingSetter = isSvg ? setOrnamentLoading : setPngLoading;
+    loadingSetter(true);
+    
+    // We use a specialized styling prompt but allow customPrompt to override if the user wants something weird.
+    const shapePrompt = customPrompt.trim() 
+      ? customPrompt 
+      : `Un contenedor o placa ornamental diseñada específicamente para enmarcar este tipo de contenido textual: "${fieldLabel.toUpperCase()}". Su forma debe complementar y abrazar este contenido.`;
 
-  // ── Generate PNG Ornament ─────────────────────────────────────────────────
-  async function handleGeneratePng() {
-    setPngLoading(true);
     try {
-      const res = await fetch('/__cms__/generate-ornament-png', {
+      const endpoint = isSvg ? '/__cms__/generate-ornament-svg' : '/__cms__/generate-ornament-png';
+      const res = await fetch(endpoint, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -287,17 +278,20 @@ export function AIPanelSidebar({
         }),
       });
       const data = await res.json();
-      if (!data.success || !data.png) throw new Error(data.error || 'Generación PNG falló.');
+      if (!data.success) throw new Error(data.error || 'Generación falló.');
       
-      const base64ImageUrl = `data:image/png;base64,${data.png}`;
-      // Remove white background so it looks like a transparent container
-      const transparentPng = await removeWhiteBackground(base64ImageUrl);
-
-      onAssetGenerated(transparentPng, 'image', face);
+      let content = isSvg ? data.svg : null;
+      if (!isSvg) {
+        const base64ImageUrl = `data:image/png;base64,${data.png}`;
+        content = await removeWhiteBackground(base64ImageUrl);
+      }
+      
+      // Inject directly using the fieldKey as the element name so it replaces existing instances
+      onAssetGenerated(content, type, face, `box_${fieldKey}`);
     } catch (err: any) {
       alert(err.message);
     } finally {
-      setPngLoading(false);
+      loadingSetter(false);
     }
   }
 
@@ -468,7 +462,7 @@ export function AIPanelSidebar({
           value={customPrompt}
           onChange={e => setCustomPrompt(e.target.value)}
           style={{ ...inputStyle, resize: 'vertical', minHeight: '40px' }}
-          placeholder="Forzar imagen en una esquina, estilo lineart..."
+          placeholder="Forzar imagen en una esquina, o custom prompt para Cajas..."
         />
       </div>
 
@@ -497,45 +491,53 @@ export function AIPanelSidebar({
         {loading ? '⏳ Generando Fondo (I.A.)...' : '🖼️ Generar Nuevo Fondo'}
       </button>
 
-      {/* ── SVG ORNAMENT ─────────────────────────────────────────────────── */}
+      {/* ── CONTENEDORES INTELIGENTES ─────────────────────────────────────── */}
       <hr style={{ borderColor: 'rgba(255,255,255,0.05)', margin: '0.25rem 0' }} />
       <div>
-        <label style={{ ...sectionLabel, color: '#a08ee6' }}>🧬 Inyectar Contenedor SVG</label>
-        <textarea
-          value={shapePrompt}
-          onChange={e => setShapePrompt(e.target.value)}
-          style={{ ...inputStyle, resize: 'vertical', minHeight: '50px', borderColor: 'rgba(160,142,230,0.4)' }}
-          placeholder="Globo de diálogo, contenedor tipo placa metálica, cinta de pergamino, botón de madera..."
-        />
+        <label style={{ ...sectionLabel, color: '#a08ee6' }}>🧬 Cajas Inteligentes (IA)</label>
+        <p style={{ fontSize: '0.65rem', opacity: 0.6, marginBottom: '0.6rem', lineHeight: 1.3 }}>
+          Genera un contenedor ornamental a medida para cada elemento de texto. Si vuelves a generarlo, reemplazará al anterior.
+        </p>
         
-        <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.5rem' }}>
-          <button
-            onClick={handleGenerateOrnament}
-            disabled={ornamentLoading || pngLoading}
-            style={{
-              flex: 1,
-              background: ornamentLoading ? '#444' : 'linear-gradient(135deg, #4b3d7a, #322554)',
-              color: 'white', fontWeight: 'bold', padding: '0.6rem', borderRadius: '6px',
-              border: '1px solid #a08ee6', cursor: (ornamentLoading || pngLoading) ? 'wait' : 'pointer',
-              fontSize: '0.75rem',
-            }}
-          >
-            {ornamentLoading ? '⏳ XML...' : '🖌️ Generar SVG (Vector)'}
-          </button>
-          
-          <button
-            onClick={handleGeneratePng}
-            disabled={ornamentLoading || pngLoading}
-            style={{
-              flex: 1,
-              background: pngLoading ? '#444' : 'linear-gradient(135deg, #115c48, #0b3d2f)',
-              color: 'white', fontWeight: 'bold', padding: '0.6rem', borderRadius: '6px',
-              border: '1px solid #20a07a', cursor: (ornamentLoading || pngLoading) ? 'wait' : 'pointer',
-              fontSize: '0.75rem',
-            }}
-          >
-            {pngLoading ? '⏳ Arte...' : '🎨 Generar PNG (Detallado)'}
-          </button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+          {activeTextFields.length === 0 && (
+            <div style={{ fontSize: '0.75rem', opacity: 0.5 }}>No hay textos activos en esta cara.</div>
+          )}
+          {activeTextFields.map(field => (
+            <div key={field.key} style={{ background: 'rgba(255,255,255,0.03)', padding: '0.5rem', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ fontSize: '0.7rem', marginBottom: '0.4rem', color: 'rgba(255,255,255,0.8)' }}>
+                {field.label.toUpperCase()}
+              </div>
+              <div style={{ display: 'flex', gap: '0.4rem' }}>
+                <button
+                  onClick={() => handleGenerateFieldBox(field.key, field.label, 'svg')}
+                  disabled={ornamentLoading || pngLoading}
+                  style={{
+                    flex: 1, background: ornamentLoading ? '#444' : 'linear-gradient(135deg, #4b3d7a, #322554)',
+                    color: 'white', fontWeight: 'bold', padding: '0.4rem', borderRadius: '4px',
+                    border: '1px solid #a08ee6', cursor: (ornamentLoading || pngLoading) ? 'wait' : 'pointer',
+                    fontSize: '0.7rem',
+                  }}
+                  title="Generar Vector escalable (estilo Flat 3D)"
+                >
+                  🖌️ SVG
+                </button>
+                <button
+                  onClick={() => handleGenerateFieldBox(field.key, field.label, 'image')}
+                  disabled={ornamentLoading || pngLoading}
+                  style={{
+                    flex: 1, background: pngLoading ? '#444' : 'linear-gradient(135deg, #115c48, #0b3d2f)',
+                    color: 'white', fontWeight: 'bold', padding: '0.4rem', borderRadius: '4px',
+                    border: '1px solid #20a07a', cursor: (ornamentLoading || pngLoading) ? 'wait' : 'pointer',
+                    fontSize: '0.7rem',
+                  }}
+                  title="Generar Imagen con textura fotorealista"
+                >
+                  🎨 PNG
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 

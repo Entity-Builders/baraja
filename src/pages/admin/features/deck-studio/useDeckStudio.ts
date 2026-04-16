@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Template } from '@pdfme/common';
 import { SupabaseDeckRepository } from '../../../../lib/deckRepository';
 import type { RawDeckContent } from '@eb-packages/deck-engine';
@@ -15,6 +15,26 @@ function getCleanWhenToUse(text: string, doHide: boolean): string {
   return text.replace(/([.¡!]\s*)?[Pp]ara\s*\d+[+-]?\s*jugador(es)?\.?/g, '').trim();
 }
 
+function dataUrlToBlobUrl(dataUrl: string): string {
+  if (!dataUrl.startsWith('data:')) return dataUrl;
+  try {
+    const arr = dataUrl.split(',');
+    const mimeMatch = arr[0].match(/:(.*?);/);
+    const mime = mimeMatch ? mimeMatch[1] : '';
+    const bstr = atob(arr[1] || '');
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return URL.createObjectURL(new Blob([u8arr], { type: mime }));
+  } catch (err) {
+    console.warn('Failed converting base64 to blob', err);
+    return dataUrl;
+  }
+}
+
+
 export function useDeckStudio() {
   const [decks, setDecks] = useState<RawDeckContent[]>([]);
   const [selectedDeckId, setSelectedDeckId] = useState<string>('');
@@ -29,6 +49,10 @@ export function useDeckStudio() {
   const [hiddenFields, setHiddenFields] = useState<Record<string, boolean>>({});
   const [analyzing, setAnalyzing] = useState(false);
   const [activeFace, setActiveFace] = useState<'front' | 'back'>('back');
+
+  // Card dimensions (mm) — derived from the active template's basePdf
+  const [cardWidth, setCardWidth] = useState<number>(70);
+  const [cardHeight, setCardHeight] = useState<number>(120);
 
   useEffect(() => {
     deckRepo.getAllDecks().then(data => {
@@ -55,15 +79,17 @@ export function useDeckStudio() {
     };
 
     if (card.front.art_url) {
-      mData.art = await coverCropToJpeg(card.front.art_url, w, h);
+      const artData = await coverCropToJpeg(card.front.art_url, w, h);
+      mData.art = dataUrlToBlobUrl(artData);
     }
 
     if (cardUsesFlujob(card)) {
-      mData.back_ai_image = card.back?.back_image_url || '';
+      mData.back_ai_image = dataUrlToBlobUrl(card.back?.back_image_url || '');
       mData.qr_overlay = overrideHiddenFields?.qr ? '' : (card.back?.qr_url || getCardQrUrl(deck.slug ?? 'baraja', card.front.number));
     } else {
       const frameUri = await getFrameDataUri(deck.slug);
-      mData.bg = await coverCropToJpeg(frameUri, w, h);
+      const bgData = await coverCropToJpeg(frameUri, w, h);
+      mData.bg = dataUrlToBlobUrl(bgData);
 
       const resolveHide = overrideHiddenFields || hiddenFields || {};
       mData.when_to_use = resolveHide.when_to_use ? '' : getCleanWhenToUse(card.back?.when_to_use || '', !!resolveHide.player_count);
@@ -91,14 +117,21 @@ export function useDeckStudio() {
     const initialHiddenFields = rawDeck.design_template_overrides?.hidden_fields || {};
     if (isPlayersHidden) initialHiddenFields.player_count = true;
 
+    // Extract card dimensions from the loaded template
+    const loadedW = (typeof template.basePdf === 'object' && 'width' in template.basePdf) ? template.basePdf.width : 70;
+    const loadedH = (typeof template.basePdf === 'object' && 'height' in template.basePdf) ? template.basePdf.height : 120;
+
     setActiveRawDeck(rawDeck);
     setActiveResolvedDeck(deck);
     setActiveTemplate(template);
     setActiveCardIndex(0);
     setHiddenFields(initialHiddenFields);
+    setCardWidth(loadedW);
+    setCardHeight(loadedH);
 
     await loadMockDataForCard(deck, template, 0, initialHiddenFields);
-  }, [decks, loadMockDataForCard]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [decks]);
 
   useEffect(() => {
     if (selectedDeckId) {
@@ -109,7 +142,8 @@ export function useDeckStudio() {
       setActiveTemplate(null);
       setMockData(null);
     }
-  }, [selectedDeckId, loadDeckLayout]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDeckId]);
 
   const handleNextCard = useCallback(() => {
     if (!activeResolvedDeck || !activeTemplate) return;
@@ -117,7 +151,8 @@ export function useDeckStudio() {
     const nextIdx = activeCardIndex < maxIdx ? activeCardIndex + 1 : 0;
     setActiveCardIndex(nextIdx);
     loadMockDataForCard(activeResolvedDeck, activeTemplate, nextIdx);
-  }, [activeResolvedDeck, activeTemplate, activeCardIndex, loadMockDataForCard]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeResolvedDeck, activeTemplate, activeCardIndex]);
 
   const handlePrevCard = useCallback(() => {
     if (!activeResolvedDeck || !activeTemplate) return;
@@ -125,14 +160,16 @@ export function useDeckStudio() {
     const prevIdx = activeCardIndex > 0 ? activeCardIndex - 1 : maxIdx;
     setActiveCardIndex(prevIdx);
     loadMockDataForCard(activeResolvedDeck, activeTemplate, prevIdx);
-  }, [activeResolvedDeck, activeTemplate, activeCardIndex, loadMockDataForCard]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeResolvedDeck, activeTemplate, activeCardIndex]);
 
   const handleHiddenFieldsChange = useCallback((newFields: Record<string, boolean>) => {
     setHiddenFields(newFields);
     if (activeResolvedDeck && activeTemplate) {
       loadMockDataForCard(activeResolvedDeck, activeTemplate, activeCardIndex, newFields);
     }
-  }, [activeResolvedDeck, activeTemplate, activeCardIndex, loadMockDataForCard]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeResolvedDeck, activeTemplate, activeCardIndex]);
 
   const handleSaveDeckTemplate = useCallback(async (savedTpl: Template) => {
     if (!activeRawDeck) return;
@@ -156,6 +193,19 @@ export function useDeckStudio() {
 
     alert('✅ Layout y opciones de contenido guardados correctamente para ' + activeRawDeck.name);
   }, [activeRawDeck, hiddenFields]);
+
+  /** Update card dimensions (mm) — updates React state + pdfme template basePdf */
+  const handleCardSizeChange = useCallback((w: number, h: number) => {
+    setCardWidth(w);
+    setCardHeight(h);
+    setActiveTemplate(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        basePdf: { width: w, height: h, padding: [0, 0, 0, 0] as [number, number, number, number] },
+      };
+    });
+  }, []);
 
   const handleAutoLayout = useCallback(async () => {
     if (!activeRawDeck || !activeResolvedDeck || !activeTemplate || !mockData) return;
@@ -216,10 +266,13 @@ export function useDeckStudio() {
     activeResolvedDeck,
     activeTemplate,
     mockData,
+    setMockData,
     activeCardIndex,
     hiddenFields,
     analyzing,
     activeFace,
+    cardWidth,
+    cardHeight,
     // Setters
     setSelectedDeckId,
     setActiveTemplate,
@@ -230,5 +283,6 @@ export function useDeckStudio() {
     handleHiddenFieldsChange,
     handleSaveDeckTemplate,
     handleAutoLayout,
+    handleCardSizeChange,
   };
 }
