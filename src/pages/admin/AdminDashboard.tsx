@@ -31,6 +31,9 @@ export default function AdminDashboard() {
           <Link to="/admin/templates" className="btn-ghost" style={{ textDecoration: 'none', fontSize: '0.8rem' }}>
             🎨 Templates
           </Link>
+          <Link to="/admin/tuckbox" className="btn-ghost" style={{ textDecoration: 'none', fontSize: '0.8rem' }}>
+            📦 Tuck Box
+          </Link>
           <Link to="/admin/generate" className="btn-primary" style={{ textDecoration: 'none', fontSize: '0.8rem' }}>
             🃏 Generate New Edition
           </Link>
@@ -61,6 +64,9 @@ export default function AdminDashboard() {
               </Link>
               <Link to={`/admin/${id}/print`} className="btn-ghost" style={{ textDecoration: 'none' }}>
                 Print PDF
+              </Link>
+              <Link to={`/admin/tuckbox/${id}`} className="btn-ghost" style={{ textDecoration: 'none' }}>
+                📦 Tuck Box
               </Link>
             </div>
           </div>

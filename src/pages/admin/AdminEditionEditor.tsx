@@ -308,6 +308,9 @@ export default function AdminEditionEditor() {
             <Link to={`/admin/${deckId}/print`} className="btn-primary" style={{ textDecoration: 'none' }}>
               Generate PDF
             </Link>
+            <Link to={`/admin/tuckbox/${deckId}`} className="btn-ghost" style={{ textDecoration: 'none', fontSize: '0.85rem' }}>
+              📦 Tuck Box
+            </Link>
             <button
               onClick={handleDeleteEdition}
               style={{ background: 'transparent', border: '1px solid #f87171', color: '#f87171', padding: '0.5rem 1rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem' }}

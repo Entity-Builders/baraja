@@ -262,34 +262,78 @@ export const DeckDesignerRunner = forwardRef<DeckDesignerRunnerRef, DeckDesigner
           ))}
         </div>
 
-        {/* Card Size */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Tamaño:</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1px' }}>
-            <input
-              type="number"
-              value={cardWidth}
-              onChange={e => onCardSizeChange(Number(e.target.value) || 0, cardHeight)}
-              style={{
-                background: 'rgba(0,0,0,0.5)', color: 'white', border: '1px solid rgba(255,255,255,0.12)',
-                padding: '0.3rem 0.4rem', borderRadius: '4px 0 0 4px', fontSize: '0.75rem', width: '48px', textAlign: 'center',
-                outline: 'none',
-              }}
-            />
-            <span style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)', padding: '0.3rem 0.25rem', fontSize: '0.75rem' }}>×</span>
-            <input
-              type="number"
-              value={cardHeight}
-              onChange={e => onCardSizeChange(cardWidth, Number(e.target.value) || 0)}
-              style={{
-                background: 'rgba(0,0,0,0.5)', color: 'white', border: '1px solid rgba(255,255,255,0.12)',
-                padding: '0.3rem 0.4rem', borderRadius: '0 4px 4px 0', fontSize: '0.75rem', width: '48px', textAlign: 'center',
-                outline: 'none',
-              }}
-            />
-          </div>
-          <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.3)' }}>mm</span>
-        </div>
+        {/* Card Size Preset Selector */}
+        {(() => {
+          const CARD_SIZE_PRESETS = [
+            { label: '⭐ 6×9',  w: 60,   h: 90,   cost: '🆓',     note: 'Matriz existente — sin costo de troquel' },
+            { label: 'Poker',    w: 63,   h: 88,   cost: '💲',     note: 'Estándar universal' },
+            { label: 'Bridge',   w: 57,   h: 89,   cost: '💲',     note: 'Clásico angosto' },
+            { label: 'TCG',      w: 63.5, h: 88.9, cost: '💲',     note: 'MTG / Pokémon' },
+            { label: 'Tarot',    w: 70,   h: 120,  cost: '💲💲',   note: 'Grande vertical' },
+            { label: 'Mini',     w: 44,   h: 67,   cost: '💲💲',   note: 'Compacto portátil' },
+            { label: 'Square',   w: 70,   h: 70,   cost: '💲💲💲', note: 'Formato cuadrado' },
+            { label: 'Jumbo',    w: 89,   h: 127,  cost: '💲💲💲', note: 'Formato grande' },
+          ];
+
+          const matchedPreset = CARD_SIZE_PRESETS.find(p => p.w === cardWidth && p.h === cardHeight);
+          const selectValue = matchedPreset ? `${matchedPreset.w}x${matchedPreset.h}` : 'custom';
+
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Tamaño:</span>
+              <select
+                value={selectValue}
+                onChange={e => {
+                  if (e.target.value === 'custom') return;
+                  const [sw, sh] = e.target.value.split('x').map(Number);
+                  onCardSizeChange(sw, sh);
+                }}
+                style={{
+                  background: 'rgba(0,0,0,0.5)', color: 'white', border: '1px solid rgba(255,255,255,0.15)',
+                  padding: '0.3rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', cursor: 'pointer',
+                  outline: 'none', maxWidth: '200px',
+                }}
+              >
+                {CARD_SIZE_PRESETS.map(p => (
+                  <option key={`${p.w}x${p.h}`} value={`${p.w}x${p.h}`}>
+                    {p.label} — {p.w}×{p.h}mm {p.cost}
+                  </option>
+                ))}
+                <option value="custom">✏️ Personalizado</option>
+              </select>
+
+              {/* Show dimensions badge (always) + custom inputs if non-standard */}
+              {selectValue === 'custom' ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1px' }}>
+                  <input
+                    type="number"
+                    value={cardWidth}
+                    onChange={e => onCardSizeChange(Number(e.target.value) || 0, cardHeight)}
+                    style={{
+                      background: 'rgba(0,0,0,0.5)', color: 'white', border: '1px solid rgba(255,255,255,0.12)',
+                      padding: '0.3rem 0.4rem', borderRadius: '4px 0 0 4px', fontSize: '0.75rem', width: '48px', textAlign: 'center',
+                      outline: 'none',
+                    }}
+                  />
+                  <span style={{ background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)', padding: '0.3rem 0.25rem', fontSize: '0.75rem' }}>×</span>
+                  <input
+                    type="number"
+                    value={cardHeight}
+                    onChange={e => onCardSizeChange(cardWidth, Number(e.target.value) || 0)}
+                    style={{
+                      background: 'rgba(0,0,0,0.5)', color: 'white', border: '1px solid rgba(255,255,255,0.12)',
+                      padding: '0.3rem 0.4rem', borderRadius: '0 4px 4px 0', fontSize: '0.75rem', width: '48px', textAlign: 'center',
+                      outline: 'none',
+                    }}
+                  />
+                  <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.3)', marginLeft: '2px' }}>mm</span>
+                </div>
+              ) : matchedPreset ? (
+                <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.35)', fontStyle: 'italic' }}>{matchedPreset.note}</span>
+              ) : null}
+            </div>
+          );
+        })()}
 
         {/* Separator */}
         <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.1)' }} />

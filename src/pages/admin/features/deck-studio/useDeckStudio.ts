@@ -9,6 +9,13 @@ import { getCardQrUrl } from '@eb-packages/deck-engine';
 
 const deckRepo = new SupabaseDeckRepository();
 
+/**
+ * Raw data: URI for the background image, kept separate from the blob URL
+ * used for browser rendering. The server-side Vision API cannot read blob: URLs,
+ * so we pass this raw URI when calling analyze-typography.
+ */
+let _bgRawDataUri = '';
+
 function getCleanWhenToUse(text: string, doHide: boolean): string {
   if (!text) return '';
   if (!doHide) return text;
@@ -89,6 +96,7 @@ export function useDeckStudio() {
     } else {
       const frameUri = await getFrameDataUri(deck.slug);
       const bgData = await coverCropToJpeg(frameUri, w, h);
+      _bgRawDataUri = bgData; // keep raw data: URI for server-side Vision calls
       mData.bg = dataUrlToBlobUrl(bgData);
 
       const resolveHide = overrideHiddenFields || hiddenFields || {};
@@ -194,23 +202,62 @@ export function useDeckStudio() {
     alert('✅ Layout y opciones de contenido guardados correctamente para ' + activeRawDeck.name);
   }, [activeRawDeck, hiddenFields]);
 
-  /** Update card dimensions (mm) — updates React state + pdfme template basePdf */
+  /** Full-bleed element names — these always snap to cover the entire card */
+  const FULL_BLEED_ELEMENTS = new Set(['art', 'bg', 'back_ai_image']);
+
+  /** Update card dimensions (mm) — scales all schema elements proportionally */
   const handleCardSizeChange = useCallback((w: number, h: number) => {
-    setCardWidth(w);
-    setCardHeight(h);
-    setActiveTemplate(prev => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        basePdf: { width: w, height: h, padding: [0, 0, 0, 0] as [number, number, number, number] },
-      };
+    setCardWidth(prevW => {
+      setCardHeight(prevH => {
+        const ratioW = prevW > 0 ? w / prevW : 1;
+        const ratioH = prevH > 0 ? h / prevH : 1;
+
+        setActiveTemplate(prev => {
+          if (!prev) return prev;
+
+          const scaledSchemas = prev.schemas.map(page =>
+            page.map(schema => {
+              // Full-bleed elements always snap to cover the entire card
+              if (FULL_BLEED_ELEMENTS.has(schema.name)) {
+                return {
+                  ...schema,
+                  position: { x: 0, y: 0 },
+                  width: w,
+                  height: h,
+                };
+              }
+
+              // All other elements: scale proportionally
+              const pos = schema.position as { x: number; y: number };
+              return {
+                ...schema,
+                position: {
+                  x: Math.round((pos.x * ratioW) * 100) / 100,
+                  y: Math.round((pos.y * ratioH) * 100) / 100,
+                },
+                width: Math.round((schema.width * ratioW) * 100) / 100,
+                height: Math.round((schema.height * ratioH) * 100) / 100,
+              };
+            })
+          );
+
+          return {
+            ...prev,
+            basePdf: { width: w, height: h, padding: [0, 0, 0, 0] as [number, number, number, number] },
+            schemas: scaledSchemas,
+          };
+        });
+
+        return h;
+      });
+      return w;
     });
   }, []);
 
   const handleAutoLayout = useCallback(async () => {
     if (!activeRawDeck || !activeResolvedDeck || !activeTemplate || !mockData) return;
 
-    const frameUri = mockData.bg;
+    const frameUri = _bgRawDataUri || mockData.bg;
     if (!frameUri) {
       alert('No hay arte de fondo (bg) para analizar. Generá un fondo primero.');
       return;

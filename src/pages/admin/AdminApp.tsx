@@ -5,6 +5,7 @@ import AdminPrintView from './AdminPrintView';
 import AdminGenerateEdition from './AdminGenerateEdition';
 import AdminTemplates from './AdminTemplates';
 import AdminFrameGenerator from './AdminFrameGenerator';
+import AdminTuckBox from './AdminTuckBox';
 
 export default function AdminApp() {
   return (
@@ -13,6 +14,8 @@ export default function AdminApp() {
       <Route path="/generate" element={<AdminGenerateEdition />} />
       <Route path="/templates" element={<AdminTemplates />} />
       <Route path="/frames" element={<AdminFrameGenerator />} />
+      <Route path="/tuckbox" element={<AdminTuckBox />} />
+      <Route path="/tuckbox/:deckId" element={<AdminTuckBox />} />
       <Route path="/:deckId" element={<AdminEditionEditor />} />
       <Route path="/:deckId/print" element={<AdminPrintView />} />
     </Routes>

@@ -319,3 +319,121 @@ export class DesignTemplateRepository {
   }
 }
 
+// ── Saved Config types & repository ─────────────────────────────
+
+/** A complete snapshot of a deck's visual configuration */
+export interface SavedConfigRow {
+  id: string;
+  name: string;
+  edition_slug: string | null;
+  design_template_id: string | null;
+  layout_config: Record<string, unknown>;
+  hidden_fields: Record<string, boolean>;
+  card_width: number;
+  card_height: number;
+  card_unit: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type SavedConfigInput = Omit<SavedConfigRow, 'id' | 'created_at' | 'updated_at'>;
+
+export class SavedConfigRepository {
+  private client: SupabaseClient;
+
+  constructor() {
+    this.client = supabase;
+  }
+
+  /** List all saved configs, optionally filtered by edition */
+  async getAll(editionSlug?: string): Promise<SavedConfigRow[]> {
+    let query = this.client
+      .from('baraja_saved_configs')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (editionSlug) {
+      // Return configs for this edition + global configs (edition_slug IS NULL)
+      query = query.or(`edition_slug.eq.${editionSlug},edition_slug.is.null`);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('[SavedConfigRepository] getAll error:', error);
+      throw error;
+    }
+    return data || [];
+  }
+
+  async create(config: SavedConfigInput): Promise<SavedConfigRow> {
+    const { data, error } = await this.client
+      .from('baraja_saved_configs')
+      .insert(config)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[SavedConfigRepository] create error:', error);
+      throw error;
+    }
+    return data;
+  }
+
+  async delete(id: string): Promise<void> {
+    const { error } = await this.client
+      .from('baraja_saved_configs')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('[SavedConfigRepository] delete error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Apply a saved config to an edition.
+   * Writes the config's layout, size, hidden fields, and template reference
+   * back to the edition's design_template_overrides.
+   */
+  async applyToEdition(configId: string, editionSlug: string): Promise<void> {
+    // 1. Fetch the saved config
+    const { data: config, error: fetchError } = await this.client
+      .from('baraja_saved_configs')
+      .select('*')
+      .eq('id', configId)
+      .single();
+
+    if (fetchError || !config) {
+      throw new Error('Saved config not found');
+    }
+
+    // 2. Build edition update payload
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const payload: Record<string, any> = {
+      design_template_overrides: {
+        layout_config: config.layout_config,
+        hidden_fields: config.hidden_fields,
+        card_width: config.card_width,
+        card_height: config.card_height,
+      },
+    };
+
+    if (config.design_template_id) {
+      payload.design_template_id = config.design_template_id;
+    }
+
+    // 3. Update the edition
+    const { error: updateError } = await this.client
+      .from('baraja_editions')
+      .update(payload)
+      .eq('slug', editionSlug);
+
+    if (updateError) {
+      console.error('[SavedConfigRepository] applyToEdition error:', updateError);
+      throw updateError;
+    }
+  }
+}
+

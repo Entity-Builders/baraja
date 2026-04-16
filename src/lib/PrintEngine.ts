@@ -137,6 +137,13 @@ async function buildImpositionTemplateAndInputs(
   const rows = Math.floor(sheet.height / totalH);
   const cardsPerSheet = cols * rows;
 
+  // Debug: match AdminPrintView format for easy comparison
+  console.log('[PrintEngine] Card dimensions:', { resolvedCardWidth, resolvedCardHeight, bleedMm, totalW, totalH });
+  console.log('[PrintEngine] Grid:', { cols, rows, cardsPerSheet, sheet: `${sheet.width}×${sheet.height}` });
+  console.log('[PrintEngine] basePdf source:', cardTemplate.basePdf);
+  console.log('[PrintEngine] print_specs.dimensions:', deck.print_specs?.dimensions);
+  console.log('[PrintEngine] hasFlujobCards:', hasFlujobCards);
+
   // Center the grid on the page
   const gridW = cols * totalW;
   const gridH = rows * totalH;
@@ -162,14 +169,36 @@ async function buildImpositionTemplateAndInputs(
     }
     
     // Ensure background images bleed into the crop margin
+    // CRITICAL: always use resolvedCardWidth/Height, NOT the element's stored size.
+    // The stored size may be stale if the card size was changed but schemas weren't re-saved.
     if (element.name === 'art' || element.name === 'bg' || element.name === 'back_ai_image') {
       el.position.x = xOffset - bleed;
       el.position.y = yOffset - bleed;
-      el.width = (el.width as number) + bleed * 2;
-      el.height = (el.height as number) + bleed * 2;
+      el.width = resolvedCardWidth + bleed * 2;
+      el.height = resolvedCardHeight + bleed * 2;
     } else {
-      el.position.x = (el.position.x as number) + xOffset;
-      el.position.y = (el.position.y as number) + yOffset;
+      // Clamp element within card boundaries if it overflows (stale schema from old card size)
+      let elX = el.position.x as number;
+      let elY = el.position.y as number;
+      let elW = el.width as number;
+      let elH = el.height as number;
+
+      // If element exceeds card boundaries, scale proportionally to fit
+      if (elX + elW > resolvedCardWidth) {
+        const scaleW = resolvedCardWidth / (elX + elW);
+        elX = elX * scaleW;
+        elW = elW * scaleW;
+      }
+      if (elY + elH > resolvedCardHeight) {
+        const scaleH = resolvedCardHeight / (elY + elH);
+        elY = elY * scaleH;
+        elH = elH * scaleH;
+      }
+
+      el.position.x = elX + xOffset;
+      el.position.y = elY + yOffset;
+      el.width = elW;
+      el.height = elH;
     }
 
     // Safety net: ensure dynamicFontSize is always enabled for text objects during PRINT

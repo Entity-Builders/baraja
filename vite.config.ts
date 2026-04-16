@@ -1153,7 +1153,9 @@ function localDeckCmsPlugin() {
                const filePath = path.resolve(__dirname, 'public', dataUrl.replace(/^\//, ''));
                const fileBuffer = await fs.readFile(filePath);
                base64Data = fileBuffer.toString('base64');
-            } else {
+             } else if (dataUrl.startsWith('blob:')) {
+               throw new Error('Received a blob: URL which is not readable server-side. The client must send the original data: URI instead.');
+             } else {
                throw new Error('Unsupported image format for Vision analysis: must be a data URI or an absolute local path (/...)');
             }
 
