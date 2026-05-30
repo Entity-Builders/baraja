@@ -12,7 +12,9 @@ const __dirname = path.dirname(__filename);
 const SUPABASE_URL = 'http://127.0.0.1:54321';
 const SUPABASE_SERVICE_KEY = 'REDACTED_SUPABASE_SERVICE_KEY'; // Use service key to bypass RLS if needed
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+  db: { schema: 'baraja' },
+});
 
 async function main() {
   console.log('Starting seed...');
@@ -28,7 +30,7 @@ async function main() {
 
     // Insert or update edition
     const { error: editionError } = await supabase
-      .from('baraja_editions')
+      .from('editions')
       .upsert({
         slug,
         name: rawContent.name,
@@ -50,7 +52,7 @@ async function main() {
 
     // Insert cards
     // First clear existing cards for this edition to avoid duplicates during seed
-    await supabase.from('baraja_cards').delete().eq('edition_slug', slug);
+    await supabase.from('cards').delete().eq('edition_slug', slug);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cardsToInsert = rawContent.cards.map((card: any) => ({
@@ -64,7 +66,7 @@ async function main() {
 
     if (cardsToInsert.length > 0) {
       const { error: cardsError } = await supabase
-        .from('baraja_cards')
+        .from('cards')
         .insert(cardsToInsert);
 
       if (cardsError) {

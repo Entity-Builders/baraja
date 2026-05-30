@@ -12,7 +12,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+  db: { schema: 'baraja' },
+});
 
 export class SupabaseDeckRepository implements IDeckRepository {
   private client: SupabaseClient;
@@ -23,7 +25,7 @@ export class SupabaseDeckRepository implements IDeckRepository {
 
   async getDeckById(id: string): Promise<RawDeckContent | null> {
     const { data: edition, error: editionError } = await this.client
-      .from('baraja_editions')
+      .from('editions')
       .select('*')
       .eq('slug', id)
       .single();
@@ -34,7 +36,7 @@ export class SupabaseDeckRepository implements IDeckRepository {
     }
 
     const { data: cards, error: cardsError } = await this.client
-      .from('baraja_cards')
+      .from('cards')
       .select('*')
       .eq('edition_slug', id)
       .order('number', { ascending: true });
@@ -46,7 +48,7 @@ export class SupabaseDeckRepository implements IDeckRepository {
     let dbDesignOverrides: Record<string, unknown> = {};
     if (edition.design_template_id) {
       const { data: dt, error: dtError } = await this.client
-        .from('baraja_design_templates')
+        .from('design_templates')
         .select('primary_color, accent_color, text_color, background, font_heading, font_body, layout_config, qr_color, hidden_fields')
         .eq('id', edition.design_template_id)
         .single();
@@ -91,7 +93,7 @@ export class SupabaseDeckRepository implements IDeckRepository {
 
   async getAllDecks(): Promise<RawDeckContent[]> {
     const { data: editions, error } = await this.client
-      .from('baraja_editions')
+      .from('editions')
       .select('*');
 
     if (error || !editions) {
@@ -134,7 +136,7 @@ export class SupabaseDeckRepository implements IDeckRepository {
 
     if (Object.keys(payload).length > 0) {
       const { error } = await this.client
-        .from('baraja_editions')
+        .from('editions')
         .update(payload)
         .eq('slug', id);
 
@@ -151,7 +153,7 @@ export class SupabaseDeckRepository implements IDeckRepository {
    */
   async assignPreset(editionSlug: string, presetId: string): Promise<void> {
     const { error } = await this.client
-      .from('baraja_editions')
+      .from('editions')
       .update({
         design_template_id: presetId,
         design_template_overrides: {}, // Clear overrides — preset is the source of truth
@@ -252,7 +254,7 @@ export class DesignTemplateRepository {
 
   async getAll(): Promise<DesignTemplateRow[]> {
     const { data, error } = await this.client
-      .from('baraja_design_templates')
+      .from('design_templates')
       .select('*')
       .order('created_at', { ascending: true });
 
@@ -265,7 +267,7 @@ export class DesignTemplateRepository {
 
   async getById(id: string): Promise<DesignTemplateRow | null> {
     const { data, error } = await this.client
-      .from('baraja_design_templates')
+      .from('design_templates')
       .select('*')
       .eq('id', id)
       .single();
@@ -279,7 +281,7 @@ export class DesignTemplateRepository {
 
   async create(template: DesignTemplateInput): Promise<DesignTemplateRow> {
     const { data, error } = await this.client
-      .from('baraja_design_templates')
+      .from('design_templates')
       .insert(template)
       .select()
       .single();
@@ -293,7 +295,7 @@ export class DesignTemplateRepository {
 
   async update(id: string, updates: Partial<DesignTemplateInput>): Promise<DesignTemplateRow> {
     const { data, error } = await this.client
-      .from('baraja_design_templates')
+      .from('design_templates')
       .update(updates)
       .eq('id', id)
       .select()
@@ -308,7 +310,7 @@ export class DesignTemplateRepository {
 
   async delete(id: string): Promise<void> {
     const { error } = await this.client
-      .from('baraja_design_templates')
+      .from('design_templates')
       .delete()
       .eq('id', id);
 
@@ -348,7 +350,7 @@ export class SavedConfigRepository {
   /** List all saved configs, optionally filtered by edition */
   async getAll(editionSlug?: string): Promise<SavedConfigRow[]> {
     let query = this.client
-      .from('baraja_saved_configs')
+      .from('saved_configs')
       .select('*')
       .order('created_at', { ascending: false });
 
@@ -368,7 +370,7 @@ export class SavedConfigRepository {
 
   async create(config: SavedConfigInput): Promise<SavedConfigRow> {
     const { data, error } = await this.client
-      .from('baraja_saved_configs')
+      .from('saved_configs')
       .insert(config)
       .select()
       .single();
@@ -382,7 +384,7 @@ export class SavedConfigRepository {
 
   async delete(id: string): Promise<void> {
     const { error } = await this.client
-      .from('baraja_saved_configs')
+      .from('saved_configs')
       .delete()
       .eq('id', id);
 
@@ -400,7 +402,7 @@ export class SavedConfigRepository {
   async applyToEdition(configId: string, editionSlug: string): Promise<void> {
     // 1. Fetch the saved config
     const { data: config, error: fetchError } = await this.client
-      .from('baraja_saved_configs')
+      .from('saved_configs')
       .select('*')
       .eq('id', configId)
       .single();
@@ -426,7 +428,7 @@ export class SavedConfigRepository {
 
     // 3. Update the edition
     const { error: updateError } = await this.client
-      .from('baraja_editions')
+      .from('editions')
       .update(payload)
       .eq('slug', editionSlug);
 

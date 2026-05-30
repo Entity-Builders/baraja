@@ -199,7 +199,18 @@ export function CardCanvas({
         {/* ── FRONT FACE ── */}
         <div className={`${styles.face} ${styles.faceFront}`}>
           {displayArtUrl ? (
-            <img src={displayArtUrl} alt={title} className={styles.artImage} draggable={false} />
+            <img 
+              src={displayArtUrl} 
+              alt={title} 
+              className={styles.artImage} 
+              draggable={false} 
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                if (e.currentTarget.nextElementSibling) {
+                  // If we wanted to show a placeholder, we could, but hiding is better than broken icon
+                }
+              }}
+            />
           ) : (
             <div className={styles.noArtPlaceholder}>
               <span className={styles.noArtText}>Sin Arte</span>
@@ -219,6 +230,9 @@ export function CardCanvas({
                 alt="AI card back"
                 className={styles.frameImage}
                 draggable={false}
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                }}
               />
                 <div className={styles.qrOverlay}>
                   <QRCodeSVG
@@ -238,6 +252,11 @@ export function CardCanvas({
                 alt="Card frame"
                 className={styles.frameImage}
                 draggable={false}
+                onError={(e) => {
+                  if (e.currentTarget.src !== window.location.origin + '/frames/back-frame.png') {
+                    e.currentTarget.src = '/frames/back-frame.png';
+                  }
+                }}
               />
               <div className={styles.backContent}>
 

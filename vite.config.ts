@@ -10,7 +10,8 @@ import { createClient } from '@supabase/supabase-js';
 // Local Supabase — service key bypasses RLS for server-side writes
 const _supabaseLocal = createClient(
   'http://127.0.0.1:54321',
-  'REDACTED_SUPABASE_SERVICE_KEY'
+  'REDACTED_SUPABASE_SERVICE_KEY',
+  { db: { schema: 'baraja' } }
 );
 
 // Load root .env for GEMINI_API_KEY
@@ -36,7 +37,7 @@ async function saveEditionToSupabase(rawDeckContent: any): Promise<void> {
 
   // Upsert edition row
   const { error: editionErr } = await _supabaseLocal
-    .from('baraja_editions')
+    .from('editions')
     .upsert({
       slug,
       name: rawDeckContent.name,
@@ -53,7 +54,7 @@ async function saveEditionToSupabase(rawDeckContent: any): Promise<void> {
   }
 
   // Replace cards — delete existing then bulk insert
-  await _supabaseLocal.from('baraja_cards').delete().eq('edition_slug', slug);
+  await _supabaseLocal.from('cards').delete().eq('edition_slug', slug);
 
   if (cards.length > 0) {
     const cardsToInsert = cards.map((card: any) => ({
@@ -66,7 +67,7 @@ async function saveEditionToSupabase(rawDeckContent: any): Promise<void> {
     }));
 
     const { error: cardsErr } = await _supabaseLocal
-      .from('baraja_cards')
+      .from('cards')
       .insert(cardsToInsert);
 
     if (cardsErr) {
@@ -219,6 +220,9 @@ async function generateCardArt(
   card.front.art_url = art_url;
   const jsonPath = path.resolve(CONTENT_DIR, `${slug}.json`);
   await fs.writeFile(jsonPath, JSON.stringify(deck, null, 2), 'utf-8');
+
+  // Sync to DB
+  await saveEditionToSupabase(deck);
 
   console.log(`✅ Saved: ${art_url}`);
   return { success: true, art_url, art_versions: card.front.art_versions || [] };
@@ -384,6 +388,10 @@ function localDeckCmsPlugin() {
                 back: { ...deck.cards[cardIndex].back, ...updates.back },
               };
               await fs.writeFile(jsonPath, JSON.stringify(deck, null, 2), 'utf-8');
+              
+              // Sync to DB
+              await saveEditionToSupabase(deck);
+
               res.setHeader('Content-Type', 'application/json');
               res.end(JSON.stringify({ success: true }));
             } else {
@@ -1886,6 +1894,9 @@ Do not say anything else. Just the pure valid SVG XML.`;
             card.back.back_image_versions = prevVersions.slice(0, 5);
 
             await fs.writeFile(deckFile, JSON.stringify(deckRaw, null, 2));
+            
+            // Sync to DB
+            await saveEditionToSupabase(deckRaw);
 
             console.log(`✅ Card back saved: ${back_image_url} (${sizeKB}KB)`);
 

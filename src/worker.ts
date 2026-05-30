@@ -112,10 +112,11 @@ async function rewriteHtmlForSeo(request: Request, response: Response, slug: str
   if (!supabaseKey) return response;
 
   try {
-    const res = await fetch(`${supabaseUrl}/rest/v1/baraja_editions?slug=eq.${slug}&select=name,description,landing_config`, {
+    const res = await fetch(`${supabaseUrl}/rest/v1/editions?slug=eq.${slug}&select=name,description,landing_config`, {
       headers: {
         'apikey': supabaseKey,
-        'Authorization': `Bearer ${supabaseKey}`
+        'Authorization': `Bearer ${supabaseKey}`,
+        'Accept-Profile': 'baraja',
       }
     });
 
