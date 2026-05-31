@@ -811,7 +811,7 @@ function localDeckCmsPlugin() {
             } else if (artDirectorPrompt) {
               console.log(`\n🎨 [Art Director] Asking Flash to generate visual prompt...`);
               try {
-                const flashUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                const flashUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
                 const flashRes = await fetch(flashUrl, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -836,7 +836,7 @@ function localDeckCmsPlugin() {
             // ── PROMPT REFINER (Conversational iteration) ──────────────────────
             if (refinement) {
               console.log(`\n💬 [Frame Refiner] The user requested a tweak: "${refinement}"`);
-              const flashUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+              const flashUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
               
               const rewritePrompt = [
                 `You are an expert prompt engineer for an image generation model.`,
@@ -1031,7 +1031,7 @@ function localDeckCmsPlugin() {
 
               try {
                 console.log(`\n👁️  [Vision Engine] Analyzing boundaries and computing typography...`);
-                const geminiVisionUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                const geminiVisionUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
                 const textRes = await fetch(geminiVisionUrl, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -1244,7 +1244,7 @@ function localDeckCmsPlugin() {
             ].filter(Boolean).join('\n');
 
             console.log(`\n👁️  [Vision Engine] Standalone Typography Analysis...`);
-            const geminiVisionUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+            const geminiVisionUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
             const textRes = await fetch(geminiVisionUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -1405,7 +1405,7 @@ FUNCTIONAL REQUIREMENTS:
 Do not say anything else. Just the pure valid SVG XML.`;
 
             // Flash is fast enough for SVG generation (~2-5s vs 30-60s+ for Pro)
-            const resFetch = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+            const resFetch = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -1725,7 +1725,7 @@ Do not say anything else. Just the pure valid SVG XML.`;
               `}`,
             ].filter(Boolean).join('\n');
 
-            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+            const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
             const geminiRes = await fetch(geminiUrl, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
