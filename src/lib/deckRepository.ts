@@ -1,4 +1,4 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 import type { IDeckRepository, RawDeckContent } from '@eb-packages/deck-engine';
 
 // The app MUST provide VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY via .env.local
@@ -12,12 +12,15 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storageKey: 'eb:baraja:supabase-auth',
+  },
   db: { schema: 'baraja' },
 });
 
 export class SupabaseDeckRepository implements IDeckRepository {
-  private client: SupabaseClient;
+  private client: typeof supabase;
 
   constructor() {
     this.client = supabase;
@@ -246,7 +249,7 @@ export type DesignTemplateId = string;
 export type DesignTemplateInput = Omit<DesignTemplateRow, 'created_at' | 'updated_at'>;
 
 export class DesignTemplateRepository {
-  private client: SupabaseClient;
+  private client: typeof supabase;
 
   constructor() {
     this.client = supabase;
@@ -341,7 +344,7 @@ export interface SavedConfigRow {
 export type SavedConfigInput = Omit<SavedConfigRow, 'id' | 'created_at' | 'updated_at'>;
 
 export class SavedConfigRepository {
-  private client: SupabaseClient;
+  private client: typeof supabase;
 
   constructor() {
     this.client = supabase;
@@ -438,4 +441,3 @@ export class SavedConfigRepository {
     }
   }
 }
-
