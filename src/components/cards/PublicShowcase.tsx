@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { Card } from '@eb-packages/deck-engine';
 import type { DeckSchema } from '@eb-packages/deck-engine';
 import { CardCanvas } from './CardCanvas';
@@ -25,6 +25,7 @@ export function PublicShowcase({ deck, maxCards }: PublicShowcaseProps) {
           onFlip={() => setFlippedCardId(flippedCardId === card.id ? null : card.id)}
           // Grids look tighter and better framed with the literal printed aspect ratio
           forceOriginalMode={true} 
+          showQr={false}
         />
       ))}
     </div>

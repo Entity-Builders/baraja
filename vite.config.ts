@@ -1,21 +1,65 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { cloudflare } from '@cloudflare/vite-plugin';
+import * as fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { exec } from 'node:child_process';
 import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
+import type { RawDeckContent } from '@eb-packages/deck-engine';
+import { getDeckPublicationReadiness } from './src/lib/deckPublicationReadiness';
 
-// Local Supabase — service key bypasses RLS for server-side writes
-const _supabaseLocal = createClient(
-  'http://127.0.0.1:54321',
-  'REDACTED_SUPABASE_SERVICE_KEY',
-  { db: { schema: 'baraja' } }
-);
+const ROOT_ENV_PATH = path.resolve(__dirname, '../../.env');
+const LOCAL_SOURCE_ENV_PATH = path.resolve(__dirname, '../../.env.source.local');
+const BARAJA_LOCAL_ENV_PATH = path.resolve(__dirname, '.env.local');
 
-// Load root .env for GEMINI_API_KEY
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+// Keep legacy root env loading for existing non-Gemini admin integrations.
+dotenv.config({ path: ROOT_ENV_PATH });
+
+function loadEnvFile(filePath: string): Record<string, string> {
+  if (!fsSync.existsSync(filePath)) return {};
+  return dotenv.parse(fsSync.readFileSync(filePath));
+}
+
+const barajaEnvFiles = [
+  loadEnvFile(BARAJA_LOCAL_ENV_PATH),
+  loadEnvFile(LOCAL_SOURCE_ENV_PATH),
+  loadEnvFile(ROOT_ENV_PATH),
+];
+
+function getFirstNonEmpty(values: Array<string | undefined>): string | undefined {
+  return values.find((value) => typeof value === 'string' && value.trim().length > 0)?.trim();
+}
+
+function getEnvValue(key: string): string | undefined {
+  return getFirstNonEmpty([
+    process.env[key],
+    ...barajaEnvFiles.map((env) => env[key]),
+  ]);
+}
+
+function getBarajaGeminiApiKey(): string | undefined {
+  return getFirstNonEmpty([
+    getEnvValue('BARAJA_GEMINI_API_KEY'),
+    getEnvValue('ENTITYBUILDERS_LOCAL_GEMINI_API_KEY'),
+    getEnvValue('GEMINI_API_KEY'),
+  ]);
+}
+
+const CMS_SUPABASE_URL = getEnvValue('VITE_SUPABASE_URL') ?? 'http://127.0.0.1:54321';
+const CMS_SUPABASE_SERVICE_KEY = getFirstNonEmpty([
+  getEnvValue('BARAJA_SUPABASE_SERVICE_KEY'),
+  getEnvValue('SUPABASE_SERVICE_ROLE_KEY'),
+]) ?? 'REDACTED_SUPABASE_SERVICE_KEY';
+
+// Local CMS writes server-side and needs a service key to bypass RLS.
+const _supabaseLocal = createClient(CMS_SUPABASE_URL, CMS_SUPABASE_SERVICE_KEY, {
+  db: { schema: 'baraja' },
+});
+
+const MISSING_GEMINI_API_KEY_ERROR =
+  'Gemini API key not configured. Set BARAJA_GEMINI_API_KEY or ENTITYBUILDERS_LOCAL_GEMINI_API_KEY in .env.source.local, or legacy GEMINI_API_KEY in root .env.';
 
 const CONTENT_DIR = path.resolve(__dirname, '../../packages/deck-engine/src/content');
 const ASSETS_DIR = path.resolve(__dirname, 'public/assets/editions');
@@ -31,33 +75,71 @@ function triggerDeckSync() {
   });
 }
 
+type SupabaseSyncResult = {
+  warnings: string[];
+};
+
+function isMissingColumnError(error: { message?: string; code?: string } | null): boolean {
+  const message = error?.message ?? '';
+  return error?.code === 'PGRST204' || /column .* does not exist|could not find .* column/i.test(message);
+}
+
 /** Persist a freshly-generated edition directly into Supabase */
-async function saveEditionToSupabase(rawDeckContent: any): Promise<void> {
+async function saveEditionToSupabase(rawDeckContent: RawDeckContent): Promise<SupabaseSyncResult> {
   const { slug, cards = [] } = rawDeckContent;
+  const warnings: string[] = [];
+
+  const editionPayload = {
+    slug,
+    name: rawDeckContent.name,
+    description: rawDeckContent.description,
+    print_spec_id: rawDeckContent.print_spec_id,
+    design_template_id: rawDeckContent.design_template_id || null,
+    print_specs_overrides: rawDeckContent.print_specs_overrides || {},
+    design_template_overrides: rawDeckContent.design_template_overrides || {},
+    landing_config: rawDeckContent.landing_config || {},
+    metadata: rawDeckContent.metadata || {},
+    pricing: rawDeckContent.pricing || { amount: 1500000, currency: 'ars' },
+    digital: rawDeckContent.digital || {},
+  };
+
+  const legacyEditionPayload = {
+    slug: editionPayload.slug,
+    name: editionPayload.name,
+    description: editionPayload.description,
+    print_spec_id: editionPayload.print_spec_id,
+    design_template_id: editionPayload.design_template_id,
+    print_specs_overrides: editionPayload.print_specs_overrides,
+    design_template_overrides: editionPayload.design_template_overrides,
+    landing_config: editionPayload.landing_config,
+  };
+
+  const upsertEdition = async (payload: typeof editionPayload | typeof legacyEditionPayload) => _supabaseLocal
+    .from('editions')
+    .upsert(payload, { onConflict: 'slug' });
 
   // Upsert edition row
-  const { error: editionErr } = await _supabaseLocal
-    .from('editions')
-    .upsert({
-      slug,
-      name: rawDeckContent.name,
-      description: rawDeckContent.description,
-      print_spec_id: rawDeckContent.print_spec_id,
-      design_template_id: rawDeckContent.design_template_id || null,
-      print_specs_overrides: rawDeckContent.print_specs_overrides || {},
-      design_template_overrides: rawDeckContent.design_template_overrides || {},
-    }, { onConflict: 'slug' });
-
+  let { error: editionErr } = await upsertEdition(editionPayload);
   if (editionErr) {
-    console.error(`❌ [Supabase] Failed to upsert edition ${slug}:`, editionErr.message);
-    return;
+    if (isMissingColumnError(editionErr)) {
+      warnings.push('La base local todavía no tiene columnas digital/pricing/metadata; se guardaron contenido y assets, pero no la configuración de publicación.');
+      const legacyResult = await upsertEdition(legacyEditionPayload);
+      editionErr = legacyResult.error;
+    }
+
+    if (editionErr) {
+      throw new Error(`No se pudo guardar la edición en Supabase: ${editionErr.message}`);
+    }
   }
 
   // Replace cards — delete existing then bulk insert
-  await _supabaseLocal.from('cards').delete().eq('edition_slug', slug);
+  const { error: deleteErr } = await _supabaseLocal.from('cards').delete().eq('edition_slug', slug);
+  if (deleteErr) {
+    throw new Error(`No se pudieron reemplazar las cartas en Supabase: ${deleteErr.message}`);
+  }
 
   if (cards.length > 0) {
-    const cardsToInsert = cards.map((card: any) => ({
+    const cardsToInsert = cards.map((card) => ({
       id: card.id,
       edition_slug: slug,
       number: card.front.number,
@@ -71,11 +153,12 @@ async function saveEditionToSupabase(rawDeckContent: any): Promise<void> {
       .insert(cardsToInsert);
 
     if (cardsErr) {
-      console.error(`❌ [Supabase] Failed to insert cards for ${slug}:`, cardsErr.message);
-    } else {
-      console.log(`✅ [Supabase] ${slug}: ${cards.length} cards saved.`);
+      throw new Error(`No se pudieron insertar las cartas en Supabase: ${cardsErr.message}`);
     }
   }
+
+  console.log(`✅ [Supabase] ${slug}: ${cards.length} cards saved.`);
+  return { warnings };
 }
 
 /** Generate a single card's illustration via Gemini */
@@ -132,7 +215,6 @@ async function generateCardArt(
 
   const width = deck.print_specs?.dimensions?.width || 88;
   const height = deck.print_specs?.dimensions?.height || 138;
-  const isLandscape = width > height;
 
   // Pick the closest Imagen 4 supported aspect ratio for the card dimensions.
   // Imagen 4 supports: 1:1, 3:4, 4:3, 9:16, 16:9
@@ -369,7 +451,7 @@ function localDeckCmsPlugin() {
           return;
         }
 
-        // ── Save card edits ──────────────────────────────────
+        // ── Save card or edition-level edits ─────────────────
         if (req.url === '/__cms__/save-edition' && req.method === 'POST') {
           try {
             const body = await readBody(req);
@@ -379,8 +461,16 @@ function localDeckCmsPlugin() {
             const content = await fs.readFile(jsonPath, 'utf-8');
             const deck = JSON.parse(content);
 
-            const cardIndex = deck.cards.findIndex((c: any) => c.id === cardId);
-            if (cardIndex !== -1) {
+            if (!updates || typeof updates !== 'object') {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: false, error: 'No updates provided' }));
+              return;
+            }
+
+            const isCardUpdate = typeof cardId === 'string' && cardId.length > 0;
+            const cardIndex = isCardUpdate ? deck.cards.findIndex((c: any) => c.id === cardId) : -1;
+            if (isCardUpdate && cardIndex !== -1) {
               deck.cards[cardIndex] = {
                 ...deck.cards[cardIndex],
                 ...updates,
@@ -390,18 +480,76 @@ function localDeckCmsPlugin() {
               await fs.writeFile(jsonPath, JSON.stringify(deck, null, 2), 'utf-8');
               
               // Sync to DB
-              await saveEditionToSupabase(deck);
+              const syncResult = await saveEditionToSupabase(deck);
 
               res.setHeader('Content-Type', 'application/json');
-              res.end(JSON.stringify({ success: true }));
+              res.end(JSON.stringify({ success: true, ...syncResult }));
+            } else if (!isCardUpdate) {
+              const allowedEditionFields = [
+                'name',
+                'description',
+                'metadata',
+                'pricing',
+                'digital',
+                'landing_config',
+                'print_specs_overrides',
+                'design_template_overrides',
+              ];
+              const editionUpdates = Object.fromEntries(
+                Object.entries(updates).filter(([key]) => allowedEditionFields.includes(key))
+              );
+
+              if (Object.keys(editionUpdates).length === 0) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ success: false, error: 'No supported edition fields provided' }));
+                return;
+              }
+
+              const editionDigitalUpdate = (editionUpdates as { digital?: Record<string, unknown> }).digital;
+              const candidateDeck = {
+                ...deck,
+                ...editionUpdates,
+              };
+
+              if (deck.digital || editionDigitalUpdate) {
+                candidateDeck.digital = {
+                  ...(deck.digital || {}),
+                  ...(editionDigitalUpdate || {}),
+                };
+              }
+
+              if (candidateDeck.digital?.is_published === true) {
+                const readiness = getDeckPublicationReadiness(candidateDeck);
+                if (!readiness.isPublishable) {
+                  res.statusCode = 409;
+                  res.setHeader('Content-Type', 'application/json');
+                  res.end(JSON.stringify({
+                    success: false,
+                    error: `No se puede activar la landing: ${readiness.blockers.map(blocker => `${blocker.label} (${blocker.detail})`).join('; ')}`,
+                    blockers: readiness.blockers,
+                  }));
+                  return;
+                }
+              }
+
+              Object.assign(deck, candidateDeck);
+              await fs.writeFile(jsonPath, JSON.stringify(deck, null, 2), 'utf-8');
+
+              const syncResult = await saveEditionToSupabase(deck);
+
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: true, ...syncResult }));
             } else {
               res.statusCode = 404;
-              res.end(JSON.stringify({ error: 'Card not found' }));
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ success: false, error: 'Card not found' }));
             }
           } catch (err) {
             console.error(err);
             res.statusCode = 500;
-            res.end(JSON.stringify({ error: String(err) }));
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: err instanceof Error ? err.message : String(err) }));
           }
           return;
         }
@@ -409,10 +557,10 @@ function localDeckCmsPlugin() {
 
         // ── Generate art (single or batch) ───────────────────
         if (req.url === '/__cms__/generate-art' && req.method === 'POST') {
-          const apiKey = process.env.GEMINI_API_KEY;
+          const apiKey = getBarajaGeminiApiKey();
           if (!apiKey) {
             res.statusCode = 500;
-            res.end(JSON.stringify({ error: 'GEMINI_API_KEY not set in root .env' }));
+            res.end(JSON.stringify({ error: MISSING_GEMINI_API_KEY_ERROR }));
             return;
           }
 
@@ -540,11 +688,11 @@ function localDeckCmsPlugin() {
 
         // ── Generate full edition via AI ─────────────────────
         if (req.url === '/__cms__/generate-edition' && req.method === 'POST') {
-          const apiKey = process.env.GEMINI_API_KEY;
+          const apiKey = getBarajaGeminiApiKey();
           if (!apiKey) {
             res.statusCode = 500;
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ success: false, error: 'GEMINI_API_KEY not set in root .env' }));
+            res.end(JSON.stringify({ success: false, error: MISSING_GEMINI_API_KEY_ERROR }));
             return;
           }
 
@@ -724,13 +872,13 @@ function localDeckCmsPlugin() {
             const slug = topic.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
             const finalId = `${slug}-v1`;
 
-            const rawDeckContent = {
+            const rawDeckContent: RawDeckContent = {
               id: finalId,
               edition: slug,
               name: parsed.name,
               slug,
               description: parsed.description,
-              language: parsed.language,
+              language: parsed.language === 'en' ? 'en' : 'es',
               card_count: parsed.cards.length,
               metadata: parsed.metadata,
               print_spec_id: 'baraja-standard',
@@ -746,13 +894,18 @@ function localDeckCmsPlugin() {
 
             // 2. Persist directly to Supabase (source of truth for Admin UI)
             sendEvent({ type: 'progress', message: '🌱 Saving to database...' });
-            await saveEditionToSupabase(rawDeckContent);
+            const syncResult = await saveEditionToSupabase(rawDeckContent);
 
             // 3. Regenerate decks.ts for runtime client
             triggerDeckSync();
 
             console.log(`✅ Edition saved: ${slug} (${parsed.cards.length} cards) → DB + disk`);
-            sendEvent({ type: 'progress', message: '✅ Edition saved to database successfully' });
+            sendEvent({
+              type: 'progress',
+              message: syncResult.warnings.length > 0
+                ? `⚠️ Edition saved with warnings: ${syncResult.warnings.join(' ')}`
+                : '✅ Edition saved to database successfully'
+            });
 
             sendEvent({
               type: 'done',
@@ -782,17 +935,17 @@ function localDeckCmsPlugin() {
 
         // ── Generate frame via Gemini ────────────────────────
         if (req.url === '/__cms__/generate-frame' && req.method === 'POST') {
-          const apiKey = process.env.GEMINI_API_KEY;
+          const apiKey = getBarajaGeminiApiKey();
           if (!apiKey) {
             res.statusCode = 500;
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ success: false, error: 'GEMINI_API_KEY not set in root .env' }));
+            res.end(JSON.stringify({ success: false, error: MISSING_GEMINI_API_KEY_ERROR }));
             return;
           }
 
           try {
             const body = await readBody(req);
-            const { prompt, artDirectorPrompt, structuralConstraints, face, widthMm, heightMm, cardContent, edition, refinement, customVisualPrompt, customConstraints, enforceBorderless, layout, cardType } = JSON.parse(body);
+            const { prompt, artDirectorPrompt, structuralConstraints, face, widthMm, heightMm, cardContent, edition, refinement, customVisualPrompt, customConstraints, layout, cardType } = JSON.parse(body);
 
             if (!face) {
               res.statusCode = 400;
@@ -871,10 +1024,6 @@ function localDeckCmsPlugin() {
 
             const w = widthMm || 70;
             const h = heightMm || 120;
-
-            // Content zone dimensions (for logging only)
-            const topZoneMm = Math.round(h * 0.18);
-            const bottomStartMm = Math.round(h * 0.82);
 
             // ── FRAME IMAGE PROMPT ────────────────────────────────────────
             // activePrompt: visual direction from Flash Art Director
@@ -956,7 +1105,6 @@ function localDeckCmsPlugin() {
             let typographySuggestion: Record<string, any> | null = null;
             if (cardContent && typeof cardContent === 'object') {
               const deckLabel = edition?.label || 'Custom';
-              const deckDescription = edition?.description || 'General purpose card deck.';
               const fieldDescriptions = (edition?.fields as Array<{label: string; description: string; typicalLength: string}> | undefined)
                 ?.map(f => `  - ${f.label} (${f.typicalLength} text): ${f.description}`)
                 .join('\n') || '';
@@ -1167,12 +1315,11 @@ function localDeckCmsPlugin() {
                throw new Error('Unsupported image format for Vision analysis: must be a data URI or an absolute local path (/...)');
             }
 
-            const apiKey = process.env.GEMINI_API_KEY;
-            if (!apiKey) throw new Error('Missing GEMINI_API_KEY — check your .env file');
+            const apiKey = getBarajaGeminiApiKey();
+            if (!apiKey) throw new Error(MISSING_GEMINI_API_KEY_ERROR);
 
 
             const deckLabel = edition?.label || 'Custom';
-            const deckDescription = edition?.description || 'General purpose card deck.';
             const fieldDescriptions = (edition?.fields as Array<any> | undefined)
               ?.map(f => `  - ${f.label} (${f.typicalLength} text): ${f.description}`)
               .join('\n') || '';
@@ -1361,8 +1508,8 @@ function localDeckCmsPlugin() {
             const body = await readBody(req);
             const { shapePrompt, primaryColorHex } = JSON.parse(body);
 
-            const apiKey = process.env.GEMINI_API_KEY;
-            if (!apiKey) throw new Error('Missing GEMINI_API_KEY');
+            const apiKey = getBarajaGeminiApiKey();
+            if (!apiKey) throw new Error(MISSING_GEMINI_API_KEY_ERROR);
 
             const VECTOR_STYLES = [
               "Cyberpunk angular tech borders with sharp 45-degree chamfers",
@@ -1422,7 +1569,7 @@ Do not say anything else. Just the pure valid SVG XML.`;
             rawSvg = rawSvg.replace(/```xml\n?|```html\n?|```svg\n?|```\n?/gi, '').trim();
 
             // Sanitize the root <svg> tag: remove hardcoded width/height and force it to be 100% so pdfme can scale it
-            rawSvg = rawSvg.replace(/^<svg([^>]+)>/i, (match, attrs) => {
+            rawSvg = rawSvg.replace(/^<svg([^>]+)>/i, (_match: string, attrs: string) => {
               let cleanAttrs = attrs.replace(/\bwidth\s*=\s*(["']?)[^"'\s>]+(["']?)/i, '');
               cleanAttrs = cleanAttrs.replace(/\bheight\s*=\s*(["']?)[^"'\s>]+(["']?)/i, '');
               // Optionally we can add preserveAspectRatio="none" if we want it to stretch without retaining ratio
@@ -1445,11 +1592,11 @@ Do not say anything else. Just the pure valid SVG XML.`;
 
         // ── Generate AI PNG container (Imagen) ──
         if (req.url === '/__cms__/generate-ornament-png' && req.method === 'POST') {
-          const apiKey = process.env.GEMINI_API_KEY;
+          const apiKey = getBarajaGeminiApiKey();
           if (!apiKey) {
             res.statusCode = 500;
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ success: false, error: 'GEMINI_API_KEY not set' }));
+            res.end(JSON.stringify({ success: false, error: MISSING_GEMINI_API_KEY_ERROR }));
             return;
           }
           try {
@@ -1524,7 +1671,6 @@ Do not say anything else. Just the pure valid SVG XML.`;
               : path.resolve(__dirname, 'public/frames');
             await fs.mkdir(framesDir, { recursive: true });
 
-            let ext = 'png';
             let finalBuffer: Buffer;
 
             if (dataUrl.startsWith('data:')) {
@@ -1532,13 +1678,10 @@ Do not say anything else. Just the pure valid SVG XML.`;
               if (!matches) {
                 throw new Error('Invalid base64 data URL format');
               }
-              const mimeType = matches[1];
-              ext = mimeType === 'image/png' ? 'png' : 'jpg';
               finalBuffer = Buffer.from(matches[2], 'base64');
             } else if (dataUrl.startsWith('/assets/')) {
               // Local path: /assets/frames/... -> public/assets/frames/...
               const srcPath = path.resolve(__dirname, 'public', dataUrl.replace(/^\//, ''));
-              ext = srcPath.endsWith('.jpg') || srcPath.endsWith('.jpeg') ? 'jpg' : 'png';
               finalBuffer = await fs.readFile(srcPath);
             } else {
               throw new Error('Unsupported dataUrl format. Must be base64 or /assets/ path');
@@ -1673,11 +1816,11 @@ Do not say anything else. Just the pure valid SVG XML.`;
 
         // ── Generate frame prompt ideas via Gemini Flash ──────────────────
         if (req.url === '/__cms__/generate-frame-ideas' && req.method === 'POST') {
-          const apiKey = process.env.GEMINI_API_KEY;
+          const apiKey = getBarajaGeminiApiKey();
           if (!apiKey) {
             res.statusCode = 500;
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ success: false, error: 'GEMINI_API_KEY not set' }));
+            res.end(JSON.stringify({ success: false, error: MISSING_GEMINI_API_KEY_ERROR }));
             return;
           }
 
@@ -1760,11 +1903,11 @@ Do not say anything else. Just the pure valid SVG XML.`;
 
         // ── Generate full card back image via Imagen 4 (Flujo B) ──────────
         if (req.url === '/__cms__/generate-card-image' && req.method === 'POST') {
-          const apiKey = process.env.GEMINI_API_KEY;
+          const apiKey = getBarajaGeminiApiKey();
           if (!apiKey) {
             res.statusCode = 500;
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ success: false, error: 'GEMINI_API_KEY not set' }));
+            res.end(JSON.stringify({ success: false, error: MISSING_GEMINI_API_KEY_ERROR }));
             return;
           }
 
@@ -1805,7 +1948,7 @@ Do not say anything else. Just the pure valid SVG XML.`;
             const topic = deckRaw.metadata?.topic || '';
 
             // Card content
-            const { when_to_use, phrase, instruction, answer, fun_fact } = card.back;
+            const { when_to_use, phrase, instruction, answer } = card.back;
             const cardNumber = String(card.front.number).padStart(2, '0');
             const cardTitle = card.front.title || '';
 
@@ -1921,6 +2064,20 @@ Do not say anything else. Just the pure valid SVG XML.`;
 export default defineConfig({
   plugins: [react(), cloudflare(), localDeckCmsPlugin()],
   publicDir: 'public',
+  resolve: {
+    dedupe: ['react', 'react-dom'],
+    alias: {
+      react: path.resolve(__dirname, 'node_modules/react'),
+      'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
+      'react/jsx-runtime': path.resolve(__dirname, 'node_modules/react/jsx-runtime.js'),
+      'react/jsx-dev-runtime': path.resolve(__dirname, 'node_modules/react/jsx-dev-runtime.js'),
+      'react-dom/client': path.resolve(__dirname, 'node_modules/react-dom/client.js'),
+    },
+  },
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'react/jsx-runtime', 'react-dom/client'],
+    exclude: ['@pdfme/ui'],
+  },
   server: {
     allowedHosts: true,
     port: 5175,

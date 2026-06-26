@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Designer } from '@pdfme/ui';
 import type { Template, Schema } from '@pdfme/common';
 import type { DesignTemplateInput } from '../../lib/deckRepository';
 import type { RawDeckContent } from '@eb-packages/deck-engine';
+import { getCardQrUrl, shouldRenderPrintableQr } from '@eb-packages/deck-engine';
 import { SupabaseDeckRepository } from '../../lib/deckRepository';
 import { pdfmePlugins, buildPdfmeFonts } from '../../lib/pdfmeConfig';
+import { normalizeTemplateFieldAliases } from '../../lib/cardFieldPlacements';
 import { SvgGeneratorModal } from './SvgGeneratorModal';
 import { TemplateDesignerToolbar } from './TemplateDesignerToolbar';
 
@@ -67,6 +69,7 @@ export function TemplateDesigner({
     if (!deck || !deck.cards || deck.cards.length === 0) return;
     
     const firstCard = deck.cards[0];
+    const shouldIncludeQr = shouldRenderPrintableQr(deck);
     const mockData: Record<string, string> = {
       art: firstCard.front.art_url || '',
       art_url: firstCard.front.art_url || '',
@@ -77,7 +80,9 @@ export function TemplateDesigner({
       instruction: firstCard.back?.instruction || '',
       answer: firstCard.back?.answer ? `Rta: ${firstCard.back.answer}` : '',
       fun_fact: firstCard.back?.fun_fact ? `💡 ${firstCard.back.fun_fact}` : '',
-      qr: firstCard.back?.qr_url || 'https://baraja.cards',
+      qr: shouldIncludeQr
+        ? firstCard.back?.qr_url || getCardQrUrl(deck.slug ?? 'baraja', firstCard.front.number)
+        : '',
       brand: `Baraja · ${deck.name}`,
     };
 
@@ -104,7 +109,7 @@ export function TemplateDesigner({
       
       const designer = new Designer({
         domContainer: containerRef.current,
-        template,
+        template: normalizeTemplateFieldAliases(template),
         options: { font: fonts, lang: 'en' },
         plugins: pdfmePlugins,
       });
@@ -142,7 +147,7 @@ export function TemplateDesigner({
       const finalW = (typeof tpl.basePdf === 'object' && 'width' in tpl.basePdf) ? tpl.basePdf.width : cardWidth;
       const finalH = (typeof tpl.basePdf === 'object' && 'height' in tpl.basePdf) ? tpl.basePdf.height : cardHeight;
       
-      await onSave(tpl, {
+      await onSave(normalizeTemplateFieldAliases(tpl), {
         id: slug,
         name,
         primary_color: primaryColor,

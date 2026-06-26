@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { PublicShowcase } from '../components/cards/PublicShowcase';
+import { RelatedDecksSection } from '../components/decks/RelatedDecksSection';
 import { useDeck } from '../hooks/useDeck';
-import { useParams } from 'react-router-dom';
 
 // ── Email capture ─────────────────────────────────────────────
 
@@ -114,11 +114,12 @@ export default function DynamicEditionLanding({ slug }: DynamicEditionLandingPro
   return (
     <div style={themeStyles} className={`edition-theme-wrapper vibe-${vibe.timeOfDay}`}>
       {/* ── Navbar ─────────────────────────────────────────── */}
-      <nav className="navbar" style={{ background: 'rgba(0, 0, 0, 0.4)', backdropFilter: 'blur(10px)' }}>
-        <a href="https://baraja.cards" className="navbar-back" style={{ color: 'var(--color-text)' }}>
-          ← Baraja.cards
+      <nav className="navbar edition-navbar">
+        <a href="https://baraja.cards" className="navbar-back edition-navbar-brand">
+          <span className="edition-navbar-mark" aria-hidden="true" />
+          <span>Baraja</span>
         </a>
-        <a href="#reservar" className="btn-primary" style={{ fontSize: '0.75rem', padding: '0.5rem 1.25rem' }}>
+        <a href="#reservar" className="btn-primary edition-navbar-cta">
           {ctaPrimary}
         </a>
       </nav>
@@ -128,7 +129,7 @@ export default function DynamicEditionLanding({ slug }: DynamicEditionLandingPro
         <div 
           className="hero-bg vibe-bg" 
           style={{ 
-            opacity: 0.3, // slight glass/atmospheric overlay
+            opacity: 0.18,
             backgroundImage: `url(${vibeBackgroundImage}), linear-gradient(to bottom, #111, var(--color-bg))`,
             backgroundSize: 'cover',
             backgroundPosition: 'center',
@@ -142,7 +143,6 @@ export default function DynamicEditionLanding({ slug }: DynamicEditionLandingPro
           </p>
           <h1 
             className="cat-title fade-up fade-up-delay-1" 
-            style={{ letterSpacing: '-0.02em', textShadow: '0 4px 20px rgba(0,0,0,0.5)' }}
             dangerouslySetInnerHTML={{ __html: heroTitleHtml }}
           />
           <p className="cat-hook fade-up fade-up-delay-2" style={{ maxWidth: '600px', margin: '0 auto 2rem', whiteSpace: 'pre-wrap' }}>
@@ -208,6 +208,8 @@ export default function DynamicEditionLanding({ slug }: DynamicEditionLandingPro
           <EmailCapture id="lead-main" slug={deck.slug} />
         </div>
       </section>
+
+      <RelatedDecksSection currentDeck={deck} />
 
       {/* ── FAQ ────────────────────────────────────────────── */}
       {config.faq && config.faq.length > 0 && (

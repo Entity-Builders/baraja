@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client'
 import { Buffer } from 'buffer'
 import './index.css'
 import App from './App.tsx'
+import { initAnalytics } from './services/analytics'
+import { registerBarajaServiceWorker } from './registerServiceWorker'
 
 if (typeof window !== 'undefined') {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -12,6 +14,8 @@ if (typeof window !== 'undefined') {
   win.process = { env: {} };
 }
 
+initAnalytics()
+registerBarajaServiceWorker()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

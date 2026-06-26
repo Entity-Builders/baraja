@@ -1,0 +1,35 @@
+{
+  "id": "/?source=pwa",
+  "name": "Baraja.cards",
+  "short_name": "Baraja",
+  "description": "Mazos digitales en español para jugar, revelar cartas y descargar PDFs imprimibles.",
+  "lang": "es-AR",
+  "dir": "ltr",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#0c0b09",
+  "theme_color": "#141210",
+  "categories": ["lifestyle", "education", "games"],
+  "icons": [
+    {
+      "src": "/baraja-app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/pwa/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/pwa/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

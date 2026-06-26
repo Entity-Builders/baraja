@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { setFrameTheme, setFrameTypography, setActiveDeckId, loadGoogleFonts } from '../../lib/cardFrame';
 import { Link } from 'react-router-dom';
-import { buildMasterTemplatePrompt, buildArtDirectorMetaPrompt, buildStructuralConstraints, LAYOUT_PRESETS, type BarajaTemplateMetadata, type CardType, DECKS, type DeckId } from '@eb-packages/deck-engine';
-import { DECK_EDITIONS, type DeckEdition } from '../../lib/editions';
+import { buildMasterTemplatePrompt, buildArtDirectorMetaPrompt, buildStructuralConstraints, LAYOUT_PRESETS, type BarajaTemplateMetadata, type CardLayout, type CardType, DECKS, type DeckId } from '@eb-packages/deck-engine';
+import { DECK_EDITIONS } from '../../lib/editions';
 import { SupabaseDeckRepository } from '../../lib/deckRepository';
 import { createDefaultCardTemplate } from '../../lib/pdfmeConfig';
 
@@ -28,6 +28,7 @@ interface TypoZone {
   heightPct?: number;
   leftPct?: number;
   widthPct?: number;
+  containerSvg?: string;
 }
 
 interface FocalPoint {
@@ -44,7 +45,7 @@ interface TypographySuggestion {
   overallNotes?: string;
   focalPoints?: FocalPoint[]; // Vision-detected major visual elements
   ttfUrls?: Record<string, string>;
-  [key: string]: TypoZone | any;
+  [key: string]: TypoZone | FocalPoint[] | Record<string, string> | Record<string, unknown> | string | number | undefined;
 }
 
 interface GeneratedFrame {
@@ -63,6 +64,28 @@ interface GenerateResponse {
   dataUrl?: string;
   typography?: TypographySuggestion | null;
   error?: string;
+}
+
+interface FramesLibraryResponse {
+  success: boolean;
+  frames?: LibraryFrame[];
+  error?: string;
+}
+
+interface LibraryFrame {
+  id?: string;
+  url: string;
+  presetId: string;
+  prompt: string;
+  face: 'front' | 'back';
+  widthMm: number;
+  heightMm: number;
+  timestamp: number;
+  typography?: TypographySuggestion | null;
+}
+
+function isTypoZone(value: unknown): value is TypoZone {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -103,8 +126,8 @@ export default function AdminFrameGenerator() {
     layout: LAYOUT_PRESETS['back-standard'].layout,
     primaryColorHex: '',
   });
-  const [customPrompt, setCustomPrompt] = useState('');
-  const [customConstraints, setCustomConstraints] = useState('');
+  const [customPrompt] = useState('');
+  const [customConstraints] = useState('');
   const [dimPresetIdx, setDimPresetIdx] = useState(0);
   const [customWidth, setCustomWidth] = useState(70);
   const [customHeight, setCustomHeight] = useState(120);
@@ -116,7 +139,7 @@ export default function AdminFrameGenerator() {
   const [cardContent, setCardContent] = useState(
     DECK_EDITIONS.find(e => e.id === 'barometro')!.sampleCard
   );
-  const [showCardContext, setShowCardContext] = useState(true);
+  const [showCardContext] = useState(true);
 
     const selectedEdition = DECK_EDITIONS.find(e => e.id === selectedEditionId)!;
 
@@ -127,13 +150,8 @@ export default function AdminFrameGenerator() {
   const [history, setHistory] = useState<GeneratedFrame[]>([]);
   const [activePreview, setActivePreview] = useState<GeneratedFrame | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [frameThemeChoice, setFrameThemeChoice] = useState<'dark' | 'light'>('dark');
+  const [frameThemeChoice] = useState<'dark' | 'light'>('dark');
   const [refinementText, setRefinementText] = useState('');
-
-  const [aiIdeas, setAiIdeas] = useState<FrameIdea[]>([]);
-  const [loadingIdeas, setLoadingIdeas] = useState(false);
-  const [ideasError, setIdeasError] = useState<string | null>(null);
-  const [selectedIdeaId, setSelectedIdeaId] = useState<string | null>(null);
 
   // Load any suggested fonts dynamically so the preview renders accurately
   useEffect(() => {
@@ -148,8 +166,9 @@ export default function AdminFrameGenerator() {
          }
          return;
       }
-      if (typo[key as keyof TypographySuggestion] && typeof typo[key as keyof TypographySuggestion] === 'object' && (typo[key as keyof TypographySuggestion] as any).fontFamily) {
-         families.push((typo[key as keyof TypographySuggestion] as any).fontFamily);
+      const zone = typo[key];
+      if (isTypoZone(zone) && zone.fontFamily) {
+         families.push(zone.fontFamily);
       }
     });
 
@@ -159,7 +178,7 @@ export default function AdminFrameGenerator() {
   }, [activePreview?.typography]);
 
   // Library state
-  const [libraryFrames, setLibraryFrames] = useState<any[]>([]);
+  const [libraryFrames, setLibraryFrames] = useState<LibraryFrame[]>([]);
   const [loadingLibrary, setLoadingLibrary] = useState(false);
   const [savingToLibrary, setSavingToLibrary] = useState(false);
 
@@ -171,7 +190,7 @@ export default function AdminFrameGenerator() {
     try {
       setLoadingLibrary(true);
       const res = await fetch('/__cms__/list-frames-library');
-      const data = await res.json();
+      const data = await res.json() as FramesLibraryResponse;
       if (data.success && data.frames) {
         setLibraryFrames(data.frames);
       }
@@ -198,20 +217,20 @@ export default function AdminFrameGenerator() {
           presetId: frame.presetId,
         }),
       });
-      const data = await res.json();
+      const data = await res.json() as { success: boolean; error?: string };
       if (data.success) {
         fetchLibrary(); // refresh the gallery
       } else {
         throw new Error(data.error);
       }
-    } catch (err: any) {
-      setError(err.message || String(err));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setSavingToLibrary(false);
     }
   }
 
-  function handleSelectFromLibrary(libFrame: any) {
+  function handleSelectFromLibrary(libFrame: LibraryFrame) {
     const frame: GeneratedFrame = {
       // libFrame.url is the path to the stored image
       dataUrl: libFrame.url,
@@ -293,7 +312,7 @@ export default function AdminFrameGenerator() {
         }),
       });
 
-      const data: GenerateResponse = await res.json();
+      const data = await res.json() as GenerateResponse;
 
       if (!data.success || !data.dataUrl) {
         throw new Error(data.error || 'La generación falló sin mensaje de error.');
@@ -312,8 +331,8 @@ export default function AdminFrameGenerator() {
 
       setHistory(prev => [frame, ...prev.slice(0, 7)]); // Keep last 8
       setActivePreview(frame);
-    } catch (err: any) {
-      setError(err.message || String(err));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -341,7 +360,7 @@ export default function AdminFrameGenerator() {
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json() as GenerateResponse;
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Falló el análisis de tipografía.');
       }
@@ -355,8 +374,8 @@ export default function AdminFrameGenerator() {
       // Also update it in the history array if you want it to persist there
       setHistory(prev => prev.map(f => f.dataUrl === activePreview.dataUrl ? { ...f, typography: data.typography } : f));
       
-    } catch (err: any) {
-      setError(err.message || String(err));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setAnalyzingTypography(false);
     }
@@ -377,7 +396,7 @@ export default function AdminFrameGenerator() {
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json() as { success: boolean; error?: string };
       if (!data.success) throw new Error(data.error || 'No se pudo guardar el frame.');
       setFrameTheme(frameThemeChoice);
       setFrameTypography(frame.typography ?? null);
@@ -393,7 +412,7 @@ export default function AdminFrameGenerator() {
             await deckRepo.updateDeckSettings(selectedDeckId, {
               design_template_overrides: {
                 ...(deckInfo.design_template_overrides || {}),
-                layout_config: newLayoutTemplate as any,
+                layout_config: newLayoutTemplate as unknown,
               }
             });
             console.log(`[AdminFrameGenerator] Updated layout_config for deck ${selectedDeckId} in Supabase`);
@@ -405,8 +424,8 @@ export default function AdminFrameGenerator() {
 
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
-    } catch (err: any) {
-      setError(err.message || String(err));
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -417,6 +436,45 @@ export default function AdminFrameGenerator() {
     downloadRef.current.href = frame.dataUrl;
     downloadRef.current.download = filename;
     downloadRef.current.click();
+  }
+
+  function handleUpdateTypographyContainerSvg(key: string, svg: string) {
+    const activeTimestamp = activePreview?.timestamp;
+
+    setActivePreview(prev => {
+      if (!prev?.typography) return prev;
+      const zone = prev.typography[key];
+      if (!isTypoZone(zone)) return prev;
+
+      return {
+        ...prev,
+        typography: {
+          ...prev.typography,
+          [key]: {
+            ...zone,
+            containerSvg: svg,
+          },
+        },
+      };
+    });
+
+    if (!activeTimestamp) return;
+    setHistory(prev => prev.map(frame => {
+      if (frame.timestamp !== activeTimestamp || !frame.typography) return frame;
+      const zone = frame.typography[key];
+      if (!isTypoZone(zone)) return frame;
+
+      return {
+        ...frame,
+        typography: {
+          ...frame.typography,
+          [key]: {
+            ...zone,
+            containerSvg: svg,
+          },
+        },
+      };
+    }));
   }
 
   return (
@@ -706,7 +764,7 @@ export default function AdminFrameGenerator() {
             }}>
               <strong>Art Director:</strong><br />
               {buildArtDirectorMetaPrompt(builderMetadata)}
-              <hr style={{ borderColor: 'rgba(255,255,255,0.1)', my: '0.5rem' }} />
+              <hr style={{ borderColor: 'rgba(255,255,255,0.1)', margin: '0.5rem 0' }} />
               <strong>Structural Rules:</strong><br />
               {buildStructuralConstraints(builderMetadata)}
             </div>
@@ -881,7 +939,7 @@ export default function AdminFrameGenerator() {
                     const text = cardContent[key];
                     if (!text || typeof text !== 'string') return null;
                     const zone = activePreview.typography?.[key];
-                    if (!zone || !zone.leftPct) return null;
+                    if (!isTypoZone(zone) || !zone.leftPct) return null;
 
                     return (
                       <div key={key} style={{
@@ -1047,7 +1105,7 @@ export default function AdminFrameGenerator() {
                   Sugerencias de Tipografía IA
                 </h3>
                 <button
-                  onClick={handleAnalyzeTypography}
+                  onClick={() => handleAnalyzeTypography()}
                   disabled={analyzingTypography}
                   style={{
                     background: analyzingTypography ? 'rgba(167,139,250,0.1)' : 'rgba(167,139,250,0.2)',
@@ -1093,7 +1151,7 @@ export default function AdminFrameGenerator() {
                 {Object.keys(cardContent).map(key => {
                   if (['back_image_url', 'back_image_versions', 'qr_url'].includes(key)) return null;
                   const zone = activePreview.typography?.[key];
-                  if (!zone || !zone.leftPct) return null;
+                  if (!isTypoZone(zone) || !zone.leftPct) return null;
                   return (
                     <TypoRow
                       key={key}
@@ -1101,23 +1159,7 @@ export default function AdminFrameGenerator() {
                       field={zone}
                       uiColor={key === 'phrase' ? '#f8d56b' : '#94a3b8'}
                       highlight={key === 'phrase'}
-                      onUpdateSvg={(svg) => {
-                        setGeneratedFrames(prev => {
-                          const newFrames = [...prev];
-                          if (!newFrames[activeFrameIndex] || !newFrames[activeFrameIndex].typography) return prev;
-                          newFrames[activeFrameIndex] = {
-                            ...newFrames[activeFrameIndex],
-                            typography: {
-                              ...newFrames[activeFrameIndex].typography,
-                              [key]: {
-                                ...newFrames[activeFrameIndex].typography[key],
-                                containerSvg: svg
-                              }
-                            }
-                          };
-                          return newFrames;
-                        });
-                      }}
+                      onUpdateSvg={(svg) => handleUpdateTypographyContainerSvg(key, svg)}
                     />
                   );
                 })}
@@ -1586,4 +1628,3 @@ function TypoRow({ label, field, uiColor = 'white', highlight = false, onUpdateS
     </div>
   );
 }
-

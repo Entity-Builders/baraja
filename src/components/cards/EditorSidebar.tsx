@@ -24,13 +24,15 @@ export function EditorSidebar({ card, onClose, onSave, onUpdateCard, generatingA
     <div className={styles.sidebar}>
       <div className={styles.header}>
         <h2>Edit Card</h2>
-        <button onClick={onClose} className={styles.btnClose}>✕</button>
+        <button type="button" onClick={onClose} className={styles.btnClose} aria-label="Cerrar editor de carta">✕</button>
       </div>
       
       <form onSubmit={handleSubmit} className={styles.formContainer}>
         <div className={styles.formGroup}>
-          <label className={styles.label}>Title</label>
+          <label className={styles.label} htmlFor="card-title">Title</label>
           <input 
+            id="card-title"
+            name="title"
             type="text" 
             value={card.front.title} 
             onChange={(e) => onUpdateCard({...card, front: {...card.front, title: e.target.value}})}
@@ -39,8 +41,10 @@ export function EditorSidebar({ card, onClose, onSave, onUpdateCard, generatingA
         </div>
         
         <div className={styles.formGroup}>
-          <label className={styles.label}>Phrase</label>
+          <label className={styles.label} htmlFor="card-phrase">Phrase</label>
           <textarea 
+            id="card-phrase"
+            name="phrase"
             value={card.back.phrase} 
             onChange={(e) => onUpdateCard({...card, back: {...card.back, phrase: e.target.value}})}
             className={`${styles.input} ${styles.textareaSmall}`}
@@ -48,8 +52,10 @@ export function EditorSidebar({ card, onClose, onSave, onUpdateCard, generatingA
         </div>
         
         <div className={styles.formGroup}>
-          <label className={styles.label}>Instruction</label>
+          <label className={styles.label} htmlFor="card-instruction">Instruction</label>
           <textarea 
+            id="card-instruction"
+            name="instruction"
             value={card.back.instruction} 
             onChange={(e) => onUpdateCard({...card, back: {...card.back, instruction: e.target.value}})}
             className={`${styles.input} ${styles.textareaLarge}`}
@@ -57,8 +63,10 @@ export function EditorSidebar({ card, onClose, onSave, onUpdateCard, generatingA
         </div>
 
         <div className={styles.formGroup}>
-          <label className={styles.label}>Trivia Answer (Optional)</label>
+          <label className={styles.label} htmlFor="card-answer">Trivia Answer (Optional)</label>
           <input 
+            id="card-answer"
+            name="answer"
             type="text" 
             value={card.back.answer || ''} 
             onChange={(e) => onUpdateCard({...card, back: {...card.back, answer: e.target.value}})}
@@ -68,8 +76,10 @@ export function EditorSidebar({ card, onClose, onSave, onUpdateCard, generatingA
         </div>
 
         <div className={styles.formGroup}>
-          <label className={styles.label}>Fun Fact (Nerdy info to spark chat)</label>
+          <label className={styles.label} htmlFor="card-fun-fact">Fun Fact (Nerdy info to spark chat)</label>
           <textarea 
+            id="card-fun-fact"
+            name="fun_fact"
             value={card.back.fun_fact || ''} 
             onChange={(e) => onUpdateCard({...card, back: {...card.back, fun_fact: e.target.value}})}
             className={`${styles.input} ${styles.textareaSmall}`}
@@ -78,8 +88,10 @@ export function EditorSidebar({ card, onClose, onSave, onUpdateCard, generatingA
         </div>
 
         <div className={styles.formGroup}>
-          <label className={styles.label}>When to use</label>
+          <label className={styles.label} htmlFor="card-when-to-use">When to use</label>
           <input 
+            id="card-when-to-use"
+            name="when_to_use"
             type="text" 
             value={card.back.when_to_use} 
             onChange={(e) => onUpdateCard({...card, back: {...card.back, when_to_use: e.target.value}})}
@@ -88,8 +100,10 @@ export function EditorSidebar({ card, onClose, onSave, onUpdateCard, generatingA
         </div>
 
         <div className={styles.formGroup}>
-          <label className={styles.label}>Art Prompt</label>
+          <label className={styles.label} htmlFor="card-art-prompt">Art Prompt</label>
           <textarea 
+            id="card-art-prompt"
+            name="art_prompt"
             value={card.front.art_prompt} 
             onChange={(e) => onUpdateCard({...card, front: {...card.front, art_prompt: e.target.value}})}
             className={`${styles.input} ${styles.textareaPrompt}`}
@@ -97,8 +111,10 @@ export function EditorSidebar({ card, onClose, onSave, onUpdateCard, generatingA
         </div>
         
         <div className={styles.formGroup}>
-          <label className={styles.label}>Art URL</label>
+          <label className={styles.label} htmlFor="card-art-url">Art URL</label>
           <input 
+            id="card-art-url"
+            name="art_url"
             type="text" 
             value={card.front.art_url || ''} 
             onChange={(e) => onUpdateCard({...card, front: {...card.front, art_url: e.target.value}})}
@@ -115,6 +131,9 @@ export function EditorSidebar({ card, onClose, onSave, onUpdateCard, generatingA
         </div>
 
         <div className={styles.actionsBox}>
+          <button type="button" onClick={onClose} className="btn-ghost" style={{ flex: 1 }}>
+            Cancel
+          </button>
           <button type="submit" disabled={saving || generatingArt} className="btn-primary" style={{ flex: 1 }}>
             {saving ? 'Saving...' : 'Save Changes'}
           </button>

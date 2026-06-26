@@ -7,6 +7,10 @@ import { text, image, barcodes, rectangle, svg, line, ellipse } from '@pdfme/sch
 import type { DeckSchema } from '@eb-packages/deck-engine';
 import { FONT_REGISTRY } from './fontRegistry';
 import { getFrameTypography, getFrameTheme } from './cardFrame';
+import {
+  getCanonicalTemplateFieldName,
+  normalizeTemplateFieldAliases,
+} from './cardFieldPlacements';
 
 // ── Typography hints from AI (mirrors CardCanvas interface) ───────────────────
 export interface PdfTypographyZone {
@@ -19,14 +23,48 @@ export interface PdfTypographyZone {
   heightPct?: number;   // % height bounds
   leftPct?: number;     // % spacing from left edge
   widthPct?: number;    // % bounding box width
+  containerSvg?: string;
 }
 
 export interface PdfTypographyHints {
   brand?: { color?: string; fontFamily?: string };
   qrFgColor?: string;
   ttfUrls?: Record<string, string>;
+  focalPoints?: unknown;
+  when_to_use?: PdfTypographyZone;
+  phrase?: PdfTypographyZone;
+  instruction?: PdfTypographyZone;
+  answer?: PdfTypographyZone;
   // Dynamic zones based on the deck's edition model (e.g., 'cita', 'prenda', 'whenToUse')
-  [key: string]: PdfTypographyZone | any;
+  [key: string]: PdfTypographyZone | Record<string, unknown> | string | undefined | unknown;
+}
+
+type SchemaWithFont = Schema & {
+  fontFamily?: unknown;
+  fontName?: unknown;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isPdfTypographyZone(value: unknown): value is PdfTypographyZone {
+  return isRecord(value);
+}
+
+function getTypographyZone(
+  typography: PdfTypographyHints,
+  key: string,
+): PdfTypographyZone | undefined {
+  const value = typography[key];
+  if (isPdfTypographyZone(value)) return value;
+
+  if (key === 'when_to_use') {
+    const legacyValue = typography.whenToUse;
+    if (isPdfTypographyZone(legacyValue)) return legacyValue;
+  }
+
+  return undefined;
 }
 
 // ── Plugins available in Designer + Generator ────────
@@ -75,7 +113,7 @@ export async function buildPdfmeFonts(typographyOverride?: PdfTypographyHints | 
         data: await fetchFontData(cormorant[0].src),
         fallback: Object.keys(fonts).length === 0,
       };
-    } catch(e) { console.warn('Failed to load Cormorant'); }
+    } catch { console.warn('Failed to load Cormorant'); }
   }
 
   const inter = FONT_REGISTRY['Inter'];
@@ -84,7 +122,7 @@ export async function buildPdfmeFonts(typographyOverride?: PdfTypographyHints | 
       fonts['Inter'] = {
         data: await fetchFontData(inter[0].src),
       };
-    } catch(e) { console.warn('Failed to load Inter'); }
+    } catch { console.warn('Failed to load Inter'); }
   }
 
   const outfit = FONT_REGISTRY['Outfit'];
@@ -93,7 +131,7 @@ export async function buildPdfmeFonts(typographyOverride?: PdfTypographyHints | 
       fonts['Outfit'] = {
         data: await fetchFontData(outfit[0].src),
       };
-    } catch(e) { console.warn('Failed to load Outfit'); }
+    } catch { console.warn('Failed to load Outfit'); }
   }
 
   // Inject AI suggested fonts dynamically
@@ -119,7 +157,8 @@ export async function buildPdfmeFonts(typographyOverride?: PdfTypographyHints | 
   if (pdfmeTemplate?.schemas && fonts['Inter']) {
     pdfmeTemplate.schemas.forEach(page => {
       page.forEach(schema => {
-        const family = (schema as any).fontFamily || (schema as any).fontName;
+        const fontSchema = schema as SchemaWithFont;
+        const family = fontSchema.fontFamily || fontSchema.fontName;
         if (family && typeof family === 'string' && !fonts[family]) {
           console.warn(`[buildPdfmeFonts] Missing font "${family}" in template. Aliasing to Inter fallback to prevent crash.`);
           fonts[family] = { ...fonts['Inter'], fallback: false };
@@ -151,15 +190,6 @@ export function createDefaultCardTemplate(
 ): Template {
   // Merge AI hints from localStorage if no explicit override passed
   const typo: PdfTypographyHints = typographyOverride ?? (getFrameTypography() as PdfTypographyHints | null) ?? {};
-  const isHorizontal = widthMm > heightMm;
-  
-  // Padding & frame
-  const inset = isHorizontal ? 3 : 4;  // mm
-  const safeArea = inset + 2; 
-  
-  // Adjusted text box base widths
-  const textW = widthMm - (safeArea * 2);
-
   // ────────────────────────────────────────────────────────────────────────
   // FRONT FACE: Full-bleed art — illustration covers entire card
   // Number and title overlay on top with text-shadow for legibility.
@@ -212,12 +242,13 @@ export function createDefaultCardTemplate(
   const minGapAboveQr = 4; // mm of guaranteed breathing room between text and QR
   const textNoFlyZone = qrY - minGapAboveQr; // 93mm — text can NEVER bleed past this
   
-  const hintFont    = typo.when_to_use?.fontFamily   ?? 'Outfit';
+  const whenToUseTypography = getTypographyZone(typo, 'when_to_use');
+  const hintFont    = whenToUseTypography?.fontFamily   ?? 'Outfit';
   const phraseFont  = typo.phrase?.fontFamily      ?? 'Cormorant Garamond';
   const instrFont   = typo.instruction?.fontFamily ?? 'Cormorant Garamond';
   const answerFont  = typo.answer?.fontFamily      ?? 'Outfit';
 
-  const hintColor   = typo.when_to_use?.color    ?? '#d6d6d6';
+  const hintColor   = whenToUseTypography?.color    ?? '#d6d6d6';
   const phraseColor = typo.phrase?.color       ?? '#ffffff';
   const instrColor  = typo.instruction?.color  ?? '#e0e0e0';
   const answerColor = typo.answer?.color       ?? '#aaaaaa';
@@ -238,13 +269,23 @@ export function createDefaultCardTemplate(
   
   Object.keys(typo).forEach(key => {
     if (ignoreKeys.includes(key)) return;
+    const canonicalKey = getCanonicalTemplateFieldName(key);
+    if (canonicalKey !== key && typo[canonicalKey] !== undefined) return;
+
     const zoneInfo = typo[key];
-    if (!zoneInfo || typeof zoneInfo !== 'object') return;
+    if (!isPdfTypographyZone(zoneInfo)) return;
     
     // If it lacks constraints, skip it
-    if (zoneInfo.leftPct === undefined || zoneInfo.topPct === undefined) return;
+    if (
+      typeof zoneInfo.leftPct !== 'number' ||
+      typeof zoneInfo.topPct !== 'number' ||
+      typeof zoneInfo.widthPct !== 'number' ||
+      typeof zoneInfo.heightPct !== 'number'
+    ) {
+      return;
+    }
 
-    let zY = (zoneInfo.topPct / 100) * heightMm;
+    const zY = (zoneInfo.topPct / 100) * heightMm;
     let zHeight = (zoneInfo.heightPct / 100) * heightMm;
     
     // Collision detection with QR code area at bottom
@@ -258,7 +299,7 @@ export function createDefaultCardTemplate(
       const wrappedSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" preserveAspectRatio="none">${zoneInfo.containerSvg.trim()}</svg>`;
       
       dynamicTextZones.push({
-        name: `${key}_container_bg`, // background element suffix
+        name: `${canonicalKey}_container_bg`, // background element suffix
         type: 'svg',
         content: wrappedSvg,
         position: {
@@ -272,7 +313,7 @@ export function createDefaultCardTemplate(
     }
 
     dynamicTextZones.push({
-      name: key, // IMPORTANT: Maps directly to the deck schema key!
+      name: canonicalKey, // IMPORTANT: Maps directly to the deck schema key!
       type: 'text',
       position: { 
         x: ((zoneInfo.leftPct + pd) / 100) * widthMm, 
@@ -388,8 +429,8 @@ export function createDefaultCardTemplate(
 export function getTemplateForDeck(deck: DeckSchema): Template {
   const config = deck.design?.layout_config;
   
-  if (config && 'basePdf' in config && 'schemas' in config) {
-    const template = JSON.parse(JSON.stringify(config)) as Template;
+  if (isRecord(config) && 'basePdf' in config && 'schemas' in config) {
+    const template = normalizeTemplateFieldAliases(JSON.parse(JSON.stringify(config)) as Template);
     
     // Automatically upgrade legacy templates missing page 2
     if (template.schemas && template.schemas.length === 1) {
@@ -411,7 +452,7 @@ export function getTemplateForDeck(deck: DeckSchema): Template {
       });
     }
 
-    return template;
+    return normalizeTemplateFieldAliases(template);
   }
   
   return createDefaultCardTemplate(70, 120);

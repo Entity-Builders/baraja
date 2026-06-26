@@ -1,0 +1,412 @@
+.shell {
+  display: grid;
+  gap: 1rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.header {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.statusRail,
+.filterRail,
+.productionRail,
+.tileActions,
+.inspectorActions,
+.inspectorPager,
+.faceSwitch {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.statusRail {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 0.82rem;
+}
+
+.statusRail span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.28rem;
+}
+
+.statusRail strong {
+  color: var(--color-gold, #d4af64);
+}
+
+.filterButton,
+.productionButton,
+.tileActions button,
+.inspectorActions button,
+.inspectorPager button,
+.faceSwitch button {
+  appearance: none;
+  min-height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.24);
+  color: rgba(255, 255, 255, 0.72);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease;
+}
+
+.filterButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  padding: 0.4rem 0.58rem;
+}
+
+.filterButton strong {
+  color: var(--color-gold, #d4af64);
+  font-size: 0.72rem;
+}
+
+.filterButtonActive {
+  border-color: rgba(212, 175, 100, 0.58);
+  background: rgba(212, 175, 100, 0.12);
+  color: #f3d58c;
+}
+
+.productionRail {
+  justify-content: flex-start;
+}
+
+.productionButton {
+  padding: 0.48rem 0.7rem;
+  color: #74c493;
+  border-color: rgba(116, 196, 147, 0.42);
+}
+
+.productionButtonPurple {
+  color: #b8a5ff;
+  border-color: rgba(184, 165, 255, 0.42);
+}
+
+.filterButton:hover:not(:disabled),
+.productionButton:hover:not(:disabled),
+.tileActions button:hover:not(:disabled),
+.inspectorActions button:hover:not(:disabled),
+.inspectorPager button:hover:not(:disabled),
+.faceSwitch button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.24);
+  color: #ffffff;
+}
+
+.filterButton:focus-visible,
+.productionButton:focus-visible,
+.cardTile:focus-visible,
+.tileActions button:focus-visible,
+.inspectorActions button:focus-visible,
+.inspectorPager button:focus-visible,
+.faceSwitch button:focus-visible {
+  outline: 2px solid var(--color-gold, #d4af64);
+  outline-offset: 3px;
+}
+
+.filterButton:disabled,
+.productionButton:disabled,
+.tileActions button:disabled,
+.inspectorActions button:disabled,
+.inspectorPager button:disabled,
+.faceSwitch button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  gap: 1rem;
+  align-items: start;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr));
+  gap: 0.95rem;
+  min-width: 0;
+}
+
+.cardTile {
+  display: grid;
+  gap: 0.7rem;
+  min-width: 0;
+  padding: 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.cardTile:hover {
+  transform: translateY(-2px);
+  border-color: rgba(212, 175, 100, 0.34);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.cardTileSelected {
+  border-color: rgba(212, 175, 100, 0.7);
+  background: rgba(212, 175, 100, 0.08);
+}
+
+.tileCanvas {
+  width: min(100%, 168px);
+  margin: 0 auto;
+}
+
+.tileBody {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.tileTitleRow {
+  display: grid;
+  gap: 0.16rem;
+  min-width: 0;
+}
+
+.tileTitleRow span {
+  color: var(--color-gold, #d4af64);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.tileTitleRow strong {
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.84);
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badgeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.34rem;
+}
+
+.badge {
+  display: inline-flex;
+  min-height: 22px;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.18rem 0.46rem;
+  font-size: 0.64rem;
+  font-weight: 700;
+}
+
+.badgeReady {
+  border: 1px solid rgba(116, 196, 147, 0.35);
+  background: rgba(116, 196, 147, 0.08);
+  color: #9ee0b6;
+}
+
+.badgeMissing {
+  border: 1px solid rgba(248, 113, 113, 0.32);
+  background: rgba(248, 113, 113, 0.08);
+  color: #fca5a5;
+}
+
+.tileActions {
+  gap: 0.35rem;
+}
+
+.tileActions button {
+  min-height: 30px;
+  padding: 0.28rem 0.5rem;
+  font-size: 0.7rem;
+}
+
+.inspector {
+  position: sticky;
+  top: 1rem;
+  display: grid;
+  gap: 0.85rem;
+  min-width: 0;
+  padding: 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  background: rgba(10, 10, 9, 0.86);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
+}
+
+.inspectorHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.inspectorHeader span {
+  color: var(--color-gold, #d4af64);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.inspectorHeader h2 {
+  margin: 0.18rem 0 0;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+.faceSwitch {
+  flex: 0 0 auto;
+  gap: 0.25rem;
+  padding: 0.18rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.faceSwitch button {
+  min-height: 30px;
+  border-color: transparent;
+  background: transparent;
+  padding: 0.25rem 0.52rem;
+}
+
+.faceSwitchActive {
+  background: rgba(212, 175, 100, 0.14) !important;
+  color: #f3d58c !important;
+}
+
+.inspectorCanvas {
+  width: min(100%, 280px);
+  margin: 0 auto;
+}
+
+.inspectorStats {
+  display: grid;
+  gap: 0.42rem;
+  margin: 0;
+}
+
+.inspectorStats div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.7rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  padding-bottom: 0.38rem;
+}
+
+.inspectorStats dt,
+.inspectorStats dd {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.inspectorStats dt {
+  color: rgba(255, 255, 255, 0.54);
+}
+
+.inspectorStats dd {
+  color: rgba(255, 255, 255, 0.84);
+}
+
+.inspectorActions button {
+  flex: 1 1 120px;
+  padding: 0.48rem 0.65rem;
+}
+
+.primaryAction {
+  border-color: rgba(212, 175, 100, 0.58) !important;
+  background: rgba(212, 175, 100, 0.14) !important;
+  color: #f3d58c !important;
+  font-weight: 700;
+}
+
+.inspectorPager {
+  justify-content: space-between;
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 0.78rem;
+}
+
+.inspectorPager button {
+  min-height: 32px;
+  padding: 0.34rem 0.58rem;
+}
+
+.emptyState {
+  display: grid;
+  place-items: center;
+  min-height: 220px;
+  padding: 1.2rem;
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.62);
+  text-align: center;
+}
+
+.emptyState h2 {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 1rem;
+}
+
+.emptyState p {
+  margin: 0.35rem 0 0;
+  font-size: 0.82rem;
+}
+
+@media (max-width: 1020px) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .inspector {
+    position: static;
+  }
+}
+
+@media (max-width: 640px) {
+  .header {
+    padding: 0.75rem;
+  }
+
+  .statusRail,
+  .filterRail,
+  .productionRail {
+    align-items: stretch;
+  }
+
+  .filterButton,
+  .productionButton {
+    flex: 1 1 136px;
+    justify-content: center;
+  }
+
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr));
+    gap: 0.7rem;
+  }
+
+  .tileCanvas {
+    width: min(100%, 132px);
+  }
+
+  .tileActions button {
+    flex: 1 1 58px;
+  }
+
+  .inspectorHeader {
+    display: grid;
+  }
+}

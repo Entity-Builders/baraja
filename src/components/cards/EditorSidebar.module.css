@@ -3,7 +3,7 @@
   top: 0;
   right: 0;
   bottom: 0;
-  width: 400px;
+  width: min(100vw, 400px);
   background: #1a1a1a;
   border-left: 1px solid rgba(255, 255, 255, 0.1);
   padding: 2rem;
@@ -98,7 +98,19 @@
 }
 
 .actionsBox {
+  position: sticky;
+  bottom: 0;
   display: flex;
   gap: 0.5rem;
   margin-top: 1rem;
+  padding-top: 1rem;
+  background: linear-gradient(to top, #1a1a1a 72%, rgba(26, 26, 26, 0));
+}
+
+@media (max-width: 520px) {
+  .sidebar {
+    left: 0;
+    width: 100vw;
+    padding: 1.25rem;
+  }
 }

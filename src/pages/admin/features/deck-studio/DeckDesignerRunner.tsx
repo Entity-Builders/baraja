@@ -1,8 +1,11 @@
-import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { Designer } from '@pdfme/ui';
-import type { Template } from '@pdfme/common';
+import type { Schema, Template } from '@pdfme/common';
 import type { RawDeckContent } from '@eb-packages/deck-engine';
 import { buildPdfmeFonts, pdfmePlugins } from '../../../../lib/pdfmeConfig';
+import { PdfmeTemplatePreview } from '../../../../components/cards/PdfmeTemplatePreview';
+import { applyReadableSchemaColors } from '../../../../lib/cardReadability';
+import { normalizeTemplateFieldAliases } from '../../../../lib/cardFieldPlacements';
 
 interface DeckDesignerRunnerProps {
   deck: RawDeckContent;
@@ -18,6 +21,70 @@ interface DeckDesignerRunnerProps {
 
 export interface DeckDesignerRunnerRef {
   getLatestCombinedTemplate: () => Template | null;
+}
+
+type SchemaWithContent = Schema & {
+  content?: string;
+};
+
+function injectMockContent(schema: Schema, mockData: Record<string, string>): Schema {
+  const next = { ...schema } as SchemaWithContent;
+  if (mockData[next.name] !== undefined) next.content = String(mockData[next.name]);
+  return next;
+}
+
+function stripMockContent(schema: Schema, mockData: Record<string, string>): Schema {
+  const next = { ...schema } as SchemaWithContent;
+  if (mockData[next.name] !== undefined) delete next.content;
+  return next;
+}
+
+function injectMockDataIntoSchemas(schemas: Schema[][], mockData: Record<string, string>): Schema[][] {
+  return schemas.map(pageSchema =>
+    pageSchema.map(schema => injectMockContent(schema, mockData))
+  );
+}
+
+function stripMockDataFromSchemas(schemas: Schema[][], mockData: Record<string, string>): Schema[][] {
+  return schemas.map(pageSchema =>
+    pageSchema.map(schema => stripMockContent(schema, mockData))
+  );
+}
+
+async function prepareDesignerTemplate(template: Template, mockData: Record<string, string>): Promise<Template> {
+  const withMockContent = normalizeTemplateFieldAliases(template);
+  withMockContent.schemas = injectMockDataIntoSchemas(withMockContent.schemas, mockData);
+  return applyReadableSchemaColors(withMockContent, mockData);
+}
+
+function getStoredSchemas(template: Template, mockData: Record<string, string>): [Schema[], Schema[]] {
+  const cleanedSchemas = stripMockDataFromSchemas(template.schemas, mockData);
+  return [cleanedSchemas[0] || [], cleanedSchemas[1] || []];
+}
+
+function TemplatePreviewCard({
+  template,
+  mockData,
+  activeFace,
+  cardWidth,
+  cardHeight,
+}: {
+  template: Template;
+  mockData: Record<string, string>;
+  activeFace: 'front' | 'back';
+  cardWidth: number;
+  cardHeight: number;
+}) {
+  return (
+    <PdfmeTemplatePreview
+      template={template}
+      mockData={mockData}
+      activeFace={activeFace}
+      fallbackWidth={cardWidth}
+      fallbackHeight={cardHeight}
+      variant="stage"
+    />
+  );
 }
 
 export const DeckDesignerRunner = forwardRef<DeckDesignerRunnerRef, DeckDesignerRunnerProps>(({
@@ -36,9 +103,10 @@ export const DeckDesignerRunner = forwardRef<DeckDesignerRunnerRef, DeckDesigner
 
   const [saving, setSaving] = useState(false);
   const [hideGuides, setHideGuides] = useState(false);
+  const [showTechnicalEditor, setShowTechnicalEditor] = useState(false);
 
   // We persist the in-memory edits of the non-visible face here
-  const pendingSchemas = useRef<[any[], any[]]>([[], []]);
+  const pendingSchemas = useRef<[Schema[], Schema[]]>([[], []]);
   const currentFace = useRef<'front' | 'back'>(activeFace);
 
   const onSaveRef = useRef(onSave);
@@ -49,25 +117,23 @@ export const DeckDesignerRunner = forwardRef<DeckDesignerRunnerRef, DeckDesigner
   // 1. Mount/Destroy Single Designer
   useEffect(() => {
     let mounted = true;
+    if (!showTechnicalEditor) return;
     if (!containerRef.current) return;
 
-    buildPdfmeFonts(deck.layout_config as any, template).then(fonts => {
+    const fontHints = deck.design_template_overrides?.layout_config as Parameters<typeof buildPdfmeFonts>[0];
+    buildPdfmeFonts(fontHints, template).then(async fonts => {
       if (!mounted || !containerRef.current) return;
 
-      const hydratedTpl = JSON.parse(JSON.stringify(template)) as Template;
-      pendingSchemas.current = [hydratedTpl.schemas[0] || [], hydratedTpl.schemas[1] || []];
+      const hydratedTpl = await prepareDesignerTemplate(template, mockData);
+      if (!mounted || !containerRef.current) return;
+
+      pendingSchemas.current = getStoredSchemas(hydratedTpl, mockData);
 
       const initialTpl = { ...hydratedTpl, schemas: [pendingSchemas.current[activeFace === 'front' ? 0 : 1]] };
       currentFace.current = activeFace;
 
       // Inject mock data for initial load
-      initialTpl.schemas = initialTpl.schemas.map(pageSchema =>
-        pageSchema.map(schema => {
-          const s = { ...schema };
-          if (mockData[s.name] !== undefined) (s as any).content = String(mockData[s.name]);
-          return s;
-        })
-      );
+      initialTpl.schemas = injectMockDataIntoSchemas(initialTpl.schemas, mockData);
 
       designerRef.current = new Designer({
         domContainer: containerRef.current,
@@ -84,7 +150,7 @@ export const DeckDesignerRunner = forwardRef<DeckDesignerRunnerRef, DeckDesigner
       designerRef.current?.destroy();
       designerRef.current = null;
     };
-  }, [deck.id]); // Re-mount entirely when deck changes
+  }, [deck.id, showTechnicalEditor]); // Re-mount entirely when deck changes or technical editor opens
 
   // 2. Handle Face Swap
   useEffect(() => {
@@ -100,17 +166,18 @@ export const DeckDesignerRunner = forwardRef<DeckDesignerRunnerRef, DeckDesigner
     const nextIdx = activeFace === 'front' ? 0 : 1;
     const nextTpl = { ...wip, schemas: [pendingSchemas.current[nextIdx]] };
 
-    // Re-inject mock data so it looks correct visually
-    nextTpl.schemas = nextTpl.schemas.map(pageSchema =>
-      pageSchema.map(schema => {
-        const s = { ...schema };
-        if (mockData[s.name] !== undefined) (s as any).content = String(mockData[s.name]);
-        return s;
-      })
-    );
+    let cancelled = false;
 
-    designerRef.current.updateTemplate(nextTpl);
-    currentFace.current = activeFace;
+    void prepareDesignerTemplate(nextTpl, mockData).then(readableTpl => {
+      if (cancelled || !designerRef.current) return;
+      pendingSchemas.current[nextIdx] = getStoredSchemas(readableTpl, mockData)[0] || [];
+      designerRef.current.updateTemplate(readableTpl);
+      currentFace.current = activeFace;
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [activeFace, mockData]);
 
   // 3. Hot-swap card texts when mockData changes while staying on the SAME face
@@ -120,17 +187,15 @@ export const DeckDesignerRunner = forwardRef<DeckDesignerRunnerRef, DeckDesigner
 
     try {
       const wip = designerRef.current.getTemplate();
-      const updatedTpl = JSON.parse(JSON.stringify(wip)) as Template;
-      updatedTpl.schemas = updatedTpl.schemas.map(pageSchema =>
-        pageSchema.map(schema => {
-          const s = { ...schema };
-          if (mockData[s.name] !== undefined) {
-            (s as any).content = String(mockData[s.name]);
-          }
-          return s;
-        })
-      );
-      designerRef.current.updateTemplate(updatedTpl);
+      const activeIdx = currentFace.current === 'front' ? 0 : 1;
+      const baseTpl = JSON.parse(JSON.stringify(wip)) as Template;
+      baseTpl.schemas = stripMockDataFromSchemas(baseTpl.schemas, mockData);
+
+      void prepareDesignerTemplate(baseTpl, mockData).then(readableTpl => {
+        if (!designerRef.current) return;
+        pendingSchemas.current[activeIdx] = getStoredSchemas(readableTpl, mockData)[0] || [];
+        designerRef.current.updateTemplate(readableTpl);
+      });
     } catch (err) {
       console.warn('[DeckDesignerRunner] Hot-swap failed:', err);
     }
@@ -139,25 +204,22 @@ export const DeckDesignerRunner = forwardRef<DeckDesignerRunnerRef, DeckDesigner
   // 4. Propagate template changes (e.g. from AI injection) from parent
   useEffect(() => {
     if (!designerRef.current || !template) return;
-    // Overwrite the entire pending schemas array with the injected one
-    pendingSchemas.current = [
-      template.schemas[0] ? [...template.schemas[0]] : [],
-      template.schemas[1] ? [...template.schemas[1]] : [],
-    ];
+    let cancelled = false;
 
-    // Force reload active face
-    const idx = currentFace.current === 'front' ? 0 : 1;
-    const nextTpl = JSON.parse(JSON.stringify(template)) as Template;
-    nextTpl.schemas = [pendingSchemas.current[idx]];
+    void prepareDesignerTemplate(template, mockData).then(readableTemplate => {
+      if (cancelled || !designerRef.current) return;
 
-    nextTpl.schemas = nextTpl.schemas.map(pageSchema =>
-      pageSchema.map(schema => {
-        const s = { ...schema };
-        if (mockData[s.name] !== undefined) (s as any).content = String(mockData[s.name]);
-        return s;
-      })
-    );
-    designerRef.current.updateTemplate(nextTpl);
+      pendingSchemas.current = getStoredSchemas(readableTemplate, mockData);
+
+      // Force reload active face
+      const idx = currentFace.current === 'front' ? 0 : 1;
+      const nextTpl = { ...readableTemplate, schemas: [readableTemplate.schemas[idx] || []] };
+      designerRef.current.updateTemplate(nextTpl);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [template]);
 
   useImperativeHandle(ref, () => ({
@@ -169,21 +231,15 @@ export const DeckDesignerRunner = forwardRef<DeckDesignerRunnerRef, DeckDesigner
         const idx = currentFace.current === 'front' ? 0 : 1;
         pendingSchemas.current[idx] = wip.schemas[0] || [];
 
-        const st = JSON.parse(JSON.stringify(template)) as Template;
+        const st = normalizeTemplateFieldAliases(template);
         st.schemas = [
           pendingSchemas.current[0] || [],
           pendingSchemas.current[1] || []
         ];
 
         // Clean mock data before returning to parent
-        st.schemas = st.schemas.map(pageSchema =>
-          pageSchema.map(schema => {
-            const s = { ...schema };
-            if (mockData[s.name] !== undefined) delete (s as any).content;
-            return s;
-          })
-        );
-        return st;
+        st.schemas = stripMockDataFromSchemas(st.schemas, mockData);
+        return normalizeTemplateFieldAliases(st);
       } catch (err) {
         console.error('Failed to get template from designer', err);
         return null;
@@ -192,15 +248,20 @@ export const DeckDesignerRunner = forwardRef<DeckDesignerRunnerRef, DeckDesigner
   }));
 
   const handleDualSave = async () => {
-    if (saving || !designerRef.current) return;
+    if (saving) return;
     setSaving(true);
     try {
+      if (!designerRef.current) {
+        await onSaveRef.current(template);
+        return;
+      }
+
       // Sync current wip
       const wip = designerRef.current.getTemplate();
       const idx = currentFace.current === 'front' ? 0 : 1;
       pendingSchemas.current[idx] = wip.schemas[0] || [];
 
-      const savedTemplate = JSON.parse(JSON.stringify(template)) as Template;
+      const savedTemplate = normalizeTemplateFieldAliases(template);
       savedTemplate.schemas = [
         pendingSchemas.current[0] || [],
         pendingSchemas.current[1] || []
@@ -208,15 +269,9 @@ export const DeckDesignerRunner = forwardRef<DeckDesignerRunnerRef, DeckDesigner
 
       // Strip injected mock content before saving to DB
       const cleanTpl = JSON.parse(JSON.stringify(savedTemplate)) as Template;
-      cleanTpl.schemas = cleanTpl.schemas.map(pageSchema =>
-        pageSchema.map(schema => {
-          const s = { ...schema };
-          if (mockData[s.name] !== undefined) delete (s as any).content;
-          return s;
-        })
-      );
+      cleanTpl.schemas = stripMockDataFromSchemas(cleanTpl.schemas, mockData);
 
-      await onSaveRef.current(cleanTpl);
+      await onSaveRef.current(normalizeTemplateFieldAliases(cleanTpl));
     } catch (err) {
       console.error(err);
     } finally {
@@ -341,25 +396,41 @@ export const DeckDesignerRunner = forwardRef<DeckDesignerRunnerRef, DeckDesigner
         {/* View Toggles & Save */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <button
+            onClick={() => setShowTechnicalEditor(prev => !prev)}
+            style={{ background: showTechnicalEditor ? 'rgba(212,175,100,0.14)' : 'transparent', border: `1px solid ${showTechnicalEditor ? 'var(--color-gold)' : '#444'}`, color: showTechnicalEditor ? 'var(--color-gold)' : '#ccc', padding: '0.4rem 0.8rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 650 }}
+          >
+            {showTechnicalEditor ? 'Vista limpia' : 'Editar posiciones'}
+          </button>
+          <button
             onClick={() => setHideGuides(!hideGuides)}
+            disabled={!showTechnicalEditor}
             style={{ background: 'transparent', border: '1px solid #444', color: '#ccc', padding: '0.4rem 0.8rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem' }}
           >
-            {hideGuides ? '👁️ Mostrar guías' : '🚫 Ocultar guías'}
+            {hideGuides ? 'Mostrar guías' : 'Ocultar guías'}
           </button>
           <button
             onClick={handleDualSave}
             disabled={saving}
             style={{ background: 'var(--color-gold)', color: '#000', border: 'none', padding: '0.4rem 1.2rem', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem' }}
           >
-            {saving ? 'Guardando...' : '💾 Guardar Layout'}
+            {saving ? 'Guardando...' : 'Guardar layout'}
           </button>
         </div>
       </div>
 
-      {/* Single canvas to eliminate duplicate event listener performance tanking */}
-      <div className="deck-designer-canvas" style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#0a0a0a' }}>
-        <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
-      </div>
+      {showTechnicalEditor ? (
+        <div className="deck-designer-canvas" style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#0a0a0a' }}>
+          <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+        </div>
+      ) : (
+        <TemplatePreviewCard
+          template={template}
+          mockData={mockData}
+          activeFace={activeFace}
+          cardWidth={cardWidth}
+          cardHeight={cardHeight}
+        />
+      )}
     </div>
   );
 });

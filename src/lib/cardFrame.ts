@@ -15,7 +15,7 @@
 export const FRAME_URL = '/frames/back-frame.png';
 
 /** Cache per-deck so switching doesn't cause re-fetches */
-let _frameCache = new Map<string, string>();
+const _frameCache = new Map<string, string>();
 
 /**
  * Build a frame URL for a specific deck + face.
@@ -72,64 +72,8 @@ export function setFrameTheme(theme: 'light' | 'dark'): void {
   } catch { /* ignore */ }
 }
 
-// ── Color contrast sanitizer ─────────────────────────────────────────────────
-
-/** Perceived luminance (0=black, 1=white) from a hex color like '#1a0d02' */
-function hexLuminance(hex: string): number {
-  const h = hex.replace('#', '');
-  if (h.length !== 6) return 0.5; // unknown → neutral
-  const r = parseInt(h.slice(0, 2), 16) / 255;
-  const g = parseInt(h.slice(2, 4), 16) / 255;
-  const b = parseInt(h.slice(4, 6), 16) / 255;
-  return 0.299 * r + 0.587 * g + 0.114 * b;
-}
-
-/**
- * Ensures all text colors in a typography suggestion have sufficient contrast
- * against the frame background. Overrides any AI hallucinations.
- *
- * Light frame  → text must be dark  (luminance < 0.45)
- * Dark frame   → text must be light (luminance > 0.55)
- */
-function sanitizeTypographyColors(
-  typo: Record<string, any>,
-  theme: 'light' | 'dark',
-): Record<string, any> {
-  const isLight = theme === 'light';
-
-  // Fallback palettes when AI suggests wrong contrast
-  const DARK_TEXT  = { when: '#2a1608', phrase: '#1a0d02', instruction: '#2d1c08', answer: '#4a2e08', brand: '#6a4820', qrFg: '#4a2e08' };
-  const LIGHT_TEXT = { when: '#d6c8a8', phrase: '#ffffff',  instruction: '#e8dcc0', answer: '#c0b090', brand: '#a09070', qrFg: '#d4af64' };
-  const fallbacks = isLight ? DARK_TEXT : LIGHT_TEXT;
-
-  const fix = (color: string | undefined, fallback: string): string => {
-    if (!color || !color.startsWith('#')) return fallback;
-    const lum = hexLuminance(color);
-    if (isLight && lum > 0.45) {
-      console.warn(`[baraja] santized color ${color} → ${fallback} (too light for light frame)`);
-      return fallback;
-    }
-    if (!isLight && lum < 0.55) {
-      console.warn(`[baraja] sanitized color ${color} → ${fallback} (too dark for dark frame)`);
-      return fallback;
-    }
-    return color;
-  };
-
-  const result = { ...typo };
-  if (result.whenToUse)   result.whenToUse   = { ...result.whenToUse,   color: fix(result.whenToUse.color, fallbacks.when) };
-  if (result.phrase)      result.phrase      = { ...result.phrase,      color: fix(result.phrase.color, fallbacks.phrase) };
-  if (result.instruction) result.instruction = { ...result.instruction, color: fix(result.instruction.color, fallbacks.instruction) };
-  if (result.answer)      result.answer      = { ...result.answer,      color: fix(result.answer.color, fallbacks.answer) };
-  if (result.brand)       result.brand       = { ...result.brand,       color: fix(result.brand?.color, fallbacks.brand) };
-  if (result.qrFgColor)   result.qrFgColor   = fix(result.qrFgColor, fallbacks.qrFg);
-  return result;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
 /** Persist AI typography suggestion for use in CardCanvas across pages */
-export function setFrameTypography(typography: Record<string, any> | null): void {
+export function setFrameTypography(typography: Record<string, unknown> | null): void {
   try {
     if (typography) {
       // We no longer sanitize colors because the Gemini Flash Vision model
@@ -143,7 +87,7 @@ export function setFrameTypography(typography: Record<string, any> | null): void
 
 
 /** Read persisted typography suggestion */
-export function getFrameTypography(): Record<string, any> | null {
+export function getFrameTypography(): Record<string, unknown> | null {
   try {
     if (typeof localStorage === 'undefined') return null;
     const raw = localStorage.getItem('baraja_frame_typography');

@@ -1,9 +1,11 @@
 import { generate } from '@pdfme/generator';
 import type { Template, Schema } from '@pdfme/common';
 import type { DeckSchema } from '@eb-packages/deck-engine';
-import { getCardQrUrl } from '@eb-packages/deck-engine';
+import { getCardQrUrl, shouldRenderPrintableQr } from '@eb-packages/deck-engine';
 import { getTemplateForDeck, createFlujoBTemplate, cardUsesFlujob, buildPdfmeFonts, pdfmePlugins } from './pdfmeConfig';
+import type { PdfTypographyHints } from './pdfmeConfig';
 import { getFrameDataUri, getFrameTypography } from './cardFrame';
+import { applyReadableSchemaColors } from './cardReadability';
 
 // Adaptive phrase size utility removed. Handled natively via pdfme dynamicFontSize injection.
 
@@ -16,38 +18,14 @@ function getSheetDimensions(size: 'A3' | 'A4') {
   return { width: 297, height: 210 };
 }
 
-/**
- * Convert any image URL to a base64 JPEG data URI.
- * This ensures pdfme gets a fresh JPEG with a valid SOI marker,
- * avoiding crashes with certain original image formats/metadata.
- */
-async function toJpegDataUrl(url: string): Promise<string> {
-  if (!url) return '';
-  if (url.startsWith('data:image/jpeg')) return url;
-  
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = 'Anonymous';
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.fillStyle = '#1a1a1a';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0);
-        resolve(canvas.toDataURL('image/jpeg', 0.95));
-      } else {
-        resolve(url);
-      }
-    };
-    img.onerror = () => {
-      console.warn('[PrintEngine] Failed to convert image:', url.substring(0, 80));
-      resolve(url);
-    };
-    img.src = url;
-  });
+type SchemaWithRuntimeFields = Schema & {
+  content?: unknown;
+  dynamicFontSize?: { min: number; max: number; fit: 'vertical' };
+  fontSize?: number;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }
 
 /**
@@ -112,6 +90,7 @@ async function buildImpositionTemplateAndInputs(
   // 1. Get the base single-card template
   // Flujo B: use AI-back template if any card has back_image_url
   const hasFlujobCards = deck.cards.some(c => cardUsesFlujob(c));
+  const shouldIncludeQr = shouldRenderPrintableQr(deck);
   const cardWidth = deck.print_specs?.dimensions?.width || 70;
   const cardHeight = deck.print_specs?.dimensions?.height || 120;
   const cardTemplate = hasFlujobCards
@@ -159,13 +138,15 @@ async function buildImpositionTemplateAndInputs(
     el.name = `${el.name}_${suffix}`;
     
     // Sanitize SVG content (legacy whitespace issue)
-    if (el.type === 'svg' && typeof (el as Record<string, any>).content === 'string') {
-      let contentString = (el as Record<string, any>).content as string;
+    const runtimeElement = el as SchemaWithRuntimeFields;
+
+    if (el.type === 'svg' && typeof runtimeElement.content === 'string') {
+      let contentString = runtimeElement.content;
       const svgStartIndex = contentString.indexOf('<svg');
       if (svgStartIndex > 0) {
         contentString = contentString.substring(svgStartIndex);
       }
-      (el as Record<string, any>).content = contentString.trim();
+      runtimeElement.content = contentString.trim();
     }
     
     // Ensure background images bleed into the crop margin
@@ -206,12 +187,14 @@ async function buildImpositionTemplateAndInputs(
     if (el.type === 'text') {
       const isDynamicEligible = el.name.startsWith('phrase_') || 
                                 el.name.startsWith('instruction_') || 
-                                el.name.startsWith('when_to_use_') || 
+                                el.name.startsWith('when_to_use_') ||
+                                el.name.startsWith('whenToUse_') ||
                                 el.name.startsWith('answer_');
       if (isDynamicEligible) {
-         (el as any).dynamicFontSize = {
-            min: ((el as any).fontSize || 10) * 0.45,
-            max: ((el as any).fontSize || 10),
+         const fontSize = typeof runtimeElement.fontSize === 'number' ? runtimeElement.fontSize : 10;
+         runtimeElement.dynamicFontSize = {
+            min: fontSize * 0.45,
+            max: fontSize,
             fit: 'vertical'
          };
       }
@@ -390,14 +373,20 @@ async function buildImpositionTemplateAndInputs(
             pageInputs[`back_ai_image_${suffix}`] = card.back.back_image_url
               ? (urlToDataUrl[card.back.back_image_url] || card.back.back_image_url)
               : '';
-            pageInputs[`qr_overlay_${suffix}`] = card.back.qr_url || getCardQrUrl(deck.slug ?? 'baraja', card.front.number);
+            pageInputs[`qr_overlay_${suffix}`] = shouldIncludeQr
+              ? card.back.qr_url || getCardQrUrl(deck.slug ?? 'baraja', card.front.number)
+              : '';
           } else {
             // ── STANDARD: frame image + text overlay ──
             pageInputs[`bg_${suffix}`] = frameDataUri;
 
             const hiddenFields = deck.design_template_overrides?.hidden_fields || {};
             // Legacy fallback
-            if (deck.design?.layout_config?.hide_player_count || deck.design_template_overrides?.hide_player_count) {
+            const layoutConfig = deck.design?.layout_config;
+            if (
+              (isRecord(layoutConfig) && layoutConfig.hide_player_count === true) ||
+              deck.design_template_overrides?.hide_player_count
+            ) {
                hiddenFields.player_count = true;
             }
 
@@ -405,11 +394,12 @@ async function buildImpositionTemplateAndInputs(
             const cleanWhenToUse = hiddenFields.player_count ? rawWhenToUse.replace(/([.¡!]\s*)?[Pp]ara\s*\d+[+-]?\s*jugador(es)?\.?/g, '').trim() : rawWhenToUse;
             
             pageInputs[`when_to_use_${suffix}`] = hiddenFields.when_to_use ? '' : cleanWhenToUse;
+            pageInputs[`whenToUse_${suffix}`] = hiddenFields.when_to_use || hiddenFields.whenToUse ? '' : cleanWhenToUse;
             pageInputs[`phrase_${suffix}`] = hiddenFields.phrase ? '' : `"${card.back.phrase}"`;
             pageInputs[`instruction_${suffix}`] = hiddenFields.instruction ? '' : card.back.instruction;
             pageInputs[`answer_${suffix}`] = hiddenFields.answer ? '' : (card.back.answer ? `Rta: ${card.back.answer}` : '');
             pageInputs[`fun_fact_${suffix}`] = hiddenFields.fun_fact ? '' : (card.back.fun_fact ? `💡 ${card.back.fun_fact}` : '');
-            pageInputs[`qr_${suffix}`] = hiddenFields.qr ? '' : (card.back.qr_url || getCardQrUrl(deck.slug ?? 'baraja', card.front.number));
+            pageInputs[`qr_${suffix}`] = !shouldIncludeQr || hiddenFields.qr ? '' : (card.back.qr_url || getCardQrUrl(deck.slug ?? 'baraja', card.front.number));
             pageInputs[`brand_${suffix}`] = hiddenFields.brand ? '' : `Baraja · ${deck.name}`;
 
             // ── PrintEngine now relies natively on pdfme's `dynamicFontSize` which is safely injected above. ──
@@ -420,7 +410,7 @@ async function buildImpositionTemplateAndInputs(
           cardSchemas.flat().forEach(schema => {
             const mappedName = `${schema.name}_${suffix}`;
             if (pageInputs[mappedName] === undefined) {
-              let content = defaultData[schema.name] || (schema as Record<string, any>).content || '';
+              let content = defaultData[schema.name] || (schema as SchemaWithRuntimeFields).content || '';
               if (schema.type === 'svg' && typeof content === 'string') {
                 const svgStartIndex = content.indexOf('<svg');
                 if (svgStartIndex > 0) content = content.substring(svgStartIndex);
@@ -443,13 +433,18 @@ async function buildImpositionTemplateAndInputs(
     pagesData.push(pageInputs);
   }
 
-  return { template: impositionTemplate, inputs: pagesData };
+  const readableTemplate = pagesData[0]
+    ? await applyReadableSchemaColors(impositionTemplate, pagesData[0])
+    : impositionTemplate;
+  readableTemplate.schemas[0] = impositionTemplate.schemas[0];
+
+  return { template: readableTemplate, inputs: pagesData };
 }
 
 export async function generatePrintPdf(deck: DeckSchema, options: PrintOptions): Promise<Uint8Array> {
   const { template, inputs } = await buildImpositionTemplateAndInputs(deck, options.sheetSize);
-  const typo = deck.layout_config || getFrameTypography();
-  const fonts = await buildPdfmeFonts(typo as any, template);
+  const typo = deck.design.layout_config ?? getFrameTypography();
+  const fonts = await buildPdfmeFonts(typo as PdfTypographyHints | null, template);
 
   const pdf = await generate({
     template,

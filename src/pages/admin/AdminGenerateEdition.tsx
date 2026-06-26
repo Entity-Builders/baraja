@@ -55,7 +55,7 @@ export default function AdminGenerateEdition() {
   const [enriching, setEnriching] = useState(false);
 
   // Phase 3: Prompt preview
-  const [promptPreview, setPromptPreview] = useState<string | null>(null);
+  const [, setPromptPreview] = useState<string | null>(null);
 
   // Generation state
   const [generating, setGenerating] = useState(false);

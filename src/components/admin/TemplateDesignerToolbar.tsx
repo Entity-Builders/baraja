@@ -1,4 +1,3 @@
-import React from 'react';
 import type { RawDeckContent } from '@eb-packages/deck-engine';
 
 interface TemplateDesignerToolbarProps {

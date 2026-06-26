@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Baraja</title>
+  <desc id="desc">Icono de Baraja.cards con tres cartas doradas sobre fondo oscuro.</desc>
+  <rect width="512" height="512" rx="112" fill="#0c0b09"/>
+  <rect x="76" y="96" width="230" height="320" rx="28" fill="#17130f" stroke="#d4af64" stroke-width="14" opacity=".78" transform="rotate(-10 191 256)"/>
+  <rect x="142" y="78" width="230" height="320" rx="28" fill="#201a12" stroke="#e8cc8a" stroke-width="14" transform="rotate(8 257 238)"/>
+  <rect x="118" y="118" width="276" height="304" rx="30" fill="#141210" stroke="#d4af64" stroke-width="16"/>
+  <path d="M188 178h136M188 334h136" stroke="#d4af64" stroke-width="12" stroke-linecap="round" opacity=".76"/>
+  <path d="M256 214c34 0 62 28 62 62s-28 62-62 62-62-28-62-62 28-62 62-62Z" fill="none" stroke="#f0ebe0" stroke-width="12" opacity=".9"/>
+  <path d="M256 236v80M216 276h80" stroke="#e8cc8a" stroke-width="10" stroke-linecap="round"/>
+</svg>

@@ -27,6 +27,7 @@ export function DeckSettingsModal({ deck, onClose }: DeckSettingsModalProps) {
   }, []);
 
   const selectedPreset = presets.find(p => p.id === selectedPresetId);
+  const deckDesignHref = `/admin/${encodeURIComponent(deck.slug || deck.id)}/design`;
 
   // Live deck for preview — reflects the selected preset instantly
   const liveDeck = useMemo((): DeckSchema => {
@@ -199,7 +200,7 @@ export function DeckSettingsModal({ deck, onClose }: DeckSettingsModalProps) {
 
                   {/* Link to edit preset */}
                   <Link
-                    to="/admin/templates"
+                    to={deckDesignHref}
                     onClick={onClose}
                     style={{
                       fontSize: '0.72rem', color: 'var(--color-gold)',
@@ -208,7 +209,7 @@ export function DeckSettingsModal({ deck, onClose }: DeckSettingsModalProps) {
                       marginTop: '0.25rem',
                     }}
                   >
-                    ✏️ Edit this preset in Preset Manager →
+                    Abrir diseño global del mazo →
                   </Link>
                 </div>
               )}
@@ -222,8 +223,8 @@ export function DeckSettingsModal({ deck, onClose }: DeckSettingsModalProps) {
               {presets.length === 0 && (
                 <p style={{ fontSize: '0.75rem', opacity: 0.4, margin: 0 }}>
                   No presets found.{' '}
-                  <Link to="/admin/templates" onClick={onClose} style={{ color: 'var(--color-gold)' }}>
-                    Create one →
+                  <Link to={deckDesignHref} onClick={onClose} style={{ color: 'var(--color-gold)' }}>
+                    Abrir diseño global →
                   </Link>
                 </p>
               )}

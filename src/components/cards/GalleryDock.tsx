@@ -1,5 +1,4 @@
 // src/components/admin/GalleryDock.tsx
-import React from 'react';
 import type { Card } from '@eb-packages/deck-engine';
 import styles from './GalleryDock.module.css';
 
@@ -15,9 +14,12 @@ export function GalleryDock({ cards, activeCardId, onSelectCard }: GalleryDockPr
       {cards.map(card => {
         const hasArt = !!card.front.art_url;
         return (
-          <div 
+          <button
+            type="button"
             key={`thumb-${card.id}`}
             onClick={() => onSelectCard(card.id)}
+            aria-pressed={activeCardId === card.id}
+            aria-label={`Seleccionar carta ${card.front.number}: ${card.front.title}`}
             className={`${styles.thumbItem} ${activeCardId === card.id ? styles.thumbActive : ''} ${!hasArt ? styles.noArtThumb : ''}`}
             style={hasArt ? { backgroundImage: `url(${card.front.art_url})` } : {}}
           >
@@ -29,7 +31,7 @@ export function GalleryDock({ cards, activeCardId, onSelectCard }: GalleryDockPr
 
             {/* Show tiny placeholder if no art */}
             {!hasArt && <span className={styles.noArtIcon}>🎨</span>}
-          </div>
+          </button>
         );
       })}
     </div>

@@ -39,6 +39,10 @@ async function main() {
         design_template_id: rawContent.design_template_id,
         print_specs_overrides: rawContent.print_specs_overrides || {},
         design_template_overrides: rawContent.design_template_overrides || {},
+        landing_config: rawContent.landing_config || {},
+        metadata: rawContent.metadata || {},
+        pricing: rawContent.pricing || { amount: 1500000, currency: 'ars' },
+        digital: rawContent.digital || {},
       }, { onConflict: 'slug' })
       .select()
       .single();

@@ -1,5 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
-import type { IDeckRepository, RawDeckContent } from '@eb-packages/deck-engine';
+import { DECKS } from '@eb-packages/deck-engine';
+import type {
+  DeckMetadata,
+  DeckPricing,
+  DeckSchema,
+  DigitalDeckConfig,
+  IDeckRepository,
+  RawDeckContent,
+} from '@eb-packages/deck-engine';
 
 // The app MUST provide VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY via .env.local
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -19,6 +27,53 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   db: { schema: 'baraja' },
 });
 
+const localDecks = DECKS as Record<string, DeckSchema>;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function getLocalDeck(id: string): DeckSchema | undefined {
+  return localDecks[id];
+}
+
+function getDeckMetadata(value: unknown, fallback?: DeckMetadata): DeckMetadata {
+  const base: DeckMetadata = fallback ?? {
+    topic: '',
+    tone: '',
+    target_audience: '',
+    player_count: '',
+  };
+
+  if (!isRecord(value)) return base;
+
+  return {
+    ...base,
+    topic: typeof value.topic === 'string' ? value.topic : base.topic,
+    tone: typeof value.tone === 'string' ? value.tone : base.tone,
+    target_audience: typeof value.target_audience === 'string' ? value.target_audience : base.target_audience,
+    player_count: typeof value.player_count === 'string' ? value.player_count : base.player_count,
+    art_direction: isRecord(value.art_direction) ? value.art_direction as unknown as DeckMetadata['art_direction'] : base.art_direction,
+  };
+}
+
+function getDeckPricing(value: unknown, fallback?: DeckPricing): DeckPricing {
+  const base: DeckPricing = fallback ?? { amount: 1500000, currency: 'ars' };
+  if (!isRecord(value)) return base;
+
+  const currency = value.currency === 'usd' ? 'usd' : value.currency === 'ars' ? 'ars' : base.currency;
+  return {
+    amount: typeof value.amount === 'number' ? value.amount : base.amount,
+    currency,
+    stripe_price_id: typeof value.stripe_price_id === 'string' ? value.stripe_price_id : base.stripe_price_id,
+  };
+}
+
+function getDigitalConfig(value: unknown, fallback?: DigitalDeckConfig): DigitalDeckConfig | undefined {
+  if (!isRecord(value)) return fallback;
+  return value as DigitalDeckConfig;
+}
+
 export class SupabaseDeckRepository implements IDeckRepository {
   private client: typeof supabase;
 
@@ -27,6 +82,8 @@ export class SupabaseDeckRepository implements IDeckRepository {
   }
 
   async getDeckById(id: string): Promise<RawDeckContent | null> {
+    const localDeck = getLocalDeck(id);
+
     const { data: edition, error: editionError } = await this.client
       .from('editions')
       .select('*')
@@ -69,12 +126,7 @@ export class SupabaseDeckRepository implements IDeckRepository {
       description: edition.description || '',
       language: 'es', // Assume ES or derive
       card_count: cards ? cards.length : 0,
-      metadata: {
-        topic: '',
-        tone: '',
-        target_audience: '',
-        player_count: '',
-      },
+      metadata: getDeckMetadata(edition.metadata, localDeck?.metadata),
       print_spec_id: edition.print_spec_id,
       design_template_id: edition.design_template_id,
       print_specs_overrides: edition.print_specs_overrides || {},
@@ -84,6 +136,8 @@ export class SupabaseDeckRepository implements IDeckRepository {
         ...(edition.design_template_overrides || {})
       },
       landing_config: edition.landing_config || {},
+      digital: getDigitalConfig(edition.digital, localDeck?.digital),
+      pricing: getDeckPricing(edition.pricing, localDeck?.pricing),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       cards: (cards || []).map((card: any) => ({
         id: card.id,
@@ -135,6 +189,15 @@ export class SupabaseDeckRepository implements IDeckRepository {
     }
     if (updates.landing_config !== undefined) {
       payload.landing_config = updates.landing_config;
+    }
+    if (updates.metadata !== undefined) {
+      payload.metadata = updates.metadata;
+    }
+    if (updates.pricing !== undefined) {
+      payload.pricing = updates.pricing;
+    }
+    if (updates.digital !== undefined) {
+      payload.digital = updates.digital;
     }
 
     if (Object.keys(payload).length > 0) {

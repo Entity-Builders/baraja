@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 const FIELD_OPTIONS = [
   { key: 'player_count', label: 'Ctd. Jugadores (en When)' },
@@ -22,24 +22,26 @@ export function FieldVisibilityMenu({ hiddenFields, onFieldChange }: FieldVisibi
   const activeCount = FIELD_OPTIONS.filter(f => !hiddenFields[f.key]).length;
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div style={{ position: 'relative', width: '100%' }}>
       <button
         onClick={() => setOpen(prev => !prev)}
         style={{
           background: '#222', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer',
           color: 'white', padding: '0.5rem 1rem', borderRadius: '6px', fontSize: '0.85rem',
-          display: 'flex', alignItems: 'center', gap: '0.4rem',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem',
+          width: '100%',
         }}
       >
-        👁️ Campos ({activeCount}/{FIELD_OPTIONS.length})
+        <span>Campos</span>
+        <span style={{ color: '#d4af64' }}>{activeCount}/{FIELD_OPTIONS.length}</span>
       </button>
 
       {open && (
         <div style={{
-          position: 'absolute', top: 'calc(100% + 5px)', right: 0,
+          position: 'absolute', top: 'calc(100% + 5px)', left: 0,
           background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)',
           padding: '1rem', borderRadius: '8px', zIndex: 1000,
-          boxShadow: '0 4px 20px rgba(0,0,0,0.5)', width: '240px',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.5)', width: 'min(260px, calc(100vw - 3rem))',
           display: 'flex', flexDirection: 'column', gap: '0.5rem',
         }}>
           <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.85rem', color: '#d4af64' }}>Campos Activos</h4>

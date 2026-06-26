@@ -1,11 +1,19 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { Template } from '@pdfme/common';
 import { SupabaseDeckRepository } from '../../../../lib/deckRepository';
 import type { RawDeckContent } from '@eb-packages/deck-engine';
 import { getTemplateForDeck, createDefaultCardTemplate, cardUsesFlujob } from '../../../../lib/pdfmeConfig';
 import { getFrameDataUri } from '../../../../lib/cardFrame';
 import { coverCropToJpeg } from '../../../../lib/PrintEngine';
-import { getCardQrUrl } from '@eb-packages/deck-engine';
+import {
+  CARD_FIELD_DEFINITIONS,
+  applyFieldPlacementsToTemplate,
+  getHiddenFieldsFromPlacements,
+  normalizeTemplateFieldAliases,
+  normalizeFieldPlacements,
+  type FieldPlacementMap,
+} from '../../../../lib/cardFieldPlacements';
+import { getCardQrUrl, shouldRenderPrintableQr } from '@eb-packages/deck-engine';
 
 const deckRepo = new SupabaseDeckRepository();
 
@@ -15,6 +23,12 @@ const deckRepo = new SupabaseDeckRepository();
  * so we pass this raw URI when calling analyze-typography.
  */
 let _bgRawDataUri = '';
+
+interface AnalyzeTypographyResponse {
+  success: boolean;
+  typography?: Parameters<typeof createDefaultCardTemplate>[2];
+  error?: string;
+}
 
 function getCleanWhenToUse(text: string, doHide: boolean): string {
   if (!text) return '';
@@ -54,6 +68,9 @@ export function useDeckStudio() {
   const [activeCardIndex, setActiveCardIndex] = useState<number>(0);
 
   const [hiddenFields, setHiddenFields] = useState<Record<string, boolean>>({});
+  const [fieldPlacements, setFieldPlacements] = useState<FieldPlacementMap>(
+    () => normalizeFieldPlacements(null)
+  );
   const [analyzing, setAnalyzing] = useState(false);
   const [activeFace, setActiveFace] = useState<'front' | 'back'>('back');
 
@@ -76,6 +93,7 @@ export function useDeckStudio() {
   ) => {
     const card = deck.cards[cardIndex];
     if (!card) return;
+    const shouldIncludeQr = shouldRenderPrintableQr(deck);
 
     const w = (typeof template.basePdf === 'object' && 'width' in template.basePdf) ? template.basePdf.width : 70;
     const h = (typeof template.basePdf === 'object' && 'height' in template.basePdf) ? template.basePdf.height : 120;
@@ -92,7 +110,9 @@ export function useDeckStudio() {
 
     if (cardUsesFlujob(card)) {
       mData.back_ai_image = dataUrlToBlobUrl(card.back?.back_image_url || '');
-      mData.qr_overlay = overrideHiddenFields?.qr ? '' : (card.back?.qr_url || getCardQrUrl(deck.slug ?? 'baraja', card.front.number));
+      mData.qr_overlay = !shouldIncludeQr || overrideHiddenFields?.qr
+        ? ''
+        : (card.back?.qr_url || getCardQrUrl(deck.slug ?? 'baraja', card.front.number));
     } else {
       const frameUri = await getFrameDataUri(deck.slug);
       const bgData = await coverCropToJpeg(frameUri, w, h);
@@ -100,12 +120,16 @@ export function useDeckStudio() {
       mData.bg = dataUrlToBlobUrl(bgData);
 
       const resolveHide = overrideHiddenFields || hiddenFields || {};
-      mData.when_to_use = resolveHide.when_to_use ? '' : getCleanWhenToUse(card.back?.when_to_use || '', !!resolveHide.player_count);
+      const whenToUse = resolveHide.when_to_use || resolveHide.whenToUse
+        ? ''
+        : getCleanWhenToUse(card.back?.when_to_use || '', !!resolveHide.player_count);
+      mData.when_to_use = whenToUse;
+      mData.whenToUse = whenToUse;
       mData.phrase      = resolveHide.phrase      ? '' : (card.back?.phrase      ? `"${card.back.phrase}"`          : '');
       mData.instruction = resolveHide.instruction ? '' : (card.back?.instruction || '');
       mData.answer      = resolveHide.answer      ? '' : (card.back?.answer      ? `Rta: ${card.back.answer}`       : '');
       mData.fun_fact    = resolveHide.fun_fact    ? '' : (card.back?.fun_fact    ? `💡 ${card.back.fun_fact}`       : '');
-      mData.qr          = resolveHide.qr          ? '' : (card.back?.qr_url      || getCardQrUrl(deck.slug ?? 'baraja', card.front.number));
+      mData.qr          = !shouldIncludeQr || resolveHide.qr ? '' : (card.back?.qr_url      || getCardQrUrl(deck.slug ?? 'baraja', card.front.number));
       mData.brand       = resolveHide.brand       ? '' : `Baraja · ${deck.name}`;
     }
 
@@ -113,7 +137,7 @@ export function useDeckStudio() {
   }, [hiddenFields]);
 
   const loadDeckLayout = useCallback(async (deckId: string) => {
-    const rawDeck = decks.find(d => d.id === deckId);
+    const rawDeck = decks.find(d => d.id === deckId || d.slug === deckId);
     if (!rawDeck) return;
 
     const { resolveDeck } = await import('@eb-packages/deck-engine');
@@ -122,22 +146,28 @@ export function useDeckStudio() {
 
     // Support legacy hide_player_count and merge to new structure
     const isPlayersHidden = !!rawDeck.design_template_overrides?.hide_player_count;
-    const initialHiddenFields = rawDeck.design_template_overrides?.hidden_fields || {};
+    const initialFieldPlacements = normalizeFieldPlacements(rawDeck.design_template_overrides || {});
+    const initialHiddenFields = getHiddenFieldsFromPlacements(
+      initialFieldPlacements,
+      rawDeck.design_template_overrides?.hidden_fields || {},
+    );
     if (isPlayersHidden) initialHiddenFields.player_count = true;
 
     // Extract card dimensions from the loaded template
     const loadedW = (typeof template.basePdf === 'object' && 'width' in template.basePdf) ? template.basePdf.width : 70;
     const loadedH = (typeof template.basePdf === 'object' && 'height' in template.basePdf) ? template.basePdf.height : 120;
+    const placedTemplate = applyFieldPlacementsToTemplate(template, initialFieldPlacements, loadedW, loadedH);
 
     setActiveRawDeck(rawDeck);
     setActiveResolvedDeck(deck);
-    setActiveTemplate(template);
+    setActiveTemplate(placedTemplate);
     setActiveCardIndex(0);
     setHiddenFields(initialHiddenFields);
+    setFieldPlacements(initialFieldPlacements);
     setCardWidth(loadedW);
     setCardHeight(loadedH);
 
-    await loadMockDataForCard(deck, template, 0, initialHiddenFields);
+    await loadMockDataForCard(deck, placedTemplate, 0, initialHiddenFields);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [decks]);
 
@@ -150,43 +180,102 @@ export function useDeckStudio() {
       setActiveTemplate(null);
       setMockData(null);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDeckId]);
+  }, [selectedDeckId, loadDeckLayout]);
 
-  const handleNextCard = useCallback(() => {
+  const handleNextCard = useCallback((templateOverride?: Template) => {
     if (!activeResolvedDeck || !activeTemplate) return;
+    const templateForPreview = templateOverride ?? activeTemplate;
     const maxIdx = activeResolvedDeck.cards.length - 1;
     const nextIdx = activeCardIndex < maxIdx ? activeCardIndex + 1 : 0;
     setActiveCardIndex(nextIdx);
-    loadMockDataForCard(activeResolvedDeck, activeTemplate, nextIdx);
+    loadMockDataForCard(activeResolvedDeck, templateForPreview, nextIdx);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeResolvedDeck, activeTemplate, activeCardIndex]);
 
-  const handlePrevCard = useCallback(() => {
+  const handlePrevCard = useCallback((templateOverride?: Template) => {
     if (!activeResolvedDeck || !activeTemplate) return;
+    const templateForPreview = templateOverride ?? activeTemplate;
     const maxIdx = activeResolvedDeck.cards.length - 1;
     const prevIdx = activeCardIndex > 0 ? activeCardIndex - 1 : maxIdx;
     setActiveCardIndex(prevIdx);
-    loadMockDataForCard(activeResolvedDeck, activeTemplate, prevIdx);
+    loadMockDataForCard(activeResolvedDeck, templateForPreview, prevIdx);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeResolvedDeck, activeTemplate, activeCardIndex]);
 
+  const handleJumpToCard = useCallback((cardIndex: number, templateOverride?: Template) => {
+    if (!activeResolvedDeck || !activeTemplate) return;
+    const templateForPreview = templateOverride ?? activeTemplate;
+    const maxIdx = activeResolvedDeck.cards.length - 1;
+    const safeIdx = Math.max(0, Math.min(cardIndex, maxIdx));
+    setActiveCardIndex(safeIdx);
+    loadMockDataForCard(activeResolvedDeck, templateForPreview, safeIdx);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeResolvedDeck, activeTemplate]);
+
   const handleHiddenFieldsChange = useCallback((newFields: Record<string, boolean>) => {
+    const nextFieldPlacements = { ...fieldPlacements };
+    CARD_FIELD_DEFINITIONS.forEach(definition => {
+      const hidden = newFields[definition.key] || (definition.key === 'when_to_use' && newFields.whenToUse);
+      if (hidden) {
+        nextFieldPlacements[definition.key] = 'hidden';
+      } else if (nextFieldPlacements[definition.key] === 'hidden') {
+        nextFieldPlacements[definition.key] = definition.defaultPlacement;
+      }
+    });
+
+    setFieldPlacements(nextFieldPlacements);
     setHiddenFields(newFields);
     if (activeResolvedDeck && activeTemplate) {
       loadMockDataForCard(activeResolvedDeck, activeTemplate, activeCardIndex, newFields);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeResolvedDeck, activeTemplate, activeCardIndex]);
+  }, [activeResolvedDeck, activeTemplate, activeCardIndex, fieldPlacements]);
+
+  const handleFieldPlacementsChange = useCallback((newPlacements: FieldPlacementMap) => {
+    const newHiddenFields = getHiddenFieldsFromPlacements(newPlacements, hiddenFields);
+    const nextTemplate = activeTemplate
+      ? applyFieldPlacementsToTemplate(activeTemplate, newPlacements, cardWidth, cardHeight)
+      : null;
+
+    setFieldPlacements(newPlacements);
+    setHiddenFields(newHiddenFields);
+
+    if (nextTemplate) {
+      setActiveTemplate(nextTemplate);
+    }
+
+    if (activeResolvedDeck && nextTemplate) {
+      loadMockDataForCard(activeResolvedDeck, nextTemplate, activeCardIndex, newHiddenFields);
+    }
+  }, [activeResolvedDeck, activeTemplate, activeCardIndex, cardHeight, cardWidth, hiddenFields, loadMockDataForCard]);
+
+  const handleApplyTemplateSnapshot = useCallback((
+    template: Template,
+    width: number,
+    height: number,
+    nextHiddenFields: Record<string, boolean>,
+  ) => {
+    const normalizedTemplate = normalizeTemplateFieldAliases(template);
+    setActiveTemplate(normalizedTemplate);
+    setCardWidth(width);
+    setCardHeight(height);
+    setHiddenFields(nextHiddenFields);
+
+    if (activeResolvedDeck) {
+      void loadMockDataForCard(activeResolvedDeck, normalizedTemplate, activeCardIndex, nextHiddenFields);
+    }
+  }, [activeResolvedDeck, activeCardIndex, loadMockDataForCard]);
 
   const handleSaveDeckTemplate = useCallback(async (savedTpl: Template) => {
     if (!activeRawDeck) return;
+    const normalizedTemplate = normalizeTemplateFieldAliases(savedTpl);
 
     await deckRepo.updateDeckSettings(activeRawDeck.id, {
       design_template_overrides: {
         ...(activeRawDeck.design_template_overrides || {}),
-        layout_config: savedTpl as any,
+        layout_config: normalizedTemplate as any,
         hidden_fields: hiddenFields,
+        field_placements: fieldPlacements,
       }
     });
 
@@ -194,13 +283,14 @@ export function useDeckStudio() {
       ...prev,
       design_template_overrides: {
         ...(prev.design_template_overrides || {}),
-        layout_config: savedTpl as any,
+        layout_config: normalizedTemplate as any,
         hidden_fields: hiddenFields,
+        field_placements: fieldPlacements,
       }
     }) : null);
 
     alert('✅ Layout y opciones de contenido guardados correctamente para ' + activeRawDeck.name);
-  }, [activeRawDeck, hiddenFields]);
+  }, [activeRawDeck, hiddenFields, fieldPlacements]);
 
   /** Full-bleed element names — these always snap to cover the entire card */
   const FULL_BLEED_ELEMENTS = new Set(['art', 'bg', 'back_ai_image']);
@@ -290,15 +380,16 @@ export function useDeckStudio() {
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json() as AnalyzeTypographyResponse;
       if (!data.success) throw new Error(data.error);
 
       const layoutTemplate = createDefaultCardTemplate(w, h, data.typography);
       setActiveTemplate(layoutTemplate);
       await handleSaveDeckTemplate(layoutTemplate);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      alert('Error al auto-configurar diseño: ' + err.message);
+      const message = err instanceof Error ? err.message : String(err);
+      alert('Error al auto-configurar diseño: ' + message);
     } finally {
       setAnalyzing(false);
     }
@@ -316,6 +407,7 @@ export function useDeckStudio() {
     setMockData,
     activeCardIndex,
     hiddenFields,
+    fieldPlacements,
     analyzing,
     activeFace,
     cardWidth,
@@ -327,7 +419,10 @@ export function useDeckStudio() {
     // Handlers
     handleNextCard,
     handlePrevCard,
+    handleJumpToCard,
     handleHiddenFieldsChange,
+    handleFieldPlacementsChange,
+    handleApplyTemplateSnapshot,
     handleSaveDeckTemplate,
     handleAutoLayout,
     handleCardSizeChange,

@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Baraja.cards — Premium card decks, printed locally, on demand.",
+  "description": "Baraja.cards — Digital Spanish card decks with printable PDF companions.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -14,6 +14,7 @@
     "db:migrate:remote": "wrangler d1 execute baraja-db --remote --file=migrations/0001_initial.sql"
   },
   "dependencies": {
+    "@eb-packages/analytics": "*",
     "@eb-packages/deck-engine": "*",
     "@pdfme/common": "^6.0.6",
     "@pdfme/generator": "^6.0.6",

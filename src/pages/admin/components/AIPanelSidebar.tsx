@@ -30,6 +30,36 @@ const CARD_TYPES: { id: CardType; label: string; hint: string }[] = [
   { id: 'custom',      label: '✍️ Custom',       hint: 'Personalizado' },
 ];
 
+interface LibraryFrame {
+  id?: string;
+  url: string;
+  prompt?: string;
+  presetId?: string;
+  face?: 'front' | 'back';
+  widthMm?: number;
+  heightMm?: number;
+  timestamp?: number;
+}
+
+interface FramesLibraryResponse {
+  success: boolean;
+  frames?: LibraryFrame[];
+  error?: string;
+}
+
+interface GenerateFrameResponse {
+  success: boolean;
+  dataUrl?: string;
+  error?: string;
+}
+
+interface AssetGenerationResponse {
+  success: boolean;
+  svg?: string;
+  png?: string;
+  error?: string;
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /** Resolve the best cardType from a deck slug via DECK_EDITIONS */
@@ -123,6 +153,8 @@ export function AIPanelSidebar({
   deck,
   cardContent,
   activeFace,
+  widthMm = 70,
+  heightMm = 120,
   hiddenFields,
   onBackgroundGenerated,
   onAssetGenerated,
@@ -131,6 +163,8 @@ export function AIPanelSidebar({
   deck: RawDeckContent;
   cardContent: Record<string, string>;
   activeFace: 'front' | 'back';
+  widthMm?: number;
+  heightMm?: number;
   hiddenFields?: Record<string, boolean>;
   onBackgroundGenerated: (dataUrl: string, widthMm: number, heightMm: number, face: 'front' | 'back') => void;
   onAssetGenerated: (content: string, type: 'svg' | 'image', face: 'front' | 'back', elementName?: string) => void;
@@ -156,7 +190,7 @@ export function AIPanelSidebar({
   const [builderMetadata, setBuilderMetadata] = useState<Partial<BarajaTemplateMetadata>>({
     themeDescription: initialTheme,
     cardType: inferCardType(deck.slug ?? deck.id),
-    primaryColorHex: (deck as any).design?.primary_color || '#d4af64',
+    primaryColorHex: deck.design_template_overrides?.primary_color || '#d4af64',
   });
   const [customPrompt, setCustomPrompt]           = useState('');
   const [customConstraints, setCustomConstraints] = useState('');
@@ -167,7 +201,7 @@ export function AIPanelSidebar({
   const [pngLoading, setPngLoading] = useState(false);
 
   // ── Library / gallery ─────────────────────────────────────────────────────
-  const [libraryFrames, setLibraryFrames]     = useState<any[]>([]);
+  const [libraryFrames, setLibraryFrames]     = useState<LibraryFrame[]>([]);
   const [loadingLibrary, setLoadingLibrary]   = useState(false);
 
   useEffect(() => {
@@ -175,7 +209,7 @@ export function AIPanelSidebar({
       try {
         setLoadingLibrary(true);
         const res  = await fetch('/__cms__/list-frames-library');
-        const data = await res.json();
+        const data = await res.json() as FramesLibraryResponse;
         if (data.success && data.frames) setLibraryFrames(data.frames);
       } catch (e) {
         console.error('Error fetching library:', e);
@@ -186,8 +220,7 @@ export function AIPanelSidebar({
     fetchLibrary();
   }, []);
 
-  // ── Fixed 70×120 card dimensions (can extend later) ───────────────────────
-  const dims = { widthMm: 70, heightMm: 120 };
+  const dims = { widthMm, heightMm };
 
   // ── Generate Background ────────────────────────────────────────────────────
   async function handleGenerateBackground() {
@@ -245,12 +278,12 @@ export function AIPanelSidebar({
         }),
       });
 
-      const data = await res.json();
+      const data = await res.json() as GenerateFrameResponse;
       if (!data.success || !data.dataUrl) throw new Error(data.error || 'Generación falló.');
 
       onBackgroundGenerated(data.dataUrl, dims.widthMm, dims.heightMm, face);
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
@@ -277,19 +310,21 @@ export function AIPanelSidebar({
           primaryColorHex: builderMetadata.primaryColorHex || '#d4af64',
         }),
       });
-      const data = await res.json();
+      const data = await res.json() as AssetGenerationResponse;
       if (!data.success) throw new Error(data.error || 'Generación falló.');
       
       let content = isSvg ? data.svg : null;
       if (!isSvg) {
+        if (!data.png) throw new Error('La respuesta no incluyó PNG.');
         const base64ImageUrl = `data:image/png;base64,${data.png}`;
         content = await removeWhiteBackground(base64ImageUrl);
       }
       
       // Inject directly using the fieldKey as the element name so it replaces existing instances
+      if (!content) throw new Error('La respuesta no incluyó contenido.');
       onAssetGenerated(content, type, face, `box_${fieldKey}`);
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : String(err));
     } finally {
       loadingSetter(false);
     }
@@ -319,28 +354,49 @@ export function AIPanelSidebar({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem', opacity: disabled ? 0.5 : 1, pointerEvents: disabled ? 'none' : 'auto' }}>
 
-      {/* ── Edition badge ─────────────────────────────────────────────────── */}
-      <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '6px', padding: '0.5rem 0.75rem', fontSize: '0.75rem', opacity: 0.7 }}>
-        {edition.emoji} <strong>{edition.label}</strong> — {edition.fields.filter(f => !hiddenFields?.[f.key]).length} campos activos
-        {hiddenFields && Object.values(hiddenFields).some(Boolean) && (
-          <span style={{ marginLeft: '0.4rem', color: '#f59e0b', fontSize: '0.65rem' }}>
-            ({Object.values(hiddenFields).filter(Boolean).length} ocultos)
-          </span>
-        )}
+      <div>
+        <p style={{ margin: '0 0 0.35rem', color: '#d4af64', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          Diseño global del mazo
+        </p>
+        <h2 style={{ margin: 0, fontSize: '1.05rem' }}>
+          Fondo para {face === 'front' ? 'frente' : 'dorso'}
+        </h2>
+        <p style={{ margin: '0.4rem 0 0', opacity: 0.58, fontSize: '0.75rem', lineHeight: 1.45 }}>
+          Los cambios de fondo se aplican a todas las cartas del mazo en la cara activa. Usá la navegación para revisar contenido real antes de guardar/exportar.
+        </p>
+      </div>
+
+      <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '6px', padding: '0.65rem 0.75rem', fontSize: '0.75rem', opacity: 0.82 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
+          <span><strong>{deck.name || edition.label}</strong></span>
+          <span>{dims.widthMm}×{dims.heightMm}mm</span>
+        </div>
+        <div style={{ marginTop: '0.35rem', opacity: 0.72 }}>
+          {edition.fields.filter(f => !hiddenFields?.[f.key]).length} campos activos
+          {hiddenFields && Object.values(hiddenFields).some(Boolean) && (
+            <span style={{ marginLeft: '0.4rem', color: '#f59e0b', fontSize: '0.65rem' }}>
+              ({Object.values(hiddenFields).filter(Boolean).length} ocultos)
+            </span>
+          )}
+        </div>
       </div>
 
       {/* ── Temática visual ───────────────────────────────────────────────── */}
       <div>
-        <label style={sectionLabel}>Temática visual (Art Director)</label>
+        <label style={sectionLabel}>Idea visual del fondo</label>
         <textarea
           value={builderMetadata.themeDescription}
           onChange={e => setBuilderMetadata(prev => ({ ...prev, themeDescription: e.target.value }))}
-          style={{ ...inputStyle, resize: 'vertical', minHeight: '65px' }}
-          placeholder="Ej: Fantasía oscura, colores vibrantes..."
+          style={{ ...inputStyle, resize: 'vertical', minHeight: '86px' }}
+          placeholder="Ej: comedia romántica, colores vivos, marco festivo, zona central limpia para texto..."
         />
+      </div>
 
-        {/* Inspire chips */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', marginTop: '0.4rem' }}>
+      <details style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.65rem 0.75rem', background: 'rgba(255,255,255,0.025)' }}>
+        <summary style={{ cursor: 'pointer', color: 'rgba(255,255,255,0.72)', fontSize: '0.78rem', fontWeight: 600 }}>
+          Inspiración rápida
+        </summary>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', marginTop: '0.7rem' }}>
           {INSPIRATION_CHIPS.map(chip => (
             <button
               key={chip.label}
@@ -358,7 +414,6 @@ export function AIPanelSidebar({
             </button>
           ))}
 
-          {/* Enhance button */}
           <button
             onClick={() => setBuilderMetadata(prev => ({
               ...prev,
@@ -373,14 +428,18 @@ export function AIPanelSidebar({
             }}
             title="Enriquecer prompt visualmente"
           >
-            🪄 Enhance
+            Mejorar
           </button>
         </div>
-      </div>
+      </details>
 
       {/* ── Tipo de carta ─────────────────────────────────────────────────── */}
-      <div>
-        <label style={sectionLabel}>Tipo de Carta</label>
+      <details style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.65rem 0.75rem', background: 'rgba(255,255,255,0.025)' }}>
+        <summary style={{ cursor: 'pointer', color: 'rgba(255,255,255,0.72)', fontSize: '0.78rem', fontWeight: 600 }}>
+          Tipo y reglas avanzadas
+        </summary>
+        <div style={{ marginTop: '0.8rem' }}>
+        <label style={sectionLabel}>Tipo de carta</label>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem' }}>
           {CARD_TYPES.map(t => (
             <button
@@ -404,7 +463,8 @@ export function AIPanelSidebar({
             </button>
           ))}
         </div>
-      </div>
+        </div>
+      </details>
 
       {/* ── Color principal ───────────────────────────────────────────────── */}
       <div>
@@ -456,6 +516,11 @@ export function AIPanelSidebar({
       </div>
 
       {/* ── Override visual (prompt libre) ────────────────────────────────── */}
+      <details style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.65rem 0.75rem', background: 'rgba(255,255,255,0.025)' }}>
+        <summary style={{ cursor: 'pointer', color: 'rgba(255,255,255,0.72)', fontSize: '0.78rem', fontWeight: 600 }}>
+          Overrides de prompt
+        </summary>
+        <div style={{ marginTop: '0.8rem', display: 'grid', gap: '0.8rem' }}>
       <div>
         <label style={sectionLabel}>Override Visual (opcional)</label>
         <textarea
@@ -476,6 +541,8 @@ export function AIPanelSidebar({
           placeholder="Sin bordes, zona inferior libre para texto largo..."
         />
       </div>
+        </div>
+      </details>
 
       {/* ── Generate button ───────────────────────────────────────────────── */}
       <button
@@ -488,12 +555,15 @@ export function AIPanelSidebar({
           width: '100%', fontSize: '0.9rem',
         }}
       >
-        {loading ? '⏳ Generando Fondo (I.A.)...' : '🖼️ Generar Nuevo Fondo'}
+        {loading ? 'Generando fondo...' : `Aplicar fondo al ${face === 'front' ? 'frente' : 'dorso'} de todo el mazo`}
       </button>
 
       {/* ── CONTENEDORES INTELIGENTES ─────────────────────────────────────── */}
-      <hr style={{ borderColor: 'rgba(255,255,255,0.05)', margin: '0.25rem 0' }} />
-      <div>
+      <details style={{ border: '1px solid rgba(160,142,230,0.16)', borderRadius: '6px', padding: '0.65rem 0.75rem', background: 'rgba(160,142,230,0.04)' }}>
+        <summary style={{ cursor: 'pointer', color: 'rgba(255,255,255,0.72)', fontSize: '0.78rem', fontWeight: 600 }}>
+          Cajas inteligentes
+        </summary>
+      <div style={{ marginTop: '0.8rem' }}>
         <label style={{ ...sectionLabel, color: '#a08ee6' }}>🧬 Cajas Inteligentes (IA)</label>
         <p style={{ fontSize: '0.65rem', opacity: 0.6, marginBottom: '0.6rem', lineHeight: 1.3 }}>
           Genera un contenedor ornamental a medida para cada elemento de texto. Si vuelves a generarlo, reemplazará al anterior.
@@ -540,10 +610,14 @@ export function AIPanelSidebar({
           ))}
         </div>
       </div>
+      </details>
 
       {/* ── GALLERY ──────────────────────────────────────────────────────── */}
-      <hr style={{ borderColor: 'rgba(255,255,255,0.05)', margin: '0.25rem 0' }} />
-      <div>
+      <details style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '0.65rem 0.75rem', background: 'rgba(255,255,255,0.025)' }}>
+        <summary style={{ cursor: 'pointer', color: 'rgba(255,255,255,0.72)', fontSize: '0.78rem', fontWeight: 600 }}>
+          Galería de fondos
+        </summary>
+      <div style={{ marginTop: '0.8rem' }}>
         <label style={sectionLabel}>Historial / Galería</label>
         {loadingLibrary ? (
           <div style={{ fontSize: '0.8rem', opacity: 0.5 }}>Cargando galería...</div>
@@ -560,13 +634,14 @@ export function AIPanelSidebar({
               >
                 <img src={f.url} alt="Frame" style={{ width: '100%', height: 'auto', display: 'block' }} loading="lazy" />
                 <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.7)', fontSize: '0.6rem', padding: '2px 4px', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                  {new Date(f.timestamp).toLocaleDateString()}
+                  {f.timestamp ? new Date(f.timestamp).toLocaleDateString() : 'Sin fecha'}
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
+      </details>
 
     </div>
   );
