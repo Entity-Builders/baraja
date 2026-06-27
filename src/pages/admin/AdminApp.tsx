@@ -27,17 +27,19 @@ function AdminTemplatesRedirect() {
 
 export default function AdminApp() {
   return (
-    <Routes>
-      <Route path="/" element={<AdminDashboard />} />
-      <Route path="/generate" element={<AdminGenerateEdition />} />
-      <Route path="/templates" element={<AdminTemplatesRedirect />} />
-      <Route path="/giro" element={<AdminHeroRotation />} />
-      <Route path="/frames" element={<AdminFrameGenerator />} />
-      <Route path="/tuckbox" element={<AdminTuckBox />} />
-      <Route path="/tuckbox/:deckId" element={<AdminTuckBox />} />
-      <Route path="/:deckId/design" element={<AdminDeckDesignRedirect />} />
-      <Route path="/:deckId" element={<AdminEditionEditor />} />
-      <Route path="/:deckId/print" element={<AdminPrintView />} />
-    </Routes>
+    <div className="admin-shell">
+      <Routes>
+        <Route path="/" element={<AdminDashboard />} />
+        <Route path="/generate" element={<AdminGenerateEdition />} />
+        <Route path="/templates" element={<AdminTemplatesRedirect />} />
+        <Route path="/giro" element={<AdminHeroRotation />} />
+        <Route path="/frames" element={<AdminFrameGenerator />} />
+        <Route path="/tuckbox" element={<AdminTuckBox />} />
+        <Route path="/tuckbox/:deckId" element={<AdminTuckBox />} />
+        <Route path="/:deckId/design" element={<AdminDeckDesignRedirect />} />
+        <Route path="/:deckId" element={<AdminEditionEditor />} />
+        <Route path="/:deckId/print" element={<AdminPrintView />} />
+      </Routes>
+    </div>
   );
 }

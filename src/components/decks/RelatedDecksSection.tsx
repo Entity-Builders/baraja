@@ -1,8 +1,8 @@
 import { Link } from 'react-router-dom';
 import type { DeckSchema } from '@eb-packages/deck-engine';
 import {
-  formatDeckCategory,
   formatDeckPrice,
+  getDeckCatalogFacet,
   getDeckAudienceBadges,
   getDeckHeroImage,
   getRelatedDigitalDecks,
@@ -46,6 +46,7 @@ export function RelatedDecksSection({
       <div className="related-deck-rail" aria-label="Mazos relacionados">
         {relatedDecks.map((deck) => {
           const heroImage = getDeckHeroImage(deck);
+          const catalogFacet = getDeckCatalogFacet(deck);
 
           return (
             <Link className="related-deck-card" to={getDeckHref(deck)} key={deck.id}>
@@ -54,11 +55,11 @@ export function RelatedDecksSection({
               </div>
               <div className="related-deck-copy">
                 <div className="related-deck-meta">
-                  <span>{formatDeckCategory(deck)}</span>
-                  <strong>{deck.card_count} cartas</strong>
+                  <span>{catalogFacet.familyLabel}</span>
+                  <strong>{catalogFacet.subcategory}</strong>
                 </div>
                 <h3>{deck.name}</h3>
-                <p>{deck.description}</p>
+                <p>{catalogFacet.summary}</p>
                 <div className="related-deck-badges">
                   {getDeckAudienceBadges(deck).slice(0, 3).map((badge) => (
                     <small key={badge}>{badge}</small>
