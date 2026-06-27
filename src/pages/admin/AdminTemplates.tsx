@@ -5,7 +5,6 @@ import { DeckDesignerRunner, type DeckDesignerRunnerRef } from './features/deck-
 import { CardNavigator } from './features/deck-studio/CardNavigator';
 import { AIPanelSidebar } from './components/AIPanelSidebar';
 import { AdminDeckWorkspaceNav } from './components/AdminDeckWorkspaceNav';
-import { SavedConfigRepository, type SavedConfigRow } from '../../lib/deckRepository';
 import { getEditionBySlug } from '../../lib/editions';
 import type { Template } from '@pdfme/common';
 import {
@@ -22,8 +21,7 @@ import { DesignScopePanel } from './components/DesignScopePanel';
 import { LayoutToolsPanel } from './components/LayoutToolsPanel';
 import { SavedConfigsPanel } from './components/SavedConfigsPanel';
 import { DeckGenerationStatusPanel } from './components/DeckGenerationStatusPanel';
-
-const savedConfigRepo = new SavedConfigRepository();
+import { useSavedDeckConfigs } from './hooks/useSavedDeckConfigs';
 
 type TemplateSchema = Template['schemas'][number][number];
 type TemplateSchemaWithContent = TemplateSchema & { content?: string };
@@ -66,13 +64,6 @@ export default function AdminTemplates({ embeddedDeckId }: AdminTemplatesProps =
   } = useDeckStudio();
 
   const designerRunnerRef = useRef<DeckDesignerRunnerRef>(null);
-  const layoutScratchRef = useRef<{
-    template: Template;
-    cardWidth: number;
-    cardHeight: number;
-    hiddenFields: Record<string, boolean>;
-  } | null>(null);
-
   const syncLiveTemplate = useCallback(() => {
     const liveTemplate = designerRunnerRef.current?.getLatestCombinedTemplate();
     if (liveTemplate) setActiveTemplate(liveTemplate);
@@ -88,12 +79,26 @@ export default function AdminTemplates({ embeddedDeckId }: AdminTemplatesProps =
   const [tuckBleed, setTuckBleed] = useState(3);
   const [isGeneratingTuckPdf, setIsGeneratingTuckPdf] = useState(false);
 
-  // ── Saved Configs state ────────────────────────────────────────
-  const [savedConfigs, setSavedConfigs] = useState<SavedConfigRow[]>([]);
-  const [selectedConfigId, setSelectedConfigId] = useState<string>('');
-  const [loadingConfigs, setLoadingConfigs] = useState(false);
-  const [savingConfig, setSavingConfig] = useState(false);
-  const [applyingConfigId, setApplyingConfigId] = useState<string | null>(null);
+  const {
+    savedConfigs,
+    selectedConfigId,
+    loadingConfigs,
+    savingConfig,
+    applyingConfigId,
+    handleSelectConfig,
+    handleSaveConfig,
+    handleApplyConfig,
+    handleDeleteConfig,
+  } = useSavedDeckConfigs({
+    activeDeck: activeRawDeck,
+    activeTemplate,
+    cardWidth,
+    cardHeight,
+    hiddenFields,
+    getLiveTemplate: syncLiveTemplate,
+    onApplyTemplateSnapshot: handleApplyTemplateSnapshot,
+    onSelectDeckId: setSelectedDeckId,
+  });
 
   useEffect(() => {
     const deckFromQuery = embeddedDeckId || searchParams.get('deck');
@@ -104,135 +109,6 @@ export default function AdminTemplates({ embeddedDeckId }: AdminTemplatesProps =
       setShowTuckBox(true);
     }
   }, [embeddedDeckId, searchParams, selectedDeckId, setSelectedDeckId]);
-
-  // Fetch saved configs when deck changes
-  const fetchSavedConfigs = useCallback(async (slug?: string) => {
-    if (!slug) { setSavedConfigs([]); return; }
-    setLoadingConfigs(true);
-    try {
-      const configs = await savedConfigRepo.getAll(slug);
-      setSavedConfigs(configs);
-    } catch (err) {
-      console.error('Failed to fetch saved configs:', err);
-    } finally {
-      setLoadingConfigs(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (activeRawDeck?.slug) {
-      fetchSavedConfigs(activeRawDeck.slug);
-    } else {
-      setSavedConfigs([]);
-    }
-    setSelectedConfigId('');
-  }, [activeRawDeck?.slug, fetchSavedConfigs]);
-
-  // Select a saved config → apply in-memory (instant preview, no DB write)
-  const handleSelectConfig = useCallback((configId: string) => {
-    setSelectedConfigId(configId);
-    if (!configId) {
-      const scratch = layoutScratchRef.current;
-      if (!scratch) return;
-      handleApplyTemplateSnapshot(
-        scratch.template,
-        scratch.cardWidth,
-        scratch.cardHeight,
-        scratch.hiddenFields,
-      );
-      layoutScratchRef.current = null;
-      return;
-    }
-
-    const config = savedConfigs.find(c => c.id === configId);
-    if (!config) return;
-
-    if (!layoutScratchRef.current && activeTemplate) {
-      layoutScratchRef.current = {
-        template: designerRunnerRef.current?.getLatestCombinedTemplate() || activeTemplate,
-        cardWidth,
-        cardHeight,
-        hiddenFields,
-      };
-    }
-
-    const nextTemplate = config.layout_config && Object.keys(config.layout_config).length > 0
-      ? config.layout_config as Template
-      : activeTemplate;
-
-    if (!nextTemplate) return;
-
-    handleApplyTemplateSnapshot(
-      nextTemplate,
-      config.card_width || cardWidth,
-      config.card_height || cardHeight,
-      config.hidden_fields || hiddenFields,
-    );
-  }, [activeTemplate, cardHeight, cardWidth, hiddenFields, savedConfigs, handleApplyTemplateSnapshot]);
-
-  // Save current config
-  const handleSaveConfig = useCallback(async () => {
-    if (!activeRawDeck || !activeTemplate) return;
-    const configName = prompt(
-      'Nombre de la versión de diseño:\n(ej: "Barómetro 6×9 Premium", "Poker Night")',
-      `${activeRawDeck.name} ${cardWidth}×${cardHeight}`
-    );
-    if (!configName) return;
-
-    setSavingConfig(true);
-    try {
-      // Get the live template from the designer runner if available
-      const liveTemplate = designerRunnerRef.current?.getLatestCombinedTemplate() || activeTemplate;
-
-      await savedConfigRepo.create({
-        name: configName,
-        edition_slug: activeRawDeck.slug || null,
-        design_template_id: activeRawDeck.design_template_id || null,
-        layout_config: liveTemplate as unknown as Record<string, unknown>,
-        hidden_fields: hiddenFields,
-        card_width: cardWidth,
-        card_height: cardHeight,
-        card_unit: 'mm',
-      });
-
-      await fetchSavedConfigs(activeRawDeck.slug);
-      alert(`Versión "${configName}" guardada correctamente.`);
-    } catch (err: unknown) {
-      alert('Error guardando config: ' + getErrorMessage(err));
-    } finally {
-      setSavingConfig(false);
-    }
-  }, [activeRawDeck, activeTemplate, hiddenFields, cardWidth, cardHeight, fetchSavedConfigs]);
-
-  // Apply a saved config
-  const handleApplyConfig = useCallback(async (config: SavedConfigRow) => {
-    if (!activeRawDeck) return;
-    if (!confirm(`¿Aplicar la versión "${config.name}" a ${activeRawDeck.name}?\n\nEsto reemplazará el layout, tamaño y campos ocultos actuales para todo el mazo.`)) return;
-
-    setApplyingConfigId(config.id);
-    try {
-      await savedConfigRepo.applyToEdition(config.id, activeRawDeck.slug || activeRawDeck.id);
-      // Reload the deck to reflect changes
-      setSelectedDeckId('');
-      setTimeout(() => setSelectedDeckId(activeRawDeck.id), 100);
-      alert(`Versión "${config.name}" aplicada al mazo. El editor se recargó.`);
-    } catch (err: unknown) {
-      alert('Error aplicando config: ' + getErrorMessage(err));
-    } finally {
-      setApplyingConfigId(null);
-    }
-  }, [activeRawDeck, setSelectedDeckId]);
-
-  // Delete a saved config
-  const handleDeleteConfig = useCallback(async (config: SavedConfigRow) => {
-    if (!confirm(`¿Eliminar la versión "${config.name}"? Esta acción no se puede deshacer.`)) return;
-    try {
-      await savedConfigRepo.delete(config.id);
-      setSavedConfigs(prev => prev.filter(c => c.id !== config.id));
-    } catch (err: unknown) {
-      alert('Error eliminando config: ' + getErrorMessage(err));
-    }
-  }, []);
 
   // ── Tuck Box derived state ──────────────────────────────────────
   const numCards = activeResolvedDeck?.cards?.length || 30;
@@ -663,10 +539,4 @@ export default function AdminTemplates({ embeddedDeckId }: AdminTemplatesProps =
       </div>
     </div>
   );
-}
-
-function getErrorMessage(error: unknown): string {
-  return error instanceof Error && error.message
-    ? error.message
-    : 'Error inesperado';
 }
