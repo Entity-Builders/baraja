@@ -1,3 +1,5 @@
+export { getErrorMessage } from '../../lib/errors';
+
 export interface GenerationResult {
   success: boolean;
   slug?: string;
@@ -49,10 +51,6 @@ export function getStringField(record: JsonRecord, key: string): string | undefi
 function getNumberField(record: JsonRecord, key: string): number | undefined {
   const value = record[key];
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-}
-
-export function getErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? error.message : fallback;
 }
 
 export async function readJsonRecord(response: Response): Promise<JsonRecord> {

@@ -1,3 +1,4 @@
+import { formatDate } from '../../../../lib/formatters';
 import type { GeneratedFrame, LibraryFrame } from '../../frameGeneratorTypes';
 
 interface FrameLibraryGalleryProps {
@@ -57,7 +58,7 @@ export function FrameLibraryGallery({ activePreview, frames, loading, onSelectFr
                 />
               </div>
               <div style={{ fontSize: '0.62rem', opacity: 0.45, marginTop: '0.4rem', textAlign: 'center', fontFamily: 'monospace' }}>
-                {new Date(libFrame.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                {formatDate(libFrame.timestamp, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }, [])}
               </div>
             </div>
           ))}

@@ -1,6 +1,7 @@
 import type { RawDeckContent } from '@eb-packages/deck-engine';
 import type { FieldPlacementMap } from '../../../lib/cardFieldPlacements';
 import type { SavedConfigRow } from '../../../lib/deckRepository';
+import { formatDate } from '../../../lib/formatters';
 import { CardFieldInventoryPanel } from './CardFieldInventoryPanel';
 import {
   getCardFieldInventory,
@@ -299,11 +300,8 @@ function DataRow({ label, value, strong = false }: { label: string; value: strin
 }
 
 function formatSavedConfigDate(value: string): string {
-  if (!value) return 'sin fecha';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'sin fecha';
-  return date.toLocaleDateString('es-AR', {
+  return formatDate(value, {
     day: '2-digit',
     month: 'short',
-  });
+  }, 'es-AR');
 }

@@ -10,6 +10,7 @@ import {
   type DeckCatalogBreadcrumbItem,
   type DeckSchema,
 } from '@eb-packages/deck-engine';
+import { formatCurrencyAmount } from './formatters';
 
 export const DIGITAL_DECKS: DeckSchema[] = Object.values(DECKS).filter(
   (deck) => deck.digital?.is_published === true
@@ -43,14 +44,11 @@ export function findDigitalDeck(slug: string | undefined): DeckSchema | null {
 }
 
 export function formatDeckPrice(deck: DeckSchema): string {
-  const amount = deck.pricing.amount / 100;
   const currency = deck.pricing.currency.toUpperCase();
 
-  return new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency,
+  return formatCurrencyAmount(deck.pricing.amount, currency, {
     maximumFractionDigits: currency === 'ARS' ? 0 : 2,
-  }).format(amount);
+  });
 }
 
 export function getDeckHeroImage(deck: DeckSchema): string | undefined {

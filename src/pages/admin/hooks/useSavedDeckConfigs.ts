@@ -5,6 +5,7 @@ import {
   SavedConfigRepository,
   type SavedConfigRow,
 } from '../../../lib/deckRepository';
+import { getErrorMessage } from '../../../lib/errors';
 
 const savedConfigRepo = new SavedConfigRepository();
 
@@ -206,10 +207,4 @@ export function useSavedDeckConfigs({
     handleApplyConfig,
     handleDeleteConfig,
   };
-}
-
-function getErrorMessage(error: unknown): string {
-  return error instanceof Error && error.message
-    ? error.message
-    : 'Error inesperado';
 }

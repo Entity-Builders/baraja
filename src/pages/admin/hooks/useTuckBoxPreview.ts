@@ -9,6 +9,7 @@ import {
   type TuckBoxContent,
   type TuckBoxParams,
 } from '../../../lib/TuckBoxEngine';
+import { getErrorMessage } from '../../../lib/errors';
 
 interface UseTuckBoxPreviewParams {
   activeDeck: RawDeckContent | null | undefined;
@@ -84,7 +85,7 @@ export function useTuckBoxPreview({
       URL.revokeObjectURL(url);
     } catch (err: unknown) {
       console.error('Tuck box PDF failed:', err);
-      alert('Error: ' + getErrorMessage(err));
+      alert('Error: ' + getErrorMessage(err, String(err)));
     } finally {
       setIsGeneratingTuckPdf(false);
     }
@@ -105,10 +106,4 @@ export function useTuckBoxPreview({
     handleDownloadTuckSvg,
     handleDownloadTuckPdf,
   };
-}
-
-function getErrorMessage(error: unknown): string {
-  return error instanceof Error && error.message
-    ? error.message
-    : String(error);
 }

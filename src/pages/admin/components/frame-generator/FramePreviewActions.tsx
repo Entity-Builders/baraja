@@ -1,3 +1,4 @@
+import { formatTime } from '../../../../lib/formatters';
 import type { GeneratedFrame, MaybePromise } from '../../frameGeneratorTypes';
 
 interface FramePreviewActionsProps {
@@ -144,7 +145,7 @@ export function FramePreviewActions({
         <span>{activePreview.widthMm}×{activePreview.heightMm}mm</span>
         <span>Face: {activePreview.face}</span>
         <span>Master Builder</span>
-        <span>{new Date(activePreview.timestamp).toLocaleTimeString()}</span>
+        <span>{formatTime(activePreview.timestamp)}</span>
       </div>
     </>
   );

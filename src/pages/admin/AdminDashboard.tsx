@@ -20,9 +20,7 @@ type DashboardDeck = {
   facet: ReturnType<typeof getDeckCatalogFacet>;
 };
 
-function getDashboardReadinessItems(deck: DeckSchema): DashboardReadinessItem[] {
-  const readiness = getDeckPublicationReadiness(deck);
-
+function getDashboardReadinessItems(deck: DeckSchema, readiness: DashboardDeck['readiness']): DashboardReadinessItem[] {
   return [
     {
       label: 'Landing',
@@ -349,7 +347,7 @@ export default function AdminDashboard() {
                 {deck.card_count} cards • {facet.collectionLabel} / {facet.categoryLabel} • {deck.metadata.topic}
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem', marginTop: '0.9rem' }}>
-                {getDashboardReadinessItems(deck).map(item => (
+                {getDashboardReadinessItems(deck, readiness).map(item => (
                   <ReadinessChip key={item.label} item={item} />
                 ))}
               </div>

@@ -1,4 +1,5 @@
 import type { SavedConfigRow } from '../../../lib/deckRepository';
+import { formatDate } from '../../../lib/formatters';
 
 interface SavedConfigsPanelProps {
   configs: SavedConfigRow[];
@@ -58,9 +59,12 @@ export function SavedConfigsPanel({
           {configs.map(config => {
             const isApplying = applyingId === config.id;
             const isGlobal = !config.edition_slug;
-            const dateStr = new Date(config.created_at).toLocaleDateString('es-AR', {
-              day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
-            });
+            const dateStr = formatDate(config.created_at, {
+              day: '2-digit',
+              month: 'short',
+              hour: '2-digit',
+              minute: '2-digit',
+            }, 'es-AR');
 
             return (
               <div

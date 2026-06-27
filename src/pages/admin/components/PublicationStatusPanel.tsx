@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import type { Card, DeckSchema } from '@eb-packages/deck-engine';
 import { getDeckPublicationReadiness } from '../../../lib/deckPublicationReadiness';
+import { formatCurrencyAmount } from '../../../lib/formatters';
 
 export type DeckPrintableConfig = NonNullable<NonNullable<DeckSchema['digital']>['printable']>;
 
@@ -267,10 +268,7 @@ function PublicationChip({ label, ready, detail }: { label: string; ready: boole
 }
 
 function formatCurrency(pricing: DeckSchema['pricing']): string {
-  const currency = pricing.currency.toUpperCase();
-  return new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency,
+  return formatCurrencyAmount(pricing.amount, pricing.currency, {
     maximumFractionDigits: 0,
-  }).format(pricing.amount / 100);
+  });
 }
