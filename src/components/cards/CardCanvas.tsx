@@ -4,46 +4,34 @@
 // BACK: High-res PNG frame with AI-typography-aware text content
 import { useMemo, useEffect, useState } from 'react';
 import type { CSSProperties, KeyboardEvent } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
-import type { Schema, Template } from '@pdfme/common';
 import type { Card, DeckSchema } from '@eb-packages/deck-engine';
 import { getCardQrUrl, shouldRenderPrintableQr } from '@eb-packages/deck-engine';
 import { getFrameUrl, getFrameTheme, getFrameTypography, loadGoogleFonts } from '../../lib/cardFrame';
 import { resolveReadableSchemaColorOverrides } from '../../lib/cardReadability';
 import {
-  getCardFieldText,
   getFieldDefinitionsForPlacement,
-  normalizeTemplateFieldAliases,
   normalizeFieldPlacements,
-  type CardFieldDefinition,
 } from '../../lib/cardFieldPlacements';
 import { getPdfmeTemplateSize } from '../../lib/pdfmeTemplateSize';
-import { PdfmeTemplatePreview } from './PdfmeTemplatePreview';
+import {
+  CardCanvasBackFace,
+  CardCanvasFrontFace,
+  CardCanvasInfoRow,
+} from './CardCanvasFaces';
+import {
+  adaptiveFontSize,
+  buildFallbackBackSchemas,
+  getFallbackContrastVars,
+  getPdfmeLayoutConfig,
+  shouldUseInstructionFirstBack,
+  sortInstructionFirstBackFields,
+  type TypographyHints,
+} from './cardCanvasHelpers';
 import styles from './CardCanvas.module.css';
 
 // GOOGLE_FONT_CATALOG lives in ./fontCatalog.ts (plain .ts, not .tsx)
 // so Vite Fast Refresh can handle this component file correctly.
 export { GOOGLE_FONT_CATALOG } from './fontCatalog';
-
-// ── Types ────────────────────────────────────────────────────────────────────
-
-interface TypographyZone {
-  fontSize?: number;    // pdfme mm units (converted to cqi for screen)
-  fontFamily?: string;  // Any Google Fonts family name
-  lineHeight?: number;
-  letterSpacing?: number;
-  color?: string;       // hex
-}
-
-interface TypographyHints {
-  whenToUse?: TypographyZone;
-  phrase?: TypographyZone;
-  instruction?: TypographyZone;
-  answer?: TypographyZone;
-  brand?: { color?: string; fontFamily?: string };
-  qrFgColor?: string;
-  qrSizeMm?: number;
-}
 
 interface CardCanvasProps {
   card: Card;
@@ -60,161 +48,6 @@ interface CardCanvasProps {
   typography?: TypographyHints | null;
   /** 'light' or 'dark' frame theme — auto-detected from localStorage if omitted */
   frameTheme?: 'light' | 'dark';
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function adaptiveFontSize(text: string | undefined | null, aiSizeMm: number | undefined, defaultCqi: number, isSmallZone = false): string {
-  const safeText = text || '';
-  const len = safeText.length;
-  // AI size in cqi (if provided) is the upper bound, otherwise fallback
-  const maxCqi = aiSizeMm ? (aiSizeMm * (100 / 70)) : defaultCqi;
-  let scale: number;
-  
-  if (isSmallZone) {
-    if      (len <= 60)  scale = 1.00;
-    else if (len <= 100) scale = 0.85;
-    else if (len <= 150) scale = 0.75;
-    else if (len <= 200) scale = 0.65;
-    else                 scale = 0.55;
-  } else {
-    if      (len <= 40)  scale = 1.00;
-    else if (len <= 60)  scale = 0.88;
-    else if (len <= 80)  scale = 0.76;
-    else if (len <= 100) scale = 0.65;
-    else if (len <= 130) scale = 0.56;
-    else                 scale = 0.48;
-  }
-  
-  return `${(maxCqi * scale).toFixed(2)}cqi`;
-}
-
-function getPdfmeLayoutConfig(deck: DeckSchema): Template | null {
-  const config = deck.design?.layout_config;
-  if (typeof config === 'object' && config !== null && 'basePdf' in config && 'schemas' in config) {
-    return normalizeTemplateFieldAliases(config as Template);
-  }
-  return null;
-}
-
-function getFallbackBackColor(theme: 'light' | 'dark', typo: TypographyHints | null, key: string): string {
-  const darkThemeColors: Record<string, string> = {
-    when_to_use: 'rgba(200, 200, 200, 0.8)',
-    phrase: '#ffffff',
-    instruction: 'rgba(230, 230, 230, 0.88)',
-    answer: 'rgba(180, 180, 180, 0.75)',
-    fun_fact: 'rgba(180, 180, 180, 0.75)',
-    brand: 'rgba(255, 255, 255, 0.28)',
-  };
-  const lightThemeColors: Record<string, string> = {
-    when_to_use: 'rgba(60, 35, 10, 0.7)',
-    phrase: '#1a0d02',
-    instruction: 'rgba(45, 28, 8, 0.88)',
-    answer: 'rgba(70, 45, 15, 0.72)',
-    fun_fact: 'rgba(70, 45, 15, 0.72)',
-    brand: 'rgba(90, 58, 22, 0.55)',
-  };
-
-  const aiColors: Record<string, string | undefined> = {
-    when_to_use: typo?.whenToUse?.color,
-    phrase: typo?.phrase?.color,
-    instruction: typo?.instruction?.color,
-    answer: typo?.answer?.color,
-    fun_fact: typo?.answer?.color,
-    brand: typo?.brand?.color,
-  };
-
-  return aiColors[key] ?? (theme === 'light' ? lightThemeColors[key] : darkThemeColors[key]);
-}
-
-function buildFallbackBackSchemas(theme: 'light' | 'dark', typo: TypographyHints | null): Schema[] {
-  const makeTextSchema = (
-    name: string,
-    position: { x: number; y: number },
-    width: number,
-    height: number,
-  ): Schema => ({
-    name,
-    type: 'text',
-    position,
-    width,
-    height,
-    fontColor: getFallbackBackColor(theme, typo, name),
-    rotate: 0,
-  } as Schema);
-
-  return [
-    {
-      name: 'bg',
-      type: 'image',
-      position: { x: 0, y: 0 },
-      width: 70,
-      height: 120,
-      rotate: 0,
-    } as Schema,
-    makeTextSchema('when_to_use', { x: 9.8, y: 11.4 }, 50.4, 8),
-    makeTextSchema('phrase', { x: 8, y: 22 }, 54, 40),
-    makeTextSchema('instruction', { x: 8, y: 62 }, 54, 24),
-    makeTextSchema('answer', { x: 8, y: 86 }, 54, 8),
-    makeTextSchema('fun_fact', { x: 8, y: 94 }, 54, 8),
-    makeTextSchema('brand', { x: 8, y: 105 }, 54, 5),
-  ];
-}
-
-function getFallbackContrastVars(overrides: Record<string, string>): CSSProperties {
-  const vars: Record<string, string> = {};
-  if (overrides.when_to_use) vars['--c-when'] = overrides.when_to_use;
-  if (overrides.phrase) vars['--c-phrase'] = overrides.phrase;
-  if (overrides.instruction) vars['--c-instruction'] = overrides.instruction;
-  if (overrides.answer) vars['--c-answer'] = overrides.answer;
-  if (overrides.fun_fact) vars['--c-answer'] = overrides.fun_fact;
-  if (overrides.brand) vars['--c-brand'] = overrides.brand;
-  return vars as CSSProperties;
-}
-
-const INSTRUCTION_FIRST_DIGITAL_CATEGORIES = new Set([
-  'conversation',
-  'trivia',
-  'language-learning',
-  'team-building',
-  'coaching',
-  'creative-prompts',
-]);
-
-const INSTRUCTION_FIRST_CATALOG_COLLECTIONS = new Set([
-  'social-games',
-  'couples-dating',
-  'team-tools',
-  'trivia-games',
-  'learning',
-]);
-
-const INSTRUCTION_FIRST_BACK_FIELD_ORDER: Partial<Record<CardFieldDefinition['key'], number>> = {
-  when_to_use: 0,
-  instruction: 1,
-  answer: 2,
-  fun_fact: 3,
-  phrase: 4,
-  qr: 5,
-  brand: 6,
-};
-
-function shouldUseInstructionFirstBack(deck: DeckSchema): boolean {
-  const category = deck.digital?.category;
-  const collection = deck.digital?.catalog?.collection;
-
-  return Boolean(
-    (category && INSTRUCTION_FIRST_DIGITAL_CATEGORIES.has(category)) ||
-    (collection && INSTRUCTION_FIRST_CATALOG_COLLECTIONS.has(collection)),
-  );
-}
-
-function sortInstructionFirstBackFields(fields: CardFieldDefinition[]): CardFieldDefinition[] {
-  return [...fields].sort((a, b) => {
-    const orderA = INSTRUCTION_FIRST_BACK_FIELD_ORDER[a.key] ?? 99;
-    const orderB = INSTRUCTION_FIRST_BACK_FIELD_ORDER[b.key] ?? 99;
-    return orderA - orderB;
-  });
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -359,56 +192,6 @@ export function CardCanvas({
     ?? typo?.qrFgColor
     ?? (theme === 'light' ? '#4a2e08' : '#d4af64');
   const qrBgColor = 'rgba(0,0,0,0)'; // always transparent — no dark box
-  const renderFrontField = (field: CardFieldDefinition) => {
-    const value = getCardFieldText(card, deck.name, field.key);
-    if (!value) return null;
-
-    return (
-      <p
-        key={field.key}
-        className={`${styles.frontField} ${styles[`frontField_${field.key}`] ?? ''}`}
-      >
-        {value}
-      </p>
-    );
-  };
-  const renderBackField = (field: CardFieldDefinition) => {
-    if (field.key === 'qr') {
-      if (!shouldShowQr || !qrUrl) return null;
-
-      return (
-        <div key={field.key} className={styles.qrWrapper}>
-          <QRCodeSVG
-            value={qrUrl}
-            size={26}
-            bgColor={qrBgColor}
-            fgColor={qrFgColor}
-            level="M"
-          />
-        </div>
-      );
-    }
-
-    const value = getCardFieldText(card, deck.name, field.key);
-    if (!value) return null;
-
-    const classNameByKey: Partial<Record<CardFieldDefinition['key'], string>> = {
-      number: styles.whenText,
-      title: styles.phraseText,
-      when_to_use: styles.whenText,
-      phrase: styles.phraseText,
-      instruction: styles.instructionText,
-      answer: styles.answerText,
-      fun_fact: styles.funFactText,
-      brand: styles.brandText,
-    };
-
-    return (
-      <p key={field.key} className={classNameByKey[field.key] ?? styles.instructionText}>
-        {value}
-      </p>
-    );
-  };
   const pdfmeMockData = useMemo(() => ({
     art: displayArtUrl || '',
     number: placements.number === 'hidden' ? '' : number,
@@ -450,10 +233,7 @@ export function CardCanvas({
       style={wrapperStyle}
     >
       {showInfoRow && (
-        <div className={styles.infoRow}>
-          <span className={styles.cardNumber}>{number}</span>
-          <span className={styles.cardTitle}>{title}</span>
-        </div>
+        <CardCanvasInfoRow number={number} title={title} />
       )}
 
       <div
@@ -461,125 +241,40 @@ export function CardCanvas({
         style={pdfmeSize ? { aspectRatio: `${pdfmeSize.width} / ${pdfmeSize.height}` } : undefined}
         {...interactiveProps}
       >
-        {/* ── FRONT FACE ── */}
-        <div className={`${styles.face} ${styles.faceFront}`}>
-          {hasPdfmeFront && pdfmeTemplate ? (
-            <PdfmeTemplatePreview
-              template={pdfmeTemplate}
-              mockData={pdfmeMockData}
-              activeFace="front"
-              fallbackWidth={pdfmeSize?.width ?? 70}
-              fallbackHeight={pdfmeSize?.height ?? 120}
-              variant="card"
-            />
-          ) : displayArtUrl ? (
-            <img 
-              key={displayArtUrl}
-              src={displayArtUrl} 
-              alt={title} 
-              className={styles.artImage} 
-              draggable={false} 
-              onLoad={(e) => {
-                e.currentTarget.style.display = '';
-              }}
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-                if (e.currentTarget.nextElementSibling) {
-                  // If we wanted to show a placeholder, we could, but hiding is better than broken icon
-                }
-              }}
-            />
-          ) : (
-            <div className={styles.noArtPlaceholder}>
-              <span className={styles.noArtText}>Sin Arte</span>
-            </div>
-          )}
-          {!hasPdfmeFront && placements.number === 'front' && (
-            <span className={styles.frontNumber}>{number}</span>
-          )}
-          {!hasPdfmeFront && placements.title === 'front' && (
-            <span className={styles.frontTitle}>{title}</span>
-          )}
-          {!hasPdfmeFront && frontTextFields.length > 0 && (
-            <div className={styles.frontContentStack}>
-              {frontTextFields.map(renderFrontField)}
-            </div>
-          )}
-          {!hasPdfmeFront && shouldShowQr && placements.qr === 'front' && qrUrl && (
-            <div className={styles.frontQrWrapper}>
-              <QRCodeSVG
-                value={qrUrl}
-                size={30}
-                bgColor={qrBgColor}
-                fgColor={qrFgColor}
-                level="M"
-              />
-            </div>
-          )}
-          {!hasPdfmeFront && placements.brand === 'front' && (
-            <p className={styles.frontBrandText}>{brand}</p>
-          )}
-        </div>
+        <CardCanvasFrontFace
+          card={card}
+          deck={deck}
+          displayArtUrl={displayArtUrl}
+          frontTextFields={frontTextFields}
+          hasPdfmeFront={hasPdfmeFront}
+          number={number}
+          pdfmeMockData={pdfmeMockData}
+          pdfmeSize={pdfmeSize}
+          pdfmeTemplate={pdfmeTemplate}
+          placements={placements}
+          qrBgColor={qrBgColor}
+          qrFgColor={qrFgColor}
+          qrUrl={qrUrl}
+          shouldShowQr={shouldShowQr}
+          title={title}
+        />
 
-        {/* ── BACK FACE ── */}
-        <div className={`${styles.face} ${styles.faceBack}`}>
-          {hasPdfmeBack && pdfmeTemplate ? (
-            <PdfmeTemplatePreview
-              template={pdfmeTemplate}
-              mockData={pdfmeMockData}
-              activeFace="back"
-              fallbackWidth={pdfmeSize?.width ?? 70}
-              fallbackHeight={pdfmeSize?.height ?? 120}
-              variant="card"
-            />
-          ) : card.back.back_image_url ? (
-            /* Flujo B: AI-generated full card back image */
-            <>
-              <img
-                key={card.back.back_image_url}
-                src={card.back.back_image_url}
-                alt="AI card back"
-                className={styles.frameImage}
-                draggable={false}
-                onLoad={(e) => {
-                  e.currentTarget.style.display = '';
-                }}
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
-              {shouldShowQr && placements.qr === 'back' && qrUrl && (
-                <div className={styles.qrOverlay}>
-                  <QRCodeSVG
-                    value={qrUrl}
-                    size={26}
-                    bgColor={qrBgColor}
-                    fgColor={qrFgColor}
-                    level="M"
-                  />
-                </div>
-              )}
-            </>
-          ) : (
-            /* Standard: PNG frame + text overlay */
-            <>
-              <img
-                src={frameUrl}
-                alt="Card frame"
-                className={styles.frameImage}
-                draggable={false}
-                onError={(e) => {
-                  if (e.currentTarget.src !== window.location.origin + '/frames/back-frame.png') {
-                    e.currentTarget.src = '/frames/back-frame.png';
-                  }
-                }}
-              />
-              <div className={backContentClassName}>
-                {orderedBackFields.map(renderBackField)}
-              </div>
-            </>
-          )}
-        </div>
+        <CardCanvasBackFace
+          backContentClassName={backContentClassName}
+          card={card}
+          deck={deck}
+          frameUrl={frameUrl}
+          hasPdfmeBack={hasPdfmeBack}
+          orderedBackFields={orderedBackFields}
+          pdfmeMockData={pdfmeMockData}
+          pdfmeSize={pdfmeSize}
+          pdfmeTemplate={pdfmeTemplate}
+          placements={placements}
+          qrBgColor={qrBgColor}
+          qrFgColor={qrFgColor}
+          qrUrl={qrUrl}
+          shouldShowQr={shouldShowQr}
+        />
       </div>
     </div>
   );
