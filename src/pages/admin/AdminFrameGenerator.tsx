@@ -5,7 +5,10 @@ import { buildMasterTemplatePrompt, buildArtDirectorMetaPrompt, buildStructuralC
 import { DECK_EDITIONS } from '../../lib/editions';
 import { SupabaseDeckRepository } from '../../lib/deckRepository';
 import { createDefaultCardTemplate } from '../../lib/pdfmeConfig';
+import { FrameLayoutPanel } from './components/frame-generator/FrameLayoutPanel';
+import { FrameLibraryGallery } from './components/frame-generator/FrameLibraryGallery';
 import { FramePreviewPanel } from './components/frame-generator/FramePreviewPanel';
+import { inputStyle, labelStyle, sectionStyle, selectStyle } from './frameGeneratorStyles';
 import type { GeneratedFrame, GenerateResponse, FramesLibraryResponse, LibraryFrame } from './frameGeneratorTypes';
 import { isTypoZone } from './frameGeneratorTypes';
 
@@ -383,6 +386,22 @@ export default function AdminFrameGenerator() {
     }));
   }
 
+  function handleSelectLayoutPreset(id: string, layout: CardLayout) {
+    setLayoutPresetId(id);
+    setBuilderMetadata(prev => ({ ...prev, layout }));
+  }
+
+  function handleToggleLayoutZone(key: keyof CardLayout, checked: boolean) {
+    setLayoutPresetId('custom');
+    setBuilderMetadata(prev => ({
+      ...prev,
+      layout: {
+        ...prev.layout!,
+        [key]: checked,
+      },
+    }));
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: '#0a0a10', color: 'white', padding: '2rem' }}>
       {/* Header */}
@@ -706,156 +725,20 @@ export default function AdminFrameGenerator() {
           onUpdateTypographyContainerSvg={handleUpdateTypographyContainerSvg}
         />
 
-        {/* ─── Right Panel: Layout & Structure ─── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          <section style={sectionStyle}>
-            <label style={labelStyle}>Layout de Zonas de Contenido</label>
-            
-            {/* Layout Preset */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginBottom: '1.5rem' }}>
-              {Object.entries(LAYOUT_PRESETS).map(([id, preset]) => (
-                <button
-                  key={id}
-                  onClick={() => {
-                    setLayoutPresetId(id);
-                    setBuilderMetadata(prev => ({ ...prev, layout: preset.layout }));
-                  }}
-                  style={{
-                    padding: '0.65rem 0.75rem',
-                    borderRadius: '8px',
-                    border: `1px solid ${layoutPresetId === id ? 'var(--color-gold)' : 'rgba(255,255,255,0.08)'}`,
-                    background: layoutPresetId === id ? 'rgba(201,168,92,0.12)' : 'rgba(255,255,255,0.02)',
-                    color: layoutPresetId === id ? 'var(--color-gold)' : 'rgba(255,255,255,0.7)',
-                    cursor: 'pointer',
-                    fontSize: '0.75rem',
-                    textAlign: 'left',
-                    transition: 'all 0.15s',
-                    lineHeight: 1.3,
-                  }}
-                  onMouseOver={e => {
-                    if (layoutPresetId !== id) e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-                  }}
-                  onMouseOut={e => {
-                    if (layoutPresetId !== id) e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
-                  }}
-                >
-                  <div style={{ fontWeight: layoutPresetId === id ? 600 : 400 }}>{preset.label}</div>
-                  <div style={{ fontSize: '0.65rem', opacity: 0.6, marginTop: '0.15rem' }}>{preset.description}</div>
-                </button>
-              ))}
-            </div>
-
-            {/* Manual Layout Toggles - ALWAYS VISIBLE OVERRIDES */}
-            <div style={{ padding: '0.85rem', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
-              <label style={{ fontSize: '0.72rem', opacity: 0.6, display: 'block', marginBottom: '0.8rem', fontWeight: 600 }}>Zonas Manuales (Overrides)</label>
-              
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.7rem' }}>
-                {[
-                  { key: 'hasHeaderZone', label: 'Top Header Zone' },
-                  { key: 'hasBodyZone', label: 'Middle Body Zone' },
-                  { key: 'hasCentralImageZone', label: 'Center Cutout' },
-                  { key: 'hasFooterZone', label: 'Bottom Footer Zone' },
-                ].map(zone => (
-                  <label key={zone.key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.78rem', cursor: 'pointer', color: 'rgba(255,255,255,0.9)' }}>
-                    <input
-                      type="checkbox"
-                      checked={builderMetadata.layout?.[zone.key as keyof CardLayout] as boolean ?? false}
-                      onChange={e => {
-                        setLayoutPresetId('custom'); // FORCE custom when tweaked
-                        setBuilderMetadata(prev => ({
-                          ...prev,
-                          layout: {
-                            ...prev.layout!,
-                            [zone.key]: e.target.checked
-                          }
-                        }));
-                      }}
-                      style={{ accentColor: 'var(--color-gold)', width: '16px', height: '16px', cursor: 'pointer' }}
-                    />
-                    <span>{zone.label}</span>
-                  </label>
-                ))}
-                
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.78rem', cursor: 'pointer', marginTop: '0.5rem', paddingTop: '0.7rem', borderTop: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.9)' }}>
-                  <input
-                    type="checkbox"
-                    checked={builderMetadata.layout?.borderless ?? false}
-                    onChange={e => {
-                      setLayoutPresetId('custom'); // FORCE custom when tweaked
-                      setBuilderMetadata(prev => ({
-                        ...prev,
-                        layout: {
-                          ...prev.layout!,
-                          borderless: e.target.checked
-                        }
-                      }));
-                    }}
-                    style={{ accentColor: 'var(--color-gold)', width: '16px', height: '16px', cursor: 'pointer' }}
-                  />
-                  <span>Borderless (Fondo full-bleed sin marcos)</span>
-                </label>
-              </div>
-            </div>
-          </section>
-        </div>
+        <FrameLayoutPanel
+          builderMetadata={builderMetadata}
+          layoutPresetId={layoutPresetId}
+          onSelectPreset={handleSelectLayoutPreset}
+          onToggleZone={handleToggleLayoutZone}
+        />
       </div>
       
-      {/* ─── Gallery Section ─── */}
-      <div style={{ marginTop: '2.5rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '2.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-          <h2 style={{ margin: 0, fontSize: '1.25rem', fontFamily: 'var(--font-serif)', color: 'var(--color-gold)' }}>
-            📚 Librería de Frames Guardados
-          </h2>
-          <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>{libraryFrames.length} frames en tu repertorio</span>
-        </div>
-        
-        {loadingLibrary ? (
-          <div style={{ opacity: 0.5, fontSize: '0.8rem', padding: '2rem 0', textAlign: 'center' }}>⏳ Recuperando galería...</div>
-        ) : libraryFrames.length === 0 ? (
-          <div style={{ opacity: 0.3, fontSize: '0.8rem', padding: '3rem 0', textAlign: 'center', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: '12px' }}>
-            No guardaste ningún frame todavía. Usá el botón "💾 A Galería" para sumar tu diseño acá.
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '1.25rem' }}>
-            {libraryFrames.map(libFrame => (
-              <div 
-                key={libFrame.id}
-                onClick={() => handleSelectFromLibrary(libFrame)}
-                style={{
-                  cursor: 'pointer',
-                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                  position: 'relative',
-                  borderRadius: '10px',
-                  background: 'rgba(255,255,255,0.02)',
-                  padding: '6px',
-                  border: `1px solid ${activePreview?.timestamp === libFrame.timestamp ? 'var(--color-gold)' : 'rgba(255,255,255,0.05)'}`,
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.transform = 'translateY(-4px)';
-                  e.currentTarget.style.borderColor = 'rgba(201,168,92,0.4)';
-                  e.currentTarget.style.boxShadow = '0 10px 20px rgba(0,0,0,0.4)';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.borderColor = activePreview?.timestamp === libFrame.timestamp ? 'var(--color-gold)' : 'rgba(255,255,255,0.05)';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-              >
-                <div style={{ borderRadius: '6px', overflow: 'hidden', background: '#0a0a0f', aspectRatio: '70 / 120' }}>
-                  <img 
-                    src={libFrame.url} 
-                    alt="Saved Frame" 
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  />
-                </div>
-                <div style={{ fontSize: '0.62rem', opacity: 0.45, marginTop: '0.4rem', textAlign: 'center', fontFamily: 'monospace' }}>
-                  {new Date(libFrame.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <FrameLibraryGallery
+        activePreview={activePreview}
+        frames={libraryFrames}
+        loading={loadingLibrary}
+        onSelectFrame={handleSelectFromLibrary}
+      />
 
       {/* Hidden download anchor */}
       <a ref={downloadRef} style={{ display: 'none' }} />
@@ -866,45 +749,3 @@ export default function AdminFrameGenerator() {
     </div>
   );
 }
-
-// ─── Style Helpers ───────────────────────────────────────────────────────────
-
-const sectionStyle: React.CSSProperties = {
-  background: 'rgba(255,255,255,0.03)',
-  border: '1px solid rgba(255,255,255,0.07)',
-  borderRadius: '10px',
-  padding: '1rem 1.1rem',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.6rem',
-};
-
-const labelStyle: React.CSSProperties = {
-  fontSize: '0.75rem',
-  fontWeight: 600,
-  letterSpacing: '0.08em',
-  color: 'rgba(255,255,255,0.5)',
-  textTransform: 'uppercase',
-};
-
-const selectStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '0.6rem 0.75rem',
-  background: 'rgba(255,255,255,0.05)',
-  border: '1px solid rgba(255,255,255,0.1)',
-  borderRadius: '6px',
-  color: 'white',
-  fontSize: '0.85rem',
-};
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '0.6rem 0.75rem',
-  background: 'rgba(255,255,255,0.05)',
-  border: '1px solid rgba(255,255,255,0.1)',
-  borderRadius: '6px',
-  color: 'white',
-  fontSize: '0.85rem',
-  fontFamily: 'inherit',
-  boxSizing: 'border-box',
-};
