@@ -11,7 +11,8 @@ import {
   type DeckType,
   type TriviaDifficulty,
 } from './generationPayload';
-import { GENERATION_PRESETS } from './generationPresets';
+import { GENERATION_PRESETS, type GenerationPreset } from './generationPresets';
+import { GenerationCatalogIntentFields } from './GenerationCatalogIntentFields';
 import {
   getErrorMessage,
   getStringField,
@@ -191,6 +192,20 @@ export default function AdminGenerateEdition() {
       landingPromise,
       previewPolicy,
     });
+  }
+
+  function applyPreset(preset: GenerationPreset) {
+    setTopic(preset.topic);
+    setAdditionalContext(preset.context);
+    setDeckType(preset.type);
+    setCatalogCollection(preset.collection);
+    setCatalogCategory(preset.category);
+    setDeckMoment(preset.moment);
+    setBuyerSentence(preset.buyerSentence);
+    setLandingPromise(preset.landingPromise);
+    setPreviewPolicy(preset.previewPolicy);
+    setCardCount(preset.cardCount ?? 30);
+    setArtStyle(preset.artStyle ?? '');
   }
 
   function recordGenerationResult(data: GenerationResult, registrySynced: boolean) {
@@ -424,19 +439,7 @@ export default function AdminGenerateEdition() {
                   <button
                     key={preset.label}
                     type="button"
-                    onClick={() => {
-                      setTopic(preset.topic);
-                      setAdditionalContext(preset.context);
-                      setDeckType(preset.type);
-                      setCatalogCollection(preset.collection);
-                      setCatalogCategory(preset.category);
-                      setDeckMoment(preset.moment);
-                      setBuyerSentence(preset.buyerSentence);
-                      setLandingPromise(preset.landingPromise);
-                      setPreviewPolicy(preset.previewPolicy);
-                      setCardCount(preset.cardCount ?? 30);
-                      setArtStyle(preset.artStyle ?? '');
-                    }}
+                    onClick={() => applyPreset(preset)}
                     disabled={generating}
                     style={{
                       ...chipStyle(false),
@@ -477,83 +480,25 @@ export default function AdminGenerateEdition() {
               </div>
 
               {/* ── Catalog & Landing Intent ──────────────── */}
-              <div style={{
-                border: '1px solid var(--color-border)',
-                borderRadius: 'var(--radius-md)',
-                padding: '1rem',
-                background: 'rgba(212, 175, 100, 0.04)',
-              }}>
-                <label style={labelStyle}>Catalog & Landing Intent</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                  <div>
-                    <span style={{ display: 'block', fontSize: '0.68rem', opacity: 0.45, marginBottom: '0.35rem' }}>
-                      Collection
-                    </span>
-                    <select
-                      value={catalogCollection}
-                      onChange={(e) => setCatalogCollection(e.target.value as DeckCatalogCollectionId)}
-                      disabled={generating}
-                      style={{ ...inputStyle, cursor: 'pointer' }}
-                    >
-                      {catalogCollections.map((collection) => (
-                        <option key={collection.id} value={collection.id}>
-                          {collection.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <span style={{ display: 'block', fontSize: '0.68rem', opacity: 0.45, marginBottom: '0.35rem' }}>
-                      Category
-                    </span>
-                    <select
-                      value={catalogCategory}
-                      onChange={(e) => setCatalogCategory(e.target.value as DeckCatalogCategoryId)}
-                      disabled={generating}
-                      style={{ ...inputStyle, cursor: 'pointer' }}
-                    >
-                      {catalogCategories.map((category) => (
-                        <option key={category.id} value={category.id}>
-                          {category.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <textarea
-                  value={deckMoment}
-                  onChange={(e) => setDeckMoment(e.target.value)}
-                  placeholder='Moment: e.g. "Amigos en una sobremesa necesitan salir de los temas de siempre."'
-                  disabled={generating}
-                  style={{ ...inputStyle, minHeight: '58px', resize: 'vertical', marginBottom: '0.75rem' }}
-                />
-                <input
-                  value={buyerSentence}
-                  onChange={(e) => setBuyerSentence(e.target.value)}
-                  placeholder='Buyer sentence: e.g. "Necesito algo para que la noche no muera."'
-                  disabled={generating}
-                  style={{ ...inputStyle, marginBottom: '0.75rem' }}
-                />
-                <input
-                  value={landingPromise}
-                  onChange={(e) => setLandingPromise(e.target.value)}
-                  placeholder='Landing promise: one sentence above the fold'
-                  disabled={generating}
-                  style={{ ...inputStyle, marginBottom: '0.75rem' }}
-                />
-                <textarea
-                  value={previewPolicy}
-                  onChange={(e) => setPreviewPolicy(e.target.value)}
-                  placeholder="Preview policy: what 1-3 cards should reveal without spoiling the deck"
-                  disabled={generating}
-                  style={{ ...inputStyle, minHeight: '58px', resize: 'vertical' }}
-                />
-
-                <p style={{ fontSize: '0.72rem', opacity: 0.45, margin: '0.75rem 0 0' }}>
-                  New editions are saved as unpublished catalog drafts with landing copy and preview guidance.
-                </p>
-              </div>
+              <GenerationCatalogIntentFields
+                buyerSentence={buyerSentence}
+                catalogCategories={catalogCategories}
+                catalogCategory={catalogCategory}
+                catalogCollection={catalogCollection}
+                catalogCollections={catalogCollections}
+                deckMoment={deckMoment}
+                generating={generating}
+                inputStyle={inputStyle}
+                labelStyle={labelStyle}
+                landingPromise={landingPromise}
+                previewPolicy={previewPolicy}
+                onBuyerSentenceChange={setBuyerSentence}
+                onCatalogCategoryChange={setCatalogCategory}
+                onCatalogCollectionChange={setCatalogCollection}
+                onDeckMomentChange={setDeckMoment}
+                onLandingPromiseChange={setLandingPromise}
+                onPreviewPolicyChange={setPreviewPolicy}
+              />
 
               {/* ── Topic ─────────────────────────────────── */}
               <div>
