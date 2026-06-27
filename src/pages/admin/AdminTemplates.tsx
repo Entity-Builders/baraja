@@ -1,8 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useDeckStudio } from './features/deck-studio/useDeckStudio';
 import { DeckDesignerRunner, type DeckDesignerRunnerRef } from './features/deck-studio/DeckDesignerRunner';
-import { CardNavigator } from './features/deck-studio/CardNavigator';
 import { AIPanelSidebar } from './components/AIPanelSidebar';
 import { AdminDeckWorkspaceNav } from './components/AdminDeckWorkspaceNav';
 import type { Template } from '@pdfme/common';
@@ -12,6 +11,7 @@ import { DesignScopePanel } from './components/DesignScopePanel';
 import { LayoutToolsPanel } from './components/LayoutToolsPanel';
 import { SavedConfigsPanel } from './components/SavedConfigsPanel';
 import { DeckGenerationStatusPanel } from './components/DeckGenerationStatusPanel';
+import { AdminTemplatesHeader } from './components/AdminTemplatesHeader';
 import { useSavedDeckConfigs } from './hooks/useSavedDeckConfigs';
 import { useTuckBoxPreview } from './hooks/useTuckBoxPreview';
 
@@ -124,150 +124,28 @@ export default function AdminTemplates({ embeddedDeckId }: AdminTemplatesProps =
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#0a0a10', color: 'white' }}>
 
-      {/* ── HEADER ─────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 2rem', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-
-        <div>
-          <Link to="/admin" style={{ color: '#d4af64', textDecoration: 'none', fontSize: '0.85rem' }}>← Dashboard</Link>
-          <h1 style={{ margin: '0.5rem 0 0', fontFamily: 'var(--font-serif)', fontSize: '1.4rem' }}>
-            {activeRawDeck ? `${activeRawDeck.name} · Diseño del mazo` : 'Diseño del mazo'}
-          </h1>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-
-          {/* Deck Selector */}
-          {!isEmbeddedStudio ? (
-            <>
-              <label style={{ fontSize: '0.8rem', opacity: 0.6 }}>Seleccionar mazo:</label>
-              <select
-                value={selectedDeckId}
-                onChange={e => setSelectedDeckId(e.target.value)}
-                style={{
-                  background: 'rgba(0,0,0,0.5)', color: 'white', border: '1px solid var(--color-gold)',
-                  borderRadius: '6px', padding: '0.5rem 1rem', fontSize: '0.9rem', cursor: 'pointer', outline: 'none',
-                }}
-              >
-                <option value="">-- Elige un mazo para editar --</option>
-                {decks.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
-            </>
-          ) : (
-            <span
-              style={{
-                border: '1px solid rgba(212,175,100,0.26)',
-                background: 'rgba(212,175,100,0.1)',
-                color: '#f3d58c',
-                borderRadius: '999px',
-                padding: '0.4rem 0.65rem',
-                fontSize: '0.76rem',
-                fontWeight: 700,
-              }}
-            >
-              Alcance: todo el mazo
-            </span>
-          )}
-
-          {/* Version Selector — instant preview */}
-          {activeRawDeck && savedConfigs.length > 0 && (
-            <>
-              <div style={{ width: '1px', height: '24px', background: 'rgba(255,255,255,0.1)' }} />
-              <label style={{ fontSize: '0.8rem', opacity: 0.6 }}>Layout activo:</label>
-              <select
-                value={selectedConfigId}
-                onChange={e => handleSelectConfig(e.target.value)}
-                style={{
-                  background: 'rgba(0,0,0,0.5)', color: 'white',
-                  border: `1px solid ${selectedConfigId ? '#4a90e2' : 'rgba(255,255,255,0.2)'}`,
-                  borderRadius: '6px', padding: '0.5rem 1rem', fontSize: '0.85rem',
-                  cursor: 'pointer', outline: 'none', maxWidth: '220px',
-                }}
-              >
-                <option value="">Actual del mazo</option>
-                {savedConfigs.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.card_width}×{c.card_height}mm)
-                  </option>
-                ))}
-              </select>
-            </>
-          )}
-
-          {/* Save Config Snapshot */}
-          {activeRawDeck && activeTemplate && (
-            <button
-              onClick={handleSaveConfig}
-              disabled={savingConfig}
-              style={{
-                background: 'linear-gradient(135deg, #1e3c72, #2a5298)', border: '1px solid #4a90e2',
-                color: 'white', padding: '0.5rem 1rem', borderRadius: '6px', fontSize: '0.85rem',
-                cursor: savingConfig ? 'not-allowed' : 'pointer', fontWeight: 'bold',
-                opacity: savingConfig ? 0.6 : 1,
-              }}
-              title="Guarda la versión completa de diseño. El botón Guardar Layout del canvas aplica el layout actual a todo el mazo."
-            >
-              {savingConfig ? 'Guardando...' : 'Guardar versión'}
-            </button>
-          )}
-
-          {/* Production Tools Toggle */}
-          {activeRawDeck && (
-            <button
-              onClick={() => setShowProductionTools(prev => !prev)}
-              style={{
-                background: showProductionTools ? 'rgba(212,175,100,0.15)' : 'transparent',
-                border: `1px solid ${showProductionTools ? '#d4af64' : 'rgba(255,255,255,0.2)'}`,
-                color: showProductionTools ? '#d4af64' : 'white',
-                padding: '0.5rem 1rem', borderRadius: '6px', fontSize: '0.85rem',
-                cursor: 'pointer', fontWeight: showProductionTools ? 700 : 400,
-                transition: 'all 0.2s',
-              }}
-            >
-              Producción
-            </button>
-          )}
-
-          {activeRawDeck && showProductionTools && (
-            <>
-              <button
-                onClick={() => setShowTuckBox(prev => !prev)}
-                style={{
-                  background: showTuckBox ? 'rgba(212,175,100,0.15)' : 'transparent',
-                  border: `1px solid ${showTuckBox ? '#d4af64' : 'rgba(255,255,255,0.2)'}`,
-                  color: showTuckBox ? '#d4af64' : 'white',
-                  padding: '0.5rem 1rem', borderRadius: '6px', fontSize: '0.85rem',
-                  cursor: 'pointer', fontWeight: showTuckBox ? 700 : 400,
-                  transition: 'all 0.2s',
-                }}
-              >
-                Caja
-              </button>
-
-              <Link
-                to={`/admin/${encodeURIComponent(activeRawDeck.slug || activeRawDeck.id)}?studio=output`}
-                style={{
-                  background: '#d4af64', color: '#000', padding: '0.5rem 1rem',
-                  borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600,
-                  textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.3rem',
-                }}
-              >
-                Publicar / PDF
-              </Link>
-            </>
-          )}
-
-          {/* Card Navigator */}
-          {activeResolvedDeck && (
-            <CardNavigator
-              activeCardIndex={activeCardIndex}
-              totalCards={activeResolvedDeck.cards.length}
-              onPrev={() => handlePrevCard(syncLiveTemplate())}
-              onNext={() => handleNextCard(syncLiveTemplate())}
-              onJump={index => handleJumpToCard(index, syncLiveTemplate())}
-            />
-          )}
-        </div>
-      </div>
+      <AdminTemplatesHeader
+        decks={decks}
+        selectedDeckId={selectedDeckId}
+        activeDeck={activeRawDeck}
+        activeCardIndex={activeCardIndex}
+        totalCards={activeResolvedDeck?.cards.length ?? 0}
+        savedConfigs={savedConfigs}
+        selectedConfigId={selectedConfigId}
+        savingConfig={savingConfig}
+        isEmbedded={isEmbeddedStudio}
+        showProductionTools={showProductionTools}
+        showTuckBox={showTuckBox}
+        canSaveConfig={Boolean(activeTemplate)}
+        onSelectDeck={setSelectedDeckId}
+        onSelectConfig={handleSelectConfig}
+        onSaveConfig={handleSaveConfig}
+        onToggleProductionTools={() => setShowProductionTools(prev => !prev)}
+        onToggleTuckBox={() => setShowTuckBox(prev => !prev)}
+        onPrevCard={() => handlePrevCard(syncLiveTemplate())}
+        onNextCard={() => handleNextCard(syncLiveTemplate())}
+        onJumpToCard={index => handleJumpToCard(index, syncLiveTemplate())}
+      />
 
       {activeRawDeck && (
         <div style={{ padding: '0.75rem 2rem 0' }}>
