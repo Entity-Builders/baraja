@@ -8,10 +8,7 @@ import { AIPanelSidebar } from './components/AIPanelSidebar';
 import { AdminDeckWorkspaceNav } from './components/AdminDeckWorkspaceNav';
 import { SavedConfigRepository, type SavedConfigRow } from '../../lib/deckRepository';
 import { getEditionBySlug } from '../../lib/editions';
-import {
-  CARD_FIELD_DEFINITIONS,
-  type FieldPlacementMap,
-} from '../../lib/cardFieldPlacements';
+import type { FieldPlacementMap } from '../../lib/cardFieldPlacements';
 import type { RawDeckContent } from '@eb-packages/deck-engine';
 import type { Template } from '@pdfme/common';
 import {
@@ -22,33 +19,19 @@ import {
   type TuckBoxParams,
   type TuckBoxContent,
 } from '../../lib/TuckBoxEngine';
+import {
+  CardFieldInventoryPanel,
+  FieldPlacementPanel,
+} from './components/CardFieldInventoryPanel';
+import {
+  getCardFieldInventory,
+  type DeckCardLike,
+} from './components/cardFieldInventory';
 
 const savedConfigRepo = new SavedConfigRepository();
 
-type DeckCardLike = {
-  front?: {
-    art_url?: string;
-    number?: number | string;
-    title?: string;
-  };
-  back?: {
-    back_image_url?: string;
-    when_to_use?: string;
-    phrase?: string;
-    instruction?: string;
-    answer?: string;
-    fun_fact?: string;
-    qr_url?: string;
-  };
-};
-
-type CardFieldStatus = 'visible' | 'hidden' | 'missing' | 'base';
-
-type CardFieldState = {
-  label: string;
-  status: CardFieldStatus;
-  value: string;
-};
+type TemplateSchema = Template['schemas'][number][number];
+type TemplateSchemaWithContent = TemplateSchema & { content?: string };
 
 interface AdminTemplatesProps {
   embeddedDeckId?: string;
@@ -210,7 +193,7 @@ export default function AdminTemplates({ embeddedDeckId }: AdminTemplatesProps =
         name: configName,
         edition_slug: activeRawDeck.slug || null,
         design_template_id: activeRawDeck.design_template_id || null,
-        layout_config: liveTemplate as any,
+        layout_config: liveTemplate as unknown as Record<string, unknown>,
         hidden_fields: hiddenFields,
         card_width: cardWidth,
         card_height: cardHeight,
@@ -219,8 +202,8 @@ export default function AdminTemplates({ embeddedDeckId }: AdminTemplatesProps =
 
       await fetchSavedConfigs(activeRawDeck.slug);
       alert(`Versión "${configName}" guardada correctamente.`);
-    } catch (err: any) {
-      alert('Error guardando config: ' + err.message);
+    } catch (err: unknown) {
+      alert('Error guardando config: ' + getErrorMessage(err));
     } finally {
       setSavingConfig(false);
     }
@@ -238,8 +221,8 @@ export default function AdminTemplates({ embeddedDeckId }: AdminTemplatesProps =
       setSelectedDeckId('');
       setTimeout(() => setSelectedDeckId(activeRawDeck.id), 100);
       alert(`Versión "${config.name}" aplicada al mazo. El editor se recargó.`);
-    } catch (err: any) {
-      alert('Error aplicando config: ' + err.message);
+    } catch (err: unknown) {
+      alert('Error aplicando config: ' + getErrorMessage(err));
     } finally {
       setApplyingConfigId(null);
     }
@@ -251,8 +234,8 @@ export default function AdminTemplates({ embeddedDeckId }: AdminTemplatesProps =
     try {
       await savedConfigRepo.delete(config.id);
       setSavedConfigs(prev => prev.filter(c => c.id !== config.id));
-    } catch (err: any) {
-      alert('Error eliminando config: ' + err.message);
+    } catch (err: unknown) {
+      alert('Error eliminando config: ' + getErrorMessage(err));
     }
   }, []);
 
@@ -573,10 +556,11 @@ export default function AdminTemplates({ embeddedDeckId }: AdminTemplatesProps =
                   setMockData(prev => prev ? { ...prev, [targetNode]: dataUrl } : prev);
                   
                   if (newTemplate.schemas[pageIdx]) {
-                    const bgIdx = newTemplate.schemas[pageIdx].findIndex((s: any) => s.name === targetNode);
+                    const bgIdx = newTemplate.schemas[pageIdx].findIndex((schema) => schema.name === targetNode);
                     if (bgIdx >= 0) {
                       const sm = [...newTemplate.schemas[pageIdx]];
-                      (sm[bgIdx] as any).content = dataUrl;
+                      const updatedSchema: TemplateSchemaWithContent = { ...sm[bgIdx], content: dataUrl };
+                      sm[bgIdx] = updatedSchema;
                       newTemplate.schemas[pageIdx] = sm;
                     }
                   }
@@ -604,9 +588,8 @@ export default function AdminTemplates({ embeddedDeckId }: AdminTemplatesProps =
 
                   if (existingIdx >= 0) {
                     // Update existing
-                    const sm = { ...arr[existingIdx] };
-                    (sm as any).content = content;
-                    arr[existingIdx] = sm as any;
+                    const updatedSchema: TemplateSchemaWithContent = { ...arr[existingIdx], content };
+                    arr[existingIdx] = updatedSchema;
                   } else {
                     // Insert new
                     const bgIndex = arr.findIndex(node => node.name === 'bg' || node.name === 'art');
@@ -933,376 +916,6 @@ function DeckGenerationStatusPanel({
   );
 }
 
-function getCardFieldInventory({
-  deckName,
-  card,
-  mockData,
-  hiddenFields,
-  fieldPlacements,
-}: {
-  deckName: string;
-  card?: DeckCardLike;
-  mockData: Record<string, string>;
-  hiddenFields: Record<string, boolean>;
-  fieldPlacements: FieldPlacementMap;
-}): { front: CardFieldState[]; back: CardFieldState[] } {
-  const frontNumber = card?.front?.number == null ? '' : `#${String(card.front.number).padStart(2, '0')}`;
-  const frontTitle = card?.front?.title || mockData.title || '';
-  const frontArt = card?.front?.art_url || mockData.art || '';
-  const front: CardFieldState[] = [
-    buildFieldState('Arte', frontArt, false, frontArt ? 'Imagen generada' : ''),
-  ];
-  const back: CardFieldState[] = [
-    buildFieldState('Fondo', mockData.bg, false, mockData.bg ? 'Frame base' : '', mockData.bg ? 'base' : undefined),
-    buildFieldState('Reverso IA', card?.back?.back_image_url || mockData.back_ai_image || '', false, card?.back?.back_image_url ? 'Imagen generada' : ''),
-  ];
-
-  CARD_FIELD_DEFINITIONS.forEach(field => {
-    const value = getInventoryFieldValue(field.key, {
-      card,
-      deckName,
-      frontNumber,
-      frontTitle,
-      mockData,
-    });
-    const hidden = fieldPlacements[field.key] === 'hidden'
-      || hiddenFields[field.key]
-      || (field.key === 'when_to_use' && hiddenFields.whenToUse);
-    const preview = field.key === 'qr' && value ? 'Generado' : undefined;
-    const state = buildFieldState(field.label, value, hidden, preview);
-    const target = fieldPlacements[field.key] === 'front'
-      ? front
-      : back;
-    target.push(state);
-  });
-
-  return { front, back };
-}
-
-function getInventoryFieldValue(
-  key: (typeof CARD_FIELD_DEFINITIONS)[number]['key'],
-  context: {
-    card?: DeckCardLike;
-    deckName: string;
-    frontNumber: string;
-    frontTitle: string;
-    mockData: Record<string, string>;
-  },
-): string {
-  const { card, deckName, frontNumber, frontTitle, mockData } = context;
-
-  switch (key) {
-    case 'number':
-      return frontNumber || mockData.number || '';
-    case 'title':
-      return frontTitle || mockData.title || '';
-    case 'when_to_use':
-      return card?.back?.when_to_use || mockData.when_to_use || mockData.whenToUse || '';
-    case 'phrase':
-      return card?.back?.phrase || mockData.phrase || '';
-    case 'instruction':
-      return card?.back?.instruction || mockData.instruction || '';
-    case 'answer':
-      return card?.back?.answer || mockData.answer || '';
-    case 'fun_fact':
-      return card?.back?.fun_fact || mockData.fun_fact || '';
-    case 'qr':
-      return card?.back?.qr_url || mockData.qr || mockData.qr_overlay || '';
-    case 'brand':
-      return mockData.brand || `Baraja · ${deckName}`;
-  }
-}
-
-function buildFieldState(
-  label: string,
-  rawValue: string | undefined,
-  hidden = false,
-  previewOverride?: string,
-  forcedStatus?: CardFieldStatus,
-): CardFieldState {
-  const value = cleanFieldPreview(previewOverride ?? rawValue ?? '');
-  const hasValue = Boolean(cleanFieldPreview(rawValue ?? ''));
-
-  if (forcedStatus) {
-    return { label, status: forcedStatus, value: value || statusCopy[forcedStatus] };
-  }
-
-  if (hidden) {
-    return { label, status: 'hidden', value: hasValue ? value : 'Sin contenido cargado' };
-  }
-
-  if (!hasValue) {
-    return { label, status: 'missing', value: 'Sin contenido' };
-  }
-
-  return { label, status: 'visible', value };
-}
-
-function cleanFieldPreview(value: string): string {
-  return value
-    .replace(/^Rta:\s*/i, '')
-    .replace(/^["“]|["”]$/g, '')
-    .trim();
-}
-
-const statusCopy: Record<CardFieldStatus, string> = {
-  visible: 'Visible',
-  hidden: 'Oculto',
-  missing: 'Falta',
-  base: 'Base',
-};
-
-const statusTone: Record<CardFieldStatus, { border: string; background: string; color: string }> = {
-  visible: { border: 'rgba(53,208,127,0.34)', background: 'rgba(53,208,127,0.09)', color: '#7ee3aa' },
-  hidden: { border: 'rgba(255,255,255,0.13)', background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.45)' },
-  missing: { border: 'rgba(248,113,113,0.34)', background: 'rgba(248,113,113,0.09)', color: '#fca5a5' },
-  base: { border: 'rgba(212,175,100,0.34)', background: 'rgba(212,175,100,0.09)', color: '#f3d58c' },
-};
-
-function CardFieldInventoryPanel({
-  activeFace,
-  frontFields,
-  backFields,
-}: {
-  activeFace: 'front' | 'back';
-  frontFields: CardFieldState[];
-  backFields: CardFieldState[];
-}) {
-  const frontCounts = getFieldCounts(frontFields);
-  const backCounts = getFieldCounts(backFields);
-
-  return (
-    <div>
-      <div style={{ marginBottom: '0.45rem', color: 'rgba(255,255,255,0.5)', fontSize: '0.67rem', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-        Campos de la carta actual
-      </div>
-      <div style={{ display: 'grid', gap: '0.55rem' }}>
-        <CardFaceFieldGroup
-          label="Frente"
-          active={activeFace === 'front'}
-          fields={frontFields}
-          counts={frontCounts}
-        />
-        <CardFaceFieldGroup
-          label="Dorso"
-          active={activeFace === 'back'}
-          fields={backFields}
-          counts={backCounts}
-        />
-      </div>
-    </div>
-  );
-}
-
-const placementLabel: Record<'front' | 'back' | 'hidden', string> = {
-  front: 'Frente',
-  back: 'Dorso',
-  hidden: 'Oculto',
-};
-
-const placementTone: Record<'front' | 'back' | 'hidden', { border: string; bg: string; color: string }> = {
-  front: { border: 'rgba(53,208,127,0.34)', bg: 'rgba(53,208,127,0.1)', color: '#86efac' },
-  back: { border: 'rgba(212,175,100,0.34)', bg: 'rgba(212,175,100,0.1)', color: '#f3d58c' },
-  hidden: { border: 'rgba(255,255,255,0.14)', bg: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.55)' },
-};
-
-function FieldPlacementPanel({
-  placements,
-  onChange,
-}: {
-  placements: FieldPlacementMap;
-  onChange: (placements: FieldPlacementMap) => void;
-}) {
-  const counts = {
-    front: CARD_FIELD_DEFINITIONS.filter(field => placements[field.key] === 'front').length,
-    back: CARD_FIELD_DEFINITIONS.filter(field => placements[field.key] === 'back').length,
-    hidden: CARD_FIELD_DEFINITIONS.filter(field => placements[field.key] === 'hidden').length,
-  };
-
-  return (
-    <section
-      style={{
-        background: 'rgba(255,255,255,0.035)',
-        border: '1px solid rgba(255,255,255,0.08)',
-        borderRadius: '8px',
-        padding: '0.85rem',
-        marginBottom: '1rem',
-        display: 'grid',
-        gap: '0.7rem',
-      }}
-    >
-      <div>
-        <p style={{ margin: '0 0 0.24rem', color: '#d4af64', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-          Campos y caras
-        </p>
-        <p style={{ margin: 0, color: 'rgba(255,255,255,0.58)', fontSize: '0.73rem', lineHeight: 1.45 }}>
-          Mové qué información vive en frente, dorso u oculto. Después ajustá posición en el canvas y guardá el layout.
-        </p>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '0.35rem' }}>
-        {(['front', 'back', 'hidden'] as const).map(placement => {
-          const tone = placementTone[placement];
-          return (
-            <div
-              key={placement}
-              style={{
-                border: `1px solid ${tone.border}`,
-                background: tone.bg,
-                borderRadius: '7px',
-                padding: '0.45rem 0.25rem',
-                textAlign: 'center',
-              }}
-            >
-              <div style={{ color: tone.color, fontSize: '0.68rem', fontWeight: 800 }}>
-                {placementLabel[placement]}
-              </div>
-              <div style={{ color: 'rgba(255,255,255,0.62)', fontSize: '0.8rem', fontWeight: 850 }}>
-                {counts[placement]}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div style={{ display: 'grid', gap: '0.5rem' }}>
-        {CARD_FIELD_DEFINITIONS.map(field => (
-          <div
-            key={field.key}
-            style={{
-              border: '1px solid rgba(255,255,255,0.08)',
-              background: 'rgba(0,0,0,0.16)',
-              borderRadius: '7px',
-              padding: '0.55rem',
-              display: 'grid',
-              gap: '0.45rem',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-              <span style={{ color: 'rgba(255,255,255,0.78)', fontSize: '0.76rem', fontWeight: 800 }}>
-                {field.label}
-              </span>
-              <span style={{ color: placementTone[placements[field.key]].color, fontSize: '0.66rem', fontWeight: 800 }}>
-                {placementLabel[placements[field.key]]}
-              </span>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '0.3rem' }}>
-              {(['front', 'back', 'hidden'] as const).map(placement => {
-                const active = placements[field.key] === placement;
-                const tone = placementTone[placement];
-                return (
-                  <button
-                    key={placement}
-                    type="button"
-                    onClick={() => onChange({ ...placements, [field.key]: placement })}
-                    style={{
-                      minHeight: '30px',
-                      border: `1px solid ${active ? tone.border : 'rgba(255,255,255,0.09)'}`,
-                      background: active ? tone.bg : 'rgba(255,255,255,0.025)',
-                      color: active ? tone.color : 'rgba(255,255,255,0.5)',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontSize: '0.66rem',
-                      fontWeight: 800,
-                    }}
-                  >
-                    {placementLabel[placement]}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function getFieldCounts(fields: CardFieldState[]) {
-  return {
-    visible: fields.filter(field => field.status === 'visible' || field.status === 'base').length,
-    hidden: fields.filter(field => field.status === 'hidden').length,
-    missing: fields.filter(field => field.status === 'missing').length,
-  };
-}
-
-function CardFaceFieldGroup({
-  label,
-  active,
-  fields,
-  counts,
-}: {
-  label: string;
-  active: boolean;
-  fields: CardFieldState[];
-  counts: { visible: number; hidden: number; missing: number };
-}) {
-  return (
-    <div
-      style={{
-        border: `1px solid ${active ? 'rgba(212,175,100,0.32)' : 'rgba(255,255,255,0.08)'}`,
-        background: active ? 'rgba(212,175,100,0.06)' : 'rgba(0,0,0,0.16)',
-        borderRadius: '7px',
-        padding: '0.62rem',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.46rem' }}>
-        <span style={{ color: active ? '#f3d58c' : 'rgba(255,255,255,0.72)', fontSize: '0.74rem', fontWeight: 800 }}>
-          {label}
-        </span>
-        <span style={{ color: 'rgba(255,255,255,0.42)', fontSize: '0.66rem' }}>
-          {counts.visible} ok · {counts.hidden} ocultos · {counts.missing} falta
-        </span>
-      </div>
-
-      <div style={{ display: 'grid', gap: '0.34rem' }}>
-        {fields.map(field => (
-          <CardFieldRow key={`${label}-${field.label}`} field={field} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function CardFieldRow({ field }: { field: CardFieldState }) {
-  const tone = statusTone[field.status];
-
-  return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '5.3rem 3.4rem 1fr',
-        gap: '0.38rem',
-        alignItems: 'center',
-        minWidth: 0,
-      }}
-    >
-      <span style={{ color: 'rgba(255,255,255,0.62)', fontSize: '0.68rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {field.label}
-      </span>
-      <span
-        style={{
-          border: `1px solid ${tone.border}`,
-          background: tone.background,
-          color: tone.color,
-          borderRadius: '999px',
-          padding: '0.16rem 0.34rem',
-          fontSize: '0.58rem',
-          lineHeight: 1,
-          textAlign: 'center',
-          fontWeight: 800,
-          textTransform: 'uppercase',
-        }}
-      >
-        {statusCopy[field.status]}
-      </span>
-      <span style={{ color: 'rgba(255,255,255,0.42)', fontSize: '0.66rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
-        {field.value}
-      </span>
-    </div>
-  );
-}
-
 function GenerationMetric({ label, count, total, tone }: { label: string; count: number; total: number; tone: string }) {
   const percent = total > 0 ? Math.round((count / total) * 100) : 0;
 
@@ -1353,6 +966,12 @@ function formatSavedConfigDate(value: string): string {
     day: '2-digit',
     month: 'short',
   });
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error && error.message
+    ? error.message
+    : 'Error inesperado';
 }
 
 function DesignScopePanel({
