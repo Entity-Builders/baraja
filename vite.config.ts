@@ -65,19 +65,240 @@ const CONTENT_DIR = path.resolve(__dirname, '../../packages/deck-engine/src/cont
 const ASSETS_DIR = path.resolve(__dirname, 'public/assets/editions');
 
 /** Regenerate decks.ts so Vite HMR picks up new JSON files */
+function runDeckSync(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    exec('npm run sync', { cwd: path.resolve(__dirname, '../../packages/deck-engine') }, (error, stdout, stderr) => {
+      if (stdout) {
+        console.log(stdout.trim());
+      }
+
+      if (stderr) {
+        console.error(stderr.trim());
+      }
+
+      if (error) {
+        reject(error);
+      } else {
+        console.log('🔄 [Deck Sync] decks.ts regenerated.');
+        resolve();
+      }
+    });
+  });
+}
+
 function triggerDeckSync() {
-  exec('npm run sync', { cwd: path.resolve(__dirname, '../../packages/deck-engine') }, (error) => {
-    if (error) {
-      console.error('⚠️ [Auto-Sync] Failed to regenerate decks.ts:', error);
-    } else {
-      console.log('🔄 [Auto-Sync] decks.ts regenerated.');
-    }
+  runDeckSync().catch((error) => {
+    console.error('⚠️ [Auto-Sync] Failed to regenerate decks.ts:', error);
   });
 }
 
 type SupabaseSyncResult = {
   warnings: string[];
 };
+
+type RawDigitalConfig = NonNullable<RawDeckContent['digital']>;
+type DigitalDeckCategoryValue = NonNullable<RawDigitalConfig['category']>;
+type DeckSessionModeValue = NonNullable<RawDigitalConfig['session_modes']>[number];
+
+interface AdminDigitalDraftPayload {
+  catalog?: {
+    collection?: string;
+    category?: string;
+  };
+  tags?: string[];
+  landing?: {
+    hero_promise?: string;
+    hero_supporting_copy?: string;
+    preview_intro?: string;
+    unlock_summary?: string;
+  };
+}
+
+interface GeneratedCardDraft {
+  id?: unknown;
+}
+
+function cleanOptionalString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+const INSTRUCTION_FIRST_FRAME_TYPES = new Set(['trivia', 'party', 'game']);
+const INSTRUCTION_FIRST_EDITION_IDS = new Set(['trivia', 'juegos', 'rompelo']);
+const INSTRUCTION_FIRST_DIGITAL_CATEGORIES = new Set([
+  'conversation',
+  'trivia',
+  'language-learning',
+  'team-building',
+  'coaching',
+  'creative-prompts',
+]);
+const INSTRUCTION_FIRST_CATALOG_COLLECTIONS = new Set([
+  'social-games',
+  'couples-dating',
+  'team-tools',
+  'trivia-games',
+  'learning',
+]);
+
+function shouldPrioritizeInstructionCopy(cardType?: unknown, editionId?: unknown): boolean {
+  const safeCardType = cleanOptionalString(cardType);
+  const safeEditionId = cleanOptionalString(editionId);
+
+  return Boolean(
+    (safeCardType && INSTRUCTION_FIRST_FRAME_TYPES.has(safeCardType)) ||
+    (safeEditionId && INSTRUCTION_FIRST_EDITION_IDS.has(safeEditionId)),
+  );
+}
+
+function shouldPrioritizeInstructionForRawDeck(deckRaw: any): boolean {
+  const category = cleanOptionalString(deckRaw?.digital?.category);
+  const collection = cleanOptionalString(deckRaw?.digital?.catalog?.collection);
+
+  return Boolean(
+    (category && INSTRUCTION_FIRST_DIGITAL_CATEGORIES.has(category)) ||
+    (collection && INSTRUCTION_FIRST_CATALOG_COLLECTIONS.has(collection)),
+  );
+}
+
+function buildCopyHierarchyNote(instructionFirst: boolean): string[] {
+  if (instructionFirst) {
+    return [
+      'COPY HIERARCHY:',
+      '- PRIMARY FIELD: instruction. It should receive the largest or clearest readable zone.',
+      '- SECONDARY FIELD: phrase. Treat it as a short editorial hook, not the main payload.',
+      '- when_to_use is a compact header. answer and fun_fact are supporting footer/meta fields.',
+    ];
+  }
+
+  return [
+    'COPY HIERARCHY:',
+    '- PRIMARY FIELD: phrase may carry the strongest emotional hook for therapeutic/introspective decks.',
+    '- instruction still needs a readable body zone because it tells the user what to do.',
+    '- when_to_use is a compact header. answer and fun_fact are supporting footer/meta fields.',
+  ];
+}
+
+function normalizeDraftTags(tags: unknown): string[] {
+  if (!Array.isArray(tags)) return [];
+
+  return Array.from(
+    new Set(
+      tags
+        .map((tag) => cleanOptionalString(tag))
+        .filter((tag): tag is string => Boolean(tag))
+        .map((tag) => tag.toLowerCase().replace(/\s+/g, '-'))
+    )
+  ).slice(0, 8);
+}
+
+function mapDraftDigitalCategory(deckType: unknown, catalogCategory: string | undefined): DigitalDeckCategoryValue {
+  if (catalogCategory === 'language-practice') return 'language-learning';
+  if (catalogCategory === 'facilitation' || catalogCategory === 'office') return 'team-building';
+  if (catalogCategory === 'emotional-regulation' || catalogCategory === 'anxiety-pause' || catalogCategory === 'grounding') return 'emotional-regulation';
+  if (catalogCategory === 'introspection' || catalogCategory === 'journaling' || catalogCategory === 'boundaries' || catalogCategory === 'decision-clarity') return 'introspection';
+
+  if (
+    catalogCategory === 'argentine-cinema' ||
+    catalogCategory === 'romantic-comedy' ||
+    catalogCategory === 'pop-culture' ||
+    catalogCategory === 'football' ||
+    catalogCategory === 'music' ||
+    catalogCategory === 'argentina-latam'
+  ) {
+    return 'trivia';
+  }
+
+  if (catalogCategory && [
+    'between-friends',
+    'dinner-table',
+    'party',
+    'family',
+    'dates',
+    'first-date',
+    'couple-reconnection',
+    'playful-intimacy',
+    'hard-conversations',
+    'conversation',
+    'confessions',
+  ].includes(catalogCategory)) {
+    return 'conversation';
+  }
+
+  if (deckType === 'trivia') return 'trivia';
+  if (deckType === 'introspection') return 'introspection';
+  if (deckType === 'party') return 'conversation';
+
+  return 'other';
+}
+
+function getDraftSessionModes(
+  deckType: unknown,
+  catalogCategory: string | undefined
+): DeckSessionModeValue[] {
+  if (catalogCategory === 'first-date' || catalogCategory === 'couple-reconnection' || catalogCategory === 'playful-intimacy') {
+    return ['pair', 'browse'];
+  }
+
+  if (catalogCategory === 'office' || catalogCategory === 'facilitation' || catalogCategory === 'feedback') {
+    return ['group', 'facilitator', 'browse'];
+  }
+
+  if (catalogCategory === 'emotional-regulation' || catalogCategory === 'grounding' || catalogCategory === 'introspection') {
+    return ['solo', 'daily-card', 'browse'];
+  }
+
+  if (deckType === 'trivia' || deckType === 'party') {
+    return ['group', 'browse'];
+  }
+
+  return ['browse'];
+}
+
+function cleanDraftLandingCopy(landing: AdminDigitalDraftPayload['landing'] | undefined): RawDigitalConfig['landing'] | undefined {
+  const cleaned = {
+    hero_promise: cleanOptionalString(landing?.hero_promise),
+    hero_supporting_copy: cleanOptionalString(landing?.hero_supporting_copy),
+    preview_intro: cleanOptionalString(landing?.preview_intro),
+    unlock_summary: cleanOptionalString(landing?.unlock_summary),
+  };
+
+  return Object.values(cleaned).some(Boolean) ? cleaned : undefined;
+}
+
+function buildDraftDigitalConfig(
+  digitalDraft: AdminDigitalDraftPayload | undefined,
+  cards: GeneratedCardDraft[],
+  deckType: unknown
+): RawDigitalConfig {
+  const collection = cleanOptionalString(digitalDraft?.catalog?.collection);
+  const category = cleanOptionalString(digitalDraft?.catalog?.category);
+  const sessionModes = getDraftSessionModes(deckType, category);
+
+  return {
+    is_published: false,
+    category: mapDraftDigitalCategory(deckType, category),
+    catalog: collection && category
+      ? { collection, category } as RawDigitalConfig['catalog']
+      : undefined,
+    tags: normalizeDraftTags([
+      ...(digitalDraft?.tags ?? []),
+      collection,
+      category,
+    ]),
+    landing: cleanDraftLandingCopy(digitalDraft?.landing),
+    preview_card_ids: cards
+      .map((card) => cleanOptionalString(card.id))
+      .filter((cardId): cardId is string => Boolean(cardId))
+      .slice(0, 3),
+    default_session_mode: sessionModes[0],
+    session_modes: sessionModes,
+    access_scopes: ['single-deck'],
+    sharing: {
+      allow_card_share: true,
+      allow_bulk_export: false,
+    },
+  };
+}
 
 function isMissingColumnError(error: { message?: string; code?: string } | null): boolean {
   const message = error?.message ?? '';
@@ -451,6 +672,21 @@ function localDeckCmsPlugin() {
           return;
         }
 
+        // ── Regenerate runtime deck registry ────────────────
+        if (req.url === '/__cms__/sync-decks' && req.method === 'POST') {
+          try {
+            await runDeckSync();
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: true }));
+          } catch (err: any) {
+            console.error('[sync-decks]', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: err.message || String(err) }));
+          }
+          return;
+        }
+
         // ── Save card or edition-level edits ─────────────────
         if (req.url === '/__cms__/save-edition' && req.method === 'POST') {
           try {
@@ -698,7 +934,16 @@ function localDeckCmsPlugin() {
 
           try {
             const body = await readBody(req);
-            const { topic, cardCount, additionalContext, deckType, difficulty, artStyle, enrichedData } = JSON.parse(body);
+            const {
+              topic,
+              cardCount,
+              additionalContext,
+              deckType,
+              difficulty,
+              artStyle,
+              enrichedData,
+              digitalDraft,
+            } = JSON.parse(body);
 
             if (!topic) {
               res.statusCode = 400;
@@ -872,6 +1117,8 @@ function localDeckCmsPlugin() {
             const slug = topic.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
             const finalId = `${slug}-v1`;
 
+            const digitalConfig = buildDraftDigitalConfig(digitalDraft, parsed.cards, deckType);
+
             const rawDeckContent: RawDeckContent = {
               id: finalId,
               edition: slug,
@@ -884,6 +1131,7 @@ function localDeckCmsPlugin() {
               print_spec_id: 'baraja-standard',
               design_template_id: 'dark-minimal-01',
               pricing: { amount: 1500000, currency: 'ars' },
+              digital: digitalConfig,
               cards: parsed.cards,
             };
 
@@ -891,20 +1139,27 @@ function localDeckCmsPlugin() {
             const outputPath = path.resolve(CONTENT_DIR, `${slug}.json`);
             await fs.writeFile(outputPath, JSON.stringify(rawDeckContent, null, 2), 'utf-8');
             sendEvent({ type: 'progress', message: '💾 JSON backup saved to disk' });
+            if (digitalConfig.catalog) {
+              sendEvent({
+                type: 'progress',
+                message: `🧭 Catalog draft: ${digitalConfig.catalog.collection} > ${digitalConfig.catalog.category}`,
+              });
+            }
 
             // 2. Persist directly to Supabase (source of truth for Admin UI)
             sendEvent({ type: 'progress', message: '🌱 Saving to database...' });
             const syncResult = await saveEditionToSupabase(rawDeckContent);
 
             // 3. Regenerate decks.ts for runtime client
-            triggerDeckSync();
+            sendEvent({ type: 'progress', message: '🔄 Syncing runtime deck registry...' });
+            await runDeckSync();
 
             console.log(`✅ Edition saved: ${slug} (${parsed.cards.length} cards) → DB + disk`);
             sendEvent({
               type: 'progress',
               message: syncResult.warnings.length > 0
                 ? `⚠️ Edition saved with warnings: ${syncResult.warnings.join(' ')}`
-                : '✅ Edition saved to database successfully'
+                : '✅ Edition saved and synced successfully'
             });
 
             sendEvent({
@@ -1108,6 +1363,9 @@ function localDeckCmsPlugin() {
               const fieldDescriptions = (edition?.fields as Array<{label: string; description: string; typicalLength: string}> | undefined)
                 ?.map(f => `  - ${f.label} (${f.typicalLength} text): ${f.description}`)
                 .join('\n') || '';
+              const instructionFirstCopy = shouldPrioritizeInstructionCopy(cardType, edition?.id);
+              const primaryFieldName = instructionFirstCopy ? 'instruction' : 'phrase';
+              const copyHierarchyNote = buildCopyHierarchyNote(instructionFirstCopy);
 
               // Extract valid text fields to process
               const textKeys: string[] = [];
@@ -1129,6 +1387,7 @@ function localDeckCmsPlugin() {
                 `DECK EDITION: "${deckLabel}"`,
                 `CARD CONTENT STRUCTURE:`,
                 fieldDescriptions,
+                ...copyHierarchyNote,
                 `DYNAMIC TEXT CONTENT TO FIT:`,
                 ...sampleTextLines,
                 '',
@@ -1149,7 +1408,7 @@ function localDeckCmsPlugin() {
                 `FONT WEIGHT RULES:`,
                 `For each text zone pick a fontWeight that creates VISUAL CONTRAST between zones. Mix aggressively:`,
                 `  - Use '300' or 'thin' for secondary labels / headers that should feel delicate`,
-                `  - Use 'bold' or '700' for the main phrase when the image is energetic/bold`,
+                `  - Use 'bold' or '700' for the primary "${primaryFieldName}" field when the image is energetic/bold`,
                 `  - Use '900' for a single dramatic zone if the illustration calls for heavy impact`,
                 `  - Think like a magazine designer: hierarchy through weight, not just size`,
                 '',
@@ -1295,7 +1554,7 @@ function localDeckCmsPlugin() {
         if (req.url === '/__cms__/analyze-typography' && req.method === 'POST') {
           try {
             const body = await readBody(req);
-            const { dataUrl, w, h, edition, cardContent, remixInstruction, hiddenFields } = JSON.parse(body);
+            const { dataUrl, w, h, edition, cardContent, cardType, remixInstruction, hiddenFields } = JSON.parse(body);
             
             if (!dataUrl) throw new Error('No image provided');
             
@@ -1323,6 +1582,9 @@ function localDeckCmsPlugin() {
             const fieldDescriptions = (edition?.fields as Array<any> | undefined)
               ?.map(f => `  - ${f.label} (${f.typicalLength} text): ${f.description}`)
               .join('\n') || '';
+            const instructionFirstCopy = shouldPrioritizeInstructionCopy(cardType, edition?.id);
+            const primaryFieldName = instructionFirstCopy ? 'instruction' : 'phrase';
+            const copyHierarchyNote = buildCopyHierarchyNote(instructionFirstCopy);
 
             // Extract valid text fields to process
             const textKeys: string[] = [];
@@ -1348,6 +1610,7 @@ function localDeckCmsPlugin() {
                 `DECK EDITION: "${deckLabel}"`,
                 `CARD CONTENT STRUCTURE:`,
                 fieldDescriptions,
+                ...copyHierarchyNote,
                 `DYNAMIC TEXT CONTENT TO FIT:`,
                 ...sampleTextLines,
                 '',
@@ -1370,7 +1633,7 @@ function localDeckCmsPlugin() {
                 `FONT WEIGHT RULES:`,
                 `For each text zone pick a fontWeight that creates VISUAL CONTRAST between zones. Mix aggressively:`,
                 `  - Use '300' or 'thin' for secondary labels / headers that should feel delicate`,
-                `  - Use 'bold' or '700' for the main phrase when the image is energetic/bold`,
+                `  - Use 'bold' or '700' for the primary "${primaryFieldName}" field when the image is energetic/bold`,
                 `  - Use '900' for a single dramatic zone if the illustration calls for heavy impact`,
                 `  - Think like a magazine designer: hierarchy through weight, not just size`,
                 '',
@@ -1951,6 +2214,26 @@ Do not say anything else. Just the pure valid SVG XML.`;
             const { when_to_use, phrase, instruction, answer } = card.back;
             const cardNumber = String(card.front.number).padStart(2, '0');
             const cardTitle = card.front.title || '';
+            const instructionFirstCopy = shouldPrioritizeInstructionForRawDeck(deckRaw);
+            const primaryBackText = instructionFirstCopy ? (instruction || phrase) : (phrase || instruction);
+            const secondaryBackText = instructionFirstCopy ? phrase : instruction;
+            const typographyLayoutLines = instructionFirstCopy
+              ? [
+                  `In the CENTER (largest, clearest readable text, elegant serif or humanist sans, centered, 3-6 lines max):`,
+                  primaryBackText ? `  "${primaryBackText}"` : `  (no main text)`,
+                  ``,
+                  secondaryBackText ? `Below the main instruction (smaller editorial hook, muted but readable):` : '',
+                  secondaryBackText ? `  "${secondaryBackText}"` : '',
+                  answer ? `Below the hook or instruction (very small, muted): "Rta: ${answer}"` : '',
+                ]
+              : [
+                  `In the CENTER (large elegant serif font, white, centered, 2-4 lines max):`,
+                  primaryBackText ? `  "${primaryBackText}"` : `  (no main text)`,
+                  ``,
+                  secondaryBackText ? `Below the phrase (small, readable body text, light gray, centered):` : '',
+                  secondaryBackText ? `  "${secondaryBackText}"` : '',
+                  answer ? `Below instruction (very small, muted): "Rta: ${answer}"` : '',
+                ];
 
             // Build the full-card design prompt (Flujo B)
             const prompt = [
@@ -1968,12 +2251,7 @@ Do not say anything else. Just the pure valid SVG XML.`;
               `At the TOP (small, uppercase, spaced-out, gold/muted text, centered):`,
               when_to_use ? `  "${when_to_use.toUpperCase()}"` : `  (no header text)`,
               ``,
-              `In the CENTER (large elegant serif font, white, centered, 2-4 lines max):`,
-              `  "${phrase}"`,
-              ``,
-              `Below the phrase (small, readable body text, light gray, centered):`,
-              instruction ? `  "${instruction}"` : `  (no instruction)`,
-              answer ? `Below instruction (very small, muted): "Rta: ${answer}"` : '',
+              ...typographyLayoutLines,
               ``,
               `At the BOTTOM CENTER leave a clean 14mm x 14mm square space — this area will have a QR code placed on top programmatically, do not draw anything there.`,
               ``,
