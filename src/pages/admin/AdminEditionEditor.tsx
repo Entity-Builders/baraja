@@ -1,13 +1,22 @@
 import { useState, useEffect, type FormEvent } from 'react';
-import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import type { Card, DeckSchema } from '@eb-packages/deck-engine';
 import { useDeck } from '../../hooks/useDeck';
 
 import { EditorSidebar } from '../../components/cards/EditorSidebar';
-import { CardCanvas } from '../../components/cards/CardCanvas';
 import { DeckSettingsModal } from '../../components/admin/DeckSettingsModal';
 import { AdminDeckWorkspaceNav } from './components/AdminDeckWorkspaceNav';
 import { AdminDeckGallery } from './components/AdminDeckGallery';
+import { EditionCardGrid } from './components/edition-editor/EditionCardGrid';
+import { EditionEditorHeader } from './components/edition-editor/EditionEditorHeader';
+import { EditionEditorNotice } from './components/edition-editor/EditionEditorNotice';
+import { EditionOutputQuickLinks } from './components/edition-editor/EditionOutputQuickLinks';
+import {
+  getStudioMode,
+  type AdminNotice,
+  type CardViewMode,
+  type SaveEditionResponse,
+} from './components/edition-editor/editionEditorTypes';
 import {
   PublicationStatusPanel,
   type DeckPrintableConfig,
@@ -16,24 +25,6 @@ import AdminTemplates from './AdminTemplates';
 import {
   getDeckPublicationReadiness,
 } from '../../lib/deckPublicationReadiness';
-
-type AdminNotice = {
-  kind: 'success' | 'warning' | 'error';
-  message: string;
-};
-
-type StudioMode = 'cards' | 'design' | 'output';
-
-type SaveEditionResponse = {
-  success?: boolean;
-  warnings?: string[];
-  error?: string;
-};
-
-function getStudioMode(value: string | null): StudioMode {
-  if (value === 'design' || value === 'output') return value;
-  return 'cards';
-}
 
 export default function AdminEditionEditor() {
   const { deckId } = useParams();
@@ -52,7 +43,7 @@ export default function AdminEditionEditor() {
   const [generatingBack, setGeneratingBack] = useState<Record<string, boolean>>({});
   const [batchGenerating, setBatchGenerating] = useState(false);
   const [batchGeneratingBacks, setBatchGeneratingBacks] = useState(false);
-  const [viewMode, setViewMode] = useState<'print' | 'original' | 'gallery'>('gallery');
+  const [viewMode, setViewMode] = useState<CardViewMode>('gallery');
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
@@ -322,72 +313,16 @@ export default function AdminEditionEditor() {
 
       {/* Main Content */}
       <div style={{ flex: 1, minWidth: 0, width: '100%', maxWidth: '100vw', overflowX: 'hidden', padding: 'clamp(1rem, 3vw, 2rem)', transition: 'margin-right 0.3s' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-          <div style={{ flex: '1 1 320px', minWidth: 0 }}>
-            <Link to="/admin" style={{ color: 'var(--color-gold)', textDecoration: 'none', marginBottom: '1rem', display: 'inline-block' }}>&larr; Dashboard</Link>
-            <h1 style={{ margin: 0 }}>{activeDeck.name} · {studioTitle}</h1>
-          </div>
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-start', flex: '1 1 100%', width: '100%', maxWidth: 'calc(100vw - 2rem)', minWidth: 0 }}>
-            {studioMode === 'cards' && (
-              <>
-                <div style={{ display: 'flex', background: 'rgba(0,0,0,0.5)', borderRadius: '4px', overflowX: 'auto', overflowY: 'hidden', border: '1px solid rgba(255,255,255,0.1)', maxWidth: '100%' }}>
-                  <button
-                    onClick={() => setViewMode('print')}
-                    style={{
-                      background: viewMode === 'print' ? 'rgba(255,255,255,0.1)' : 'transparent',
-                      color: viewMode === 'print' ? 'white' : 'rgba(255,255,255,0.5)',
-                      border: 'none', padding: '0.5rem 1rem', cursor: 'pointer', fontSize: '0.85rem'
-                    }}
-                  >
-                    Layout impreso
-                  </button>
-                  <button
-                    onClick={() => setViewMode('original')}
-                    style={{
-                      background: viewMode === 'original' ? 'rgba(255,255,255,0.1)' : 'transparent',
-                      color: viewMode === 'original' ? 'white' : 'rgba(255,255,255,0.5)',
-                      border: 'none', padding: '0.5rem 1rem', cursor: 'pointer', fontSize: '0.85rem'
-                    }}
-                  >
-                    Arte original
-                  </button>
-                  <button
-                    onClick={() => setViewMode('gallery')}
-                    style={{
-                      background: viewMode === 'gallery' ? 'rgba(255,255,255,0.1)' : 'transparent',
-                      color: viewMode === 'gallery' ? 'var(--color-gold)' : 'rgba(255,255,255,0.5)',
-                      border: 'none', padding: '0.5rem 1rem', cursor: 'pointer', fontSize: '0.85rem'
-                    }}
-                  >
-                    Galería
-                  </button>
-                </div>
-              </>
-            )}
-            <button
-              onClick={() => setShowSettingsModal(true)}
-              style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'white', padding: '0.5rem 1rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem' }}
-            >
-              Ajustes
-            </button>
-            <Link
-              to={`/admin/${encodeURIComponent(workspaceDeckId)}?studio=output`}
-              className={studioMode === 'output' ? 'btn-primary' : 'btn-ghost'}
-              style={{ textDecoration: 'none' }}
-            >
-              Publicar / PDF
-            </Link>
-            <Link to={`/admin/${encodeURIComponent(workspaceDeckId)}?studio=design&tool=tuckbox`} className="btn-ghost" style={{ textDecoration: 'none', fontSize: '0.85rem' }}>
-              Tuck box
-            </Link>
-            <button
-              onClick={handleDeleteEdition}
-              style={{ background: 'transparent', border: '1px solid rgba(248,113,113,0.45)', color: '#f87171', padding: '0.5rem 0.75rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.78rem' }}
-            >
-              Eliminar
-            </button>
-          </div>
-        </div>
+        <EditionEditorHeader
+          deckName={activeDeck.name}
+          studioMode={studioMode}
+          studioTitle={studioTitle}
+          viewMode={viewMode}
+          workspaceDeckId={workspaceDeckId}
+          onDeleteEdition={handleDeleteEdition}
+          onOpenSettings={() => setShowSettingsModal(true)}
+          onViewModeChange={setViewMode}
+        />
 
         <AdminDeckWorkspaceNav
           deckId={workspaceDeckId}
@@ -395,23 +330,7 @@ export default function AdminEditionEditor() {
           activeMode={studioMode}
         />
 
-        {notice && (
-          <div
-            role="status"
-            aria-live="polite"
-            style={{
-              marginBottom: '1rem',
-              padding: '0.75rem 1rem',
-              borderRadius: '8px',
-              border: `1px solid ${notice.kind === 'error' ? 'rgba(248,113,113,0.35)' : notice.kind === 'warning' ? 'rgba(212,175,100,0.35)' : 'rgba(116,196,147,0.35)'}`,
-              background: notice.kind === 'error' ? 'rgba(248,113,113,0.08)' : notice.kind === 'warning' ? 'rgba(212,175,100,0.08)' : 'rgba(116,196,147,0.08)',
-              color: notice.kind === 'error' ? '#fca5a5' : notice.kind === 'warning' ? '#d4af64' : '#9ee0b6',
-              fontSize: '0.88rem',
-            }}
-          >
-            {notice.message}
-          </div>
-        )}
+        {notice && <EditionEditorNotice notice={notice} />}
 
         {studioMode === 'output' && (
           <PublicationStatusPanel
@@ -426,32 +345,10 @@ export default function AdminEditionEditor() {
 
         {/* ── Dynamic Layout Engine ─────────────────────────── */}
         {studioMode === 'output' ? (
-          <section
-            style={{
-              display: 'grid',
-              gap: '1rem',
-              padding: '1rem',
-              border: '1px solid rgba(255,255,255,0.08)',
-              borderRadius: '8px',
-              background: 'rgba(255,255,255,0.025)',
-            }}
-          >
-            <h2 style={{ margin: 0, fontSize: '1rem' }}>Pruebas rápidas antes de publicar</h2>
-            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <Link to={`/decks/${activeDeck.slug}`} className="btn-ghost" style={{ textDecoration: 'none' }}>
-                Ver landing
-              </Link>
-              <Link to={`/decks/${activeDeck.slug}/session`} className="btn-ghost" style={{ textDecoration: 'none' }}>
-                Probar sesión digital
-              </Link>
-              <Link to={`/admin/${encodeURIComponent(workspaceDeckId)}/print`} className="btn-primary" style={{ textDecoration: 'none' }}>
-                Generar PDF imprimible
-              </Link>
-            </div>
-            <p style={{ margin: 0, color: 'rgba(255,255,255,0.62)', fontSize: '0.86rem', lineHeight: 1.5 }}>
-              Este modo concentra la salida del mazo: landing pública, PDF de impresión y pruebas de lectura. Los cambios de diseño viven en “Diseño global”; contenido y revisión viven en “Mazo”.
-            </p>
-          </section>
+          <EditionOutputQuickLinks
+            deckSlug={activeDeck.slug}
+            workspaceDeckId={workspaceDeckId}
+          />
         ) : viewMode === 'gallery' ? (
           <AdminDeckGallery
             deck={activeDeck}
@@ -470,40 +367,16 @@ export default function AdminEditionEditor() {
           />
         ) : (
           /* STANDARD GRID (Print or Original Modes) */
-          <div style={{ display: 'grid', gridTemplateColumns: viewMode === 'original' ? 'repeat(auto-fill, minmax(280px, 1fr))' : 'repeat(auto-fill, minmax(220px, 1fr))', gap: '2rem' }}>
-            {cards.map((card) => (
-               <div key={card.id} style={{ position: 'relative' }}>
-                 <div style={{ position: 'absolute', zIndex: 50, top: 10, right: 10, display: 'flex', gap: '0.5rem' }}>
-                    <button 
-                       onClick={() => setEditingCard(card)}
-                       style={{ background: 'rgba(0,0,0,0.7)', border: '1px solid rgba(255,255,255,0.2)', padding: '0.2rem 0.5rem', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem' }}
-                    >
-                       Edit
-                    </button>
-                    <button 
-                       onClick={() => handleGenerateArt(card.id)}
-                       disabled={!!generatingArt[card.id]}
-                       style={{ background: 'rgba(0,0,0,0.7)', border: '1px solid #4ade80', padding: '0.2rem 0.5rem', color: '#4ade80', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem', opacity: generatingArt[card.id] ? 0.5 : 1 }}
-                    >
-                       {generatingArt[card.id] ? '...' : 'Art'}
-                    </button>
-                    <button 
-                       onClick={() => handleGenerateCardBack(card.id)}
-                       disabled={!!generatingBack[card.id]}
-                       style={{ background: 'rgba(0,0,0,0.7)', border: `1px solid ${card.back.back_image_url ? '#a78bfa' : 'rgba(167,139,250,0.4)'}`, padding: '0.2rem 0.5rem', color: '#a78bfa', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem', opacity: generatingBack[card.id] ? 0.5 : 1 }}
-                       title={card.back.back_image_url ? 'Regenerate AI card back' : 'Generate AI card back'}
-                    >
-                       {generatingBack[card.id] ? '...' : card.back.back_image_url ? '🎴✓' : '🎴'}
-                    </button>
-                 </div>
-                 <CardCanvas
-                   card={card}
-                   deck={activeDeck}
-                   forceOriginalMode={viewMode === 'original'}
-                 />
-               </div>
-            ))}
-          </div>
+          <EditionCardGrid
+            cards={cards}
+            deck={activeDeck}
+            generatingArt={generatingArt}
+            generatingBack={generatingBack}
+            viewMode={viewMode}
+            onEditCard={setEditingCard}
+            onGenerateArt={(cardId) => void handleGenerateArt(cardId)}
+            onGenerateCardBack={(cardId) => void handleGenerateCardBack(cardId)}
+          />
         )}
       </div>
     </div>
