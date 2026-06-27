@@ -5,10 +5,10 @@ import { buildMasterTemplatePrompt, buildArtDirectorMetaPrompt, buildStructuralC
 import { DECK_EDITIONS } from '../../lib/editions';
 import { SupabaseDeckRepository } from '../../lib/deckRepository';
 import { createDefaultCardTemplate } from '../../lib/pdfmeConfig';
+import { FrameGeneratorControls } from './components/frame-generator/FrameGeneratorControls';
 import { FrameLayoutPanel } from './components/frame-generator/FrameLayoutPanel';
 import { FrameLibraryGallery } from './components/frame-generator/FrameLibraryGallery';
 import { FramePreviewPanel } from './components/frame-generator/FramePreviewPanel';
-import { inputStyle, labelStyle, sectionStyle, selectStyle } from './frameGeneratorStyles';
 import type { GeneratedFrame, GenerateResponse, FramesLibraryResponse, LibraryFrame } from './frameGeneratorTypes';
 import { isTypoZone } from './frameGeneratorTypes';
 
@@ -402,6 +402,56 @@ export default function AdminFrameGenerator() {
     }));
   }
 
+  function handleSelectDeckEngineDeck(deckId: DeckId) {
+    setSelectedDeckId(deckId);
+    const deck = DECKS[deckId];
+    if (!deck) return;
+
+    setBuilderMetadata(prev => ({
+      ...prev,
+      themeDescription: `${deck.name}. ${deck.metadata.topic}. Ambientación: ${deck.metadata.tone}.`,
+      primaryColorHex: deck.design?.primary_color || prev.primaryColorHex,
+    }));
+
+    const localEdition = DECK_EDITIONS.find(edition =>
+      edition.deckEngineIds?.includes(deckId) || edition.id === deckId
+    );
+    if (!localEdition) return;
+
+    setSelectedEditionId(localEdition.id);
+    setCardContent(localEdition.sampleCard);
+
+    const typeMap: Record<string, CardType> = {
+      barometro: 'therapeutic',
+      trivia: 'trivia',
+      juegos: 'game',
+      rompelo: 'party',
+    };
+    const inferredType = typeMap[localEdition.id] ?? 'custom';
+    handleCardTypeChange(inferredType);
+  }
+
+  function handleEnhanceThemeDescription() {
+    setBuilderMetadata(prev => ({
+      ...prev,
+      themeDescription: prev.themeDescription
+        ? `${prev.themeDescription}, hyper-detailed, elegant, trending on artstation, cinematic lighting, vivid colors`
+        : 'hyper-detailed, elegant, trending on artstation, cinematic lighting, vivid colors',
+    }));
+  }
+
+  function handleAppendThemeInspiration(label: string) {
+    setBuilderMetadata(prev => ({
+      ...prev,
+      themeDescription: prev.themeDescription ? `${prev.themeDescription}, ${label}` : label,
+    }));
+  }
+
+  function handleCardTypeChange(nextCardType: CardType) {
+    setCardType(nextCardType);
+    setBuilderMetadata(prev => ({ ...prev, cardType: nextCardType }));
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: '#0a0a10', color: 'white', padding: '2rem' }}>
       {/* Header */}
@@ -419,283 +469,29 @@ export default function AdminFrameGenerator() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1fr) 2fr 340px', gap: '2rem', alignItems: 'start' }}>
 
-        {/* ─── Left Panel: Config ─── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-
-          {/* Face selector */}
-          <section style={sectionStyle}>
-            <label style={labelStyle}>Cara de la carta</label>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              {(['back', 'front'] as const).map(f => (
-                <button
-                  key={f}
-                  onClick={() => setFace(f)}
-                  style={{
-                    flex: 1,
-                    padding: '0.6rem',
-                    borderRadius: '6px',
-                    border: `1px solid ${face === f ? 'var(--color-gold)' : 'rgba(255,255,255,0.1)'}`,
-                    background: face === f ? 'rgba(201,168,92,0.15)' : 'rgba(255,255,255,0.03)',
-                    color: face === f ? 'var(--color-gold)' : 'rgba(255,255,255,0.6)',
-                    cursor: 'pointer',
-                    fontSize: '0.85rem',
-                    transition: 'all 0.15s',
-                  }}
-                >
-                  {f === 'back' ? '🔄 Reverso' : '🃏 Frente'}
-                </button>
-              ))}
-            </div>
-          </section>
-
-
-          {/* Dimensions */}
-          <section style={sectionStyle}>
-            <label style={labelStyle}>Dimensiones</label>
-            <select
-              value={dimPresetIdx}
-              onChange={e => setDimPresetIdx(Number(e.target.value))}
-              style={selectStyle}
-            >
-              {DIMENSION_PRESETS.map((p, i) => (
-                <option key={i} value={i}>{p.label}</option>
-              ))}
-              <option value={DIMENSION_PRESETS.length}>Custom...</option>
-            </select>
-            {dimPresetIdx === DIMENSION_PRESETS.length && (
-              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: '0.7rem', opacity: 0.5 }}>Width (mm)</label>
-                  <input
-                    type="number"
-                    value={customWidth}
-                    onChange={e => setCustomWidth(Number(e.target.value))}
-                    style={inputStyle}
-                  />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: '0.7rem', opacity: 0.5 }}>Height (mm)</label>
-                  <input
-                    type="number"
-                    value={customHeight}
-                    onChange={e => setCustomHeight(Number(e.target.value))}
-                    style={inputStyle}
-                  />
-                </div>
-              </div>
-            )}
-          </section>
-
-
-          {/* Card Configuration */}
-          <section style={sectionStyle}>
-            <label style={labelStyle}>Configuración de Carta</label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-
-              {/* Auto-fill from Deck Engine */}
-              <div style={{ paddingBottom: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                <label style={{ fontSize: '0.7rem', opacity: 0.5, display: 'block', marginBottom: '0.4rem' }}>Autocompletar desde Baraja</label>
-                <select
-                  style={{ ...selectStyle, cursor: 'pointer' }}
-                  onChange={e => {
-                    const deckId = e.target.value as DeckId;
-                    if (!deckId) return;
-                    setSelectedDeckId(deckId);
-                    const deck = DECKS[deckId];
-                    if (deck) {
-                      setBuilderMetadata(prev => ({
-                        ...prev,
-                        themeDescription: `${deck.name}. ${deck.metadata.topic}. Ambientación: ${deck.metadata.tone}.`,
-                        primaryColorHex: deck.design?.primary_color || prev.primaryColorHex,
-                      }));
-                      const localEdition = DECK_EDITIONS.find(e =>
-                        e.deckEngineIds?.includes(deckId) || e.id === deckId
-                      );
-                      if (localEdition) {
-                        setSelectedEditionId(localEdition.id);
-                        setCardContent(localEdition.sampleCard);
-                        // Auto-set card type from edition
-                        const typeMap: Record<string, CardType> = {
-                          barometro: 'therapeutic',
-                          trivia: 'trivia',
-                          juegos: 'game',
-                          rompelo: 'party',
-                        };
-                        const inferredType = typeMap[localEdition.id] ?? 'custom';
-                        setCardType(inferredType);
-                        setBuilderMetadata(prev => ({ ...prev, cardType: inferredType }));
-                      }
-                    }
-                  }}
-                  defaultValue=""
-                >
-                  <option value="" disabled>-- Seleccionar Baraja --</option>
-                  {Object.keys(DECKS).map(key => (
-                    <option key={key} value={key}>{DECKS[key as DeckId].name}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Theme description */}
-              <div>
-                <label style={{ fontSize: '0.7rem', opacity: 0.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
-                  <span>Temática visual (Gemini Art Director)</span>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button
-                      onClick={() => setBuilderMetadata(prev => ({ 
-                        ...prev, 
-                        themeDescription: prev.themeDescription 
-                          ? `${prev.themeDescription}, hyper-detailed, elegant, trending on artstation, cinematic lighting, vivid colors` 
-                          : 'hyper-detailed, elegant, trending on artstation, cinematic lighting, vivid colors'
-                      }))}
-                      style={{ background: 'var(--color-gold)', border: 'none', color: '#111', fontSize: '0.65rem', cursor: 'pointer', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}
-                      title="Enriquecer prompt visualmente"
-                    >
-                      🪄 Enhance
-                    </button>
-                    <button
-                       onClick={() => setBuilderMetadata(prev => ({ ...prev, themeDescription: '' }))}
-                       style={{ background: 'none', border: 'none', color: '#ff6b6b', fontSize: '0.65rem', cursor: 'pointer', padding: 0, opacity: 0.8 }}
-                     >
-                       Limpiar
-                     </button>
-                  </div>
-                </label>
-                <textarea
-                  value={builderMetadata.themeDescription}
-                  onChange={e => setBuilderMetadata(prev => ({ ...prev, themeDescription: e.target.value }))}
-                  style={{ ...inputStyle, resize: 'vertical', minHeight: '65px' }}
-                  placeholder="Ej: Trivia de cine, energía de sala de cine vintage..."
-                />
-                
-                {/* INSPIRATION CHIPS */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginTop: '0.4rem' }}>
-                   {[
-                     { label: 'Cyberpunk Neón', icon: '⚡' },
-                     { label: 'Acuarela Botánica', icon: '🌿' },
-                     { label: 'Retrofuturismo 80s', icon: '📼' },
-                     { label: 'Minimalismo Zen', icon: '🧘' },
-                     { label: 'Gótico Oscuro', icon: '🦇' },
-                     { label: 'Bauhaus Geométrico', icon: '📐' },
-                     { label: 'Pop Art', icon: '💥' },
-                     { label: 'Rococó Elegante', icon: '👑' }
-                   ].map(chip => (
-                     <button
-                       key={chip.label}
-                       onClick={() => setBuilderMetadata(prev => ({ 
-                         ...prev, 
-                         themeDescription: prev.themeDescription 
-                           ? `${prev.themeDescription}, ${chip.label}` 
-                           : chip.label 
-                       }))}
-                       style={{ 
-                         background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', 
-                         borderRadius: '16px', padding: '0.2rem 0.6rem', fontSize: '0.65rem', cursor: 'pointer',
-                         display: 'flex', alignItems: 'center', gap: '0.2rem', transition: 'all 0.15s'
-                       }}
-                       onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.12)'}
-                       onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
-                     >
-                       <span>{chip.icon}</span> {chip.label}
-                     </button>
-                   ))}
-                </div>
-              </div>
-
-              {/* Card Type */}
-              <div>
-                <label style={{ fontSize: '0.7rem', opacity: 0.5, display: 'block', marginBottom: '0.4rem' }}>Tipo de Carta</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.35rem' }}>
-                  {([
-                    { id: 'therapeutic', label: '🧘 Terapéutica', hint: 'Ejercicios / regulación' },
-                    { id: 'trivia',      label: '🎯 Trivia',       hint: 'Preguntas y respuestas' },
-                    { id: 'party',       label: '🎉 Fiesta',       hint: 'Social / irreverente' },
-                    { id: 'game',        label: '🎲 Juego',        hint: 'Mecánicas / reglas' },
-                    { id: 'custom',      label: '✍️ Custom',       hint: 'Personalizado' },
-                  ] as const).map(t => (
-                    <button
-                      key={t.id}
-                      onClick={() => {
-                        setCardType(t.id as CardType);
-                        setBuilderMetadata(prev => ({ ...prev, cardType: t.id as CardType }));
-                      }}
-                      title={t.hint}
-                      style={{
-                        padding: '0.45rem 0.5rem',
-                        borderRadius: '6px',
-                        border: `1px solid ${cardType === t.id ? 'var(--color-gold)' : 'rgba(255,255,255,0.1)'}`,
-                        background: cardType === t.id ? 'rgba(201,168,92,0.15)' : 'rgba(255,255,255,0.03)',
-                        color: cardType === t.id ? 'var(--color-gold)' : 'rgba(255,255,255,0.55)',
-                        cursor: 'pointer',
-                        fontSize: '0.72rem',
-                        textAlign: 'left',
-                        transition: 'all 0.15s',
-                        ...(t.id === 'custom' ? { gridColumn: '1 / -1' } : {}),
-                      }}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-
-              {/* Primary Color */}
-              <div>
-                <label style={{ fontSize: '0.7rem', opacity: 0.5 }}>Color Principal (Opcional)</label>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                  <input
-                    type="color"
-                    value={builderMetadata.primaryColorHex || '#FFD700'}
-                    onChange={e => setBuilderMetadata(prev => ({ ...prev, primaryColorHex: e.target.value }))}
-                    style={{ width: '32px', height: '32px', padding: 0, border: '1px solid rgba(255,255,255,0.1)', borderRadius: '4px', cursor: 'pointer', background: 'transparent' }}
-                  />
-                  <input
-                    type="text"
-                    value={builderMetadata.primaryColorHex || ''}
-                    onChange={e => setBuilderMetadata(prev => ({ ...prev, primaryColorHex: e.target.value }))}
-                    style={{ ...inputStyle, flex: 1 }}
-                    placeholder="Ej: #FFD700"
-                  />
-                  <button
-                    onClick={() => setBuilderMetadata(prev => ({ ...prev, primaryColorHex: undefined }))}
-                    style={{ padding: '0.4rem 0.6rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', borderRadius: '4px', cursor: 'pointer', fontSize: '0.7rem' }}
-                    title="Limpiar color"
-                  >
-                    X
-                  </button>
-                </div>
-              </div>
-
-            </div>
-          </section>
-
-          {/* Prompt Preview Viewer */}
-          <section style={sectionStyle}>
-            <label style={{ ...labelStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>🔍 Preview de Instrucciones al Motor</span>
-            </label>
-            <div style={{
-              background: 'rgba(0,0,0,0.3)',
-              padding: '0.6rem',
-              borderRadius: '6px',
-              border: '1px solid rgba(255,255,255,0.05)',
-              fontSize: '0.65rem',
-              color: 'rgba(255,255,255,0.5)',
-              overflowY: 'auto',
-              maxHeight: '130px',
-              lineHeight: 1.4,
-              fontFamily: 'monospace'
-            }}>
-              <strong>Art Director:</strong><br />
-              {buildArtDirectorMetaPrompt(builderMetadata)}
-              <hr style={{ borderColor: 'rgba(255,255,255,0.1)', margin: '0.5rem 0' }} />
-              <strong>Structural Rules:</strong><br />
-              {buildStructuralConstraints(builderMetadata)}
-            </div>
-          </section>
-
-        </div>
+        <FrameGeneratorControls
+          artDirectorPreview={buildArtDirectorMetaPrompt(builderMetadata)}
+          builderMetadata={builderMetadata}
+          cardType={cardType}
+          customHeight={customHeight}
+          customWidth={customWidth}
+          dimensionPresets={DIMENSION_PRESETS}
+          dimPresetIdx={dimPresetIdx}
+          face={face}
+          structuralPreview={buildStructuralConstraints(builderMetadata)}
+          onAppendThemeInspiration={handleAppendThemeInspiration}
+          onCardTypeChange={handleCardTypeChange}
+          onClearPrimaryColor={() => setBuilderMetadata(prev => ({ ...prev, primaryColorHex: undefined }))}
+          onClearThemeDescription={() => setBuilderMetadata(prev => ({ ...prev, themeDescription: '' }))}
+          onCustomHeightChange={setCustomHeight}
+          onCustomWidthChange={setCustomWidth}
+          onDimensionPresetChange={setDimPresetIdx}
+          onEnhanceThemeDescription={handleEnhanceThemeDescription}
+          onFaceChange={setFace}
+          onPrimaryColorChange={(color) => setBuilderMetadata(prev => ({ ...prev, primaryColorHex: color }))}
+          onSelectDeck={handleSelectDeckEngineDeck}
+          onThemeDescriptionChange={(description) => setBuilderMetadata(prev => ({ ...prev, themeDescription: description }))}
+        />
 
         <FramePreviewPanel
           activePreview={activePreview}
