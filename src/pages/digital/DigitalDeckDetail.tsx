@@ -8,9 +8,9 @@ import {
   type DeckSchema,
 } from '@eb-packages/deck-engine';
 import {
-  formatDeckPrice,
   getDeckCatalogBreadcrumb,
   getDeckCatalogFacet,
+  getDeckInquiryHref,
   getDeckHeroImage,
   hasPrintablePdf,
 } from '../../lib/digitalDeckCatalog';
@@ -37,12 +37,6 @@ export default function DigitalDeckDetail() {
       card_count: deck.card_count,
       preview_card_count: previewCards.length,
       printable_enabled: printableEnabled,
-      surface: 'deck_detail',
-    });
-    trackBarajaEvent('baraja_paywall_viewed', {
-      deck_id: deck.id,
-      deck_slug: deck.slug,
-      locked_count: Math.max(0, deck.card_count - previewCards.length),
       surface: 'deck_detail',
     });
   }, [deck, previewCards.length, printableEnabled]);
@@ -78,6 +72,7 @@ export default function DigitalDeckDetail() {
   const catalogSearch = `?catalog=${catalogFacet.collectionId}`;
   const landingCopy = deck.digital?.landing;
   const heroImage = getDeckHeroImage(deck);
+  const inquiryHref = getDeckInquiryHref(deck);
 
   return (
     <main className="digital-shell">
@@ -87,16 +82,7 @@ export default function DigitalDeckDetail() {
           <Link to={{ pathname: '/', search: catalogSearch, hash: '#mazos' }}>
             {catalogFacet.collectionLabel}
           </Link>
-          <Link
-            to={`/decks/${deck.slug}/access`}
-            onClick={() => trackBarajaEvent('baraja_checkout_started', {
-              deck_id: deck.id,
-              deck_slug: deck.slug,
-              surface: 'deck_detail_nav',
-            })}
-          >
-            Comprar
-          </Link>
+          <a href={inquiryHref}>Consultar</a>
         </div>
       </nav>
 
@@ -135,16 +121,14 @@ export default function DigitalDeckDetail() {
             {landingCopy?.hero_supporting_copy ?? catalogFacet.summary}
           </p>
           <div className="digital-actions">
-            <Link
-              to={`/decks/${deck.slug}/access`}
+            <a
+              href={inquiryHref}
               className="btn-primary"
-              onClick={() => trackBarajaEvent('baraja_checkout_started', {
-                deck_id: deck.id,
-                deck_slug: deck.slug,
-                surface: 'deck_detail',
-              })}
             >
-              Comprar acceso {formatDeckPrice(deck)}
+              Consultar por este mazo
+            </a>
+            <Link to={`/decks/${deck.slug}/access`} className="btn-ghost">
+              Ver acceso
             </Link>
           </div>
         </div>
@@ -178,23 +162,18 @@ export default function DigitalDeckDetail() {
       <section className="digital-band">
         <div>
           <p className="digital-kicker">Acceso completo</p>
-          <h2>El mazo completo queda desbloqueado al comprar.</h2>
+          <h2>Para usar el mazo completo, consultanos.</h2>
           <p>
             {landingCopy?.unlock_summary ??
-              'El acceso pago suma sesión completa, favoritos locales y el paquete imprimible cuando el mazo lo incluye.'}
+              'El mazo completo suma sesión guiada, favoritos locales y el paquete imprimible cuando la edición lo incluye.'}
           </p>
         </div>
-        <Link
-          to={`/decks/${deck.slug}/access`}
+        <a
+          href={inquiryHref}
           className="btn-primary"
-          onClick={() => trackBarajaEvent('baraja_checkout_started', {
-            deck_id: deck.id,
-            deck_slug: deck.slug,
-            surface: 'locked_band',
-          })}
         >
-          Comprar acceso {formatDeckPrice(deck)}
-        </Link>
+          Consultar acceso
+        </a>
       </section>
 
       <RelatedDecksSection currentDeck={deck} />

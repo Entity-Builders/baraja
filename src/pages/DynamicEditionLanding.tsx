@@ -45,13 +45,25 @@ function EmailCapture({ id, slug }: { id: string; slug: string }) {
         aria-label="Tu email"
       />
       <button className="btn-primary" type="submit" disabled={status === 'loading'}>
-        {status === 'loading' ? '...' : 'Comprar / Quiero mi mazo'}
+        {status === 'loading' ? '...' : 'Consultar por mi mazo'}
       </button>
       {status === 'error' && (
         <p className="cat-error">Algo salió mal. Intentá de nuevo.</p>
       )}
     </form>
   );
+}
+
+function hasPurchaseLanguage(value: unknown): value is string {
+  return typeof value === 'string' && /compr|precio|pago|checkout|tienda/i.test(value);
+}
+
+function inquiryCopy(value: unknown, fallback: string): string {
+  if (hasPurchaseLanguage(value)) {
+    return fallback;
+  }
+
+  return typeof value === 'string' && value.trim() ? value : fallback;
 }
 
 // ── Page ──────────────────────────────────────────────────────
@@ -95,7 +107,7 @@ export default function DynamicEditionLanding({ slug }: DynamicEditionLandingPro
   const heroEyebrow = config.hero?.eyebrow || 'Edición Especial';
   const heroTitleHtml = config.hero?.titleHtml || deck.name;
   const heroSubtitle = config.hero?.subtitle || deck.description;
-  const ctaPrimary = config.hero?.ctaPrimary || 'Quiero mi mazo';
+  const ctaPrimary = inquiryCopy(config.hero?.ctaPrimary, 'Consultar acceso');
   const ctaSecondary = config.hero?.ctaSecondary || 'Ver las cartas';
 
   const showcaseEyebrow = config.showcase?.eyebrow?.replace('{count}', String(deck.card_count)) || `${deck.card_count} cartas`;
@@ -103,9 +115,12 @@ export default function DynamicEditionLanding({ slug }: DynamicEditionLandingPro
   const showcaseSubtitle = config.showcase?.subtitle;
   const showcaseFooter = config.showcase?.footer?.replace('{remaining}', String(Math.max(0, deck.card_count - 4)));
 
-  const leadEyebrow = config.leadCapture?.eyebrow || 'Lanzamiento';
-  const leadTitle = config.leadCapture?.title || 'Comprar ' + deck.name;
-  const leadSubtitle = config.leadCapture?.subtitle || 'Dejá tu mail para iniciar la compra.';
+  const leadEyebrow = inquiryCopy(config.leadCapture?.eyebrow, 'Consulta');
+  const leadTitle = inquiryCopy(config.leadCapture?.title, `Consultar ${deck.name}`);
+  const leadSubtitle = inquiryCopy(
+    config.leadCapture?.subtitle,
+    'Dejá tu mail y te contamos cómo acceder cuando esté listo.'
+  );
 
   // Resolve Vibe Background
   // Fallbacks: If the generated vibe image doesn't exist, it will fallback to CSS gradient
@@ -168,7 +183,7 @@ export default function DynamicEditionLanding({ slug }: DynamicEditionLandingPro
               </p>
             )}
           </div>
-          <PublicShowcase deck={deck as any} maxCards={4} />
+          <PublicShowcase deck={deck} maxCards={4} />
           {showcaseFooter && (
             <p className="edition-meta" style={{ textAlign: 'center', marginTop: '3rem', color: 'var(--color-text)', opacity: 0.5 }}>
               {showcaseFooter}
@@ -194,7 +209,7 @@ export default function DynamicEditionLanding({ slug }: DynamicEditionLandingPro
         </section>
       )}
 
-      {/* ── Precio + CTA ───────────────────────────────────── */}
+      {/* ── Consulta + CTA ─────────────────────────────────── */}
       <section className="section lead-capture" id="reservar" style={{ padding: '8rem 0' }}>
         <div className="container">
           <div className="section-header">

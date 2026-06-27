@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom';
 import type { DeckSchema } from '@eb-packages/deck-engine';
 import {
-  formatDeckPrice,
   getDeckCatalogFacet,
   getDeckAudienceBadges,
   getDeckHeroImage,
@@ -65,7 +64,7 @@ export function RelatedDecksSection({
                     <small key={badge}>{badge}</small>
                   ))}
                 </div>
-                <span className="related-deck-cta">Ver mazo · {formatDeckPrice(deck)}</span>
+                <span className="related-deck-cta">Ver mazo</span>
               </div>
             </Link>
           );

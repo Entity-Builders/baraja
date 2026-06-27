@@ -2,7 +2,7 @@ import { Link, Navigate, useParams } from 'react-router-dom';
 import { getPreviewCards } from '@eb-packages/deck-engine';
 import {
   findDigitalDeck,
-  formatDeckPrice,
+  getDeckInquiryHref,
   getDeckAudienceBadges,
   hasVerifiedDigitalDeckAccess,
 } from '../../lib/digitalDeckCatalog';
@@ -27,6 +27,7 @@ export default function DigitalAppDeckDetail() {
 
   const previewCards = getPreviewCards(deck, 4);
   const heroCard = previewCards[0] ?? deck.cards[0];
+  const inquiryHref = getDeckInquiryHref(deck);
 
   return (
     <main className="baraja-mobile-app baraja-app-detail">
@@ -72,7 +73,7 @@ export default function DigitalAppDeckDetail() {
         </section>
 
         <div className="baraja-app-detail-actions">
-          <Link to={`/app/decks/${deck.slug}/access`}>Comprar acceso — {formatDeckPrice(deck)}</Link>
+          <a href={inquiryHref}>Consultar acceso</a>
           <Link to={`/app/decks/${deck.slug}/session`}>Probar sesión gratuita</Link>
         </div>
       </section>

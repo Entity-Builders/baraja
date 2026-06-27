@@ -10,7 +10,8 @@ import {
   type DeckCatalogBreadcrumbItem,
   type DeckSchema,
 } from '@eb-packages/deck-engine';
-import { formatCurrencyAmount } from './formatters';
+
+const BARAJA_CONTACT_EMAIL = 'hola@baraja.cards';
 
 export const DIGITAL_DECKS: DeckSchema[] = Object.values(DECKS).filter(
   (deck) => deck.digital?.is_published === true
@@ -43,12 +44,13 @@ export function findDigitalDeck(slug: string | undefined): DeckSchema | null {
   );
 }
 
-export function formatDeckPrice(deck: DeckSchema): string {
-  const currency = deck.pricing.currency.toUpperCase();
+export function getDeckInquiryHref(deck: DeckSchema): string {
+  const subject = encodeURIComponent(`Consulta por ${deck.name} en Baraja`);
+  const body = encodeURIComponent(
+    `Hola, quiero consultar por ${deck.name} en Baraja.`
+  );
 
-  return formatCurrencyAmount(deck.pricing.amount, currency, {
-    maximumFractionDigits: currency === 'ARS' ? 0 : 2,
-  });
+  return `mailto:${BARAJA_CONTACT_EMAIL}?subject=${subject}&body=${body}`;
 }
 
 export function getDeckHeroImage(deck: DeckSchema): string | undefined {

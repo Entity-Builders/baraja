@@ -67,8 +67,8 @@ export default function DigitalAppLibrary() {
             <p className="baraja-mobile-section-label">Tu colección</p>
             <h2>Todavía no tenés mazos activos.</h2>
             <p>
-              Comprá un mazo para abrirlo desde acá, usar todas sus cartas y
-              descargar el PDF imprimible incluido.
+              Consultá por un mazo para abrirlo desde acá, usar sus cartas y
+              revisar el PDF imprimible cuando la edición lo incluya.
             </p>
             <Link to="/app/collections">Explorar colecciones</Link>
           </section>
@@ -78,7 +78,7 @@ export default function DigitalAppLibrary() {
           <div>
             <p className="baraja-mobile-section-label">Colecciones</p>
             <h2>Sumar nuevos mazos</h2>
-            <p>Explorá mazos digitales con acceso completo y permiso de PDF imprimible.</p>
+            <p>Explorá mazos digitales y consultá por acceso a cada edición.</p>
           </div>
           <Link to="/app/collections">Ver catálogo</Link>
         </section>

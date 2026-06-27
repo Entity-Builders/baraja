@@ -36,18 +36,18 @@ const EDITIONS = [
 const STEPS = [
   {
     n: 'I',
-    title: 'Elegís tu edición',
-    desc: 'Cada mazo es una experiencia distinta. Afirmaciones, trivia, conexión — identidad propia en cada uno.',
+    title: 'Explorás la edición',
+    desc: 'Cada mazo es una experiencia distinta. Regulación, trivia, conexión: identidad propia en cada uno.',
   },
   {
     n: 'II',
-    title: 'Lo imprimimos localmente',
-    desc: 'Tu pedido va directo a una imprenta local. Papel 350g, laminado mate, esquinas redondeadas.',
+    title: 'Probás cartas digitales',
+    desc: 'Mirás una muestra, entendés el tono y evaluás si la dinámica encaja con tu contexto.',
   },
   {
     n: 'III',
-    title: 'Lo recibís en días',
-    desc: 'Sin aduanas, sin esperas. Impresión local, envío rápido. En tus manos antes de lo que imaginás.',
+    title: 'Consultás acceso',
+    desc: 'Si te sirve, nos escribís y coordinamos la mejor forma de usar esa baraja.',
   },
 ];
 
@@ -111,7 +111,7 @@ function Hero() {
           Sabiduría que<br /><em>podés sostener</em>
         </h1>
         <p className="hero-tagline fade-up fade-up-delay-2">
-          Mazos de cartas sin stock, impresos localmente bajo demanda.
+          Mazos digitales con PDF imprimible opcional.
           Cada edición con su propia identidad, su propio mundo.
         </p>
         <div className="hero-cta fade-up fade-up-delay-3">
@@ -158,7 +158,7 @@ function Editions() {
                   className="btn-primary"
                   style={{ marginTop: '1.5rem', display: 'inline-flex' }}
                 >
-                  Ver edición →
+                  Consultar edición →
                 </a>
               )}
             </div>
@@ -178,7 +178,7 @@ function HowItWorks() {
           <h2 className="section-title">Local-first, on demand</h2>
           <div className="divider" />
           <p className="section-subtitle">
-            Sin stock. Sin océanos de por medio. Cada mazo se imprime cuando lo pedís.
+            Mirás una muestra, probás la experiencia y consultás si la baraja te sirve.
           </p>
         </div>
         <div className="steps">
@@ -220,10 +220,10 @@ function LeadCapture() {
       <div className="container">
         <div className="section-header">
           <p className="section-eyebrow">Lanzamiento</p>
-          <h2 className="section-title">Sé el primero en saberlo</h2>
+          <h2 className="section-title">Consultá por el lanzamiento</h2>
           <div className="divider" />
           <p className="section-subtitle">
-            Cable a Tierra ya está casi lista. Dejá tu email y te avisamos el día del lanzamiento.
+            Cable a Tierra ya está casi lista. Dejá tu email y te contamos cómo acceder cuando esté disponible.
           </p>
         </div>
         {status === 'done' ? (

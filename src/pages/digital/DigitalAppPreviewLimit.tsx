@@ -1,6 +1,6 @@
 import { Link, useParams } from 'react-router-dom';
 import { getPreviewCards } from '@eb-packages/deck-engine';
-import { findDigitalDeck, formatDeckPrice } from '../../lib/digitalDeckCatalog';
+import { findDigitalDeck } from '../../lib/digitalDeckCatalog';
 
 export default function DigitalAppPreviewLimit() {
   const { slug } = useParams();
@@ -46,7 +46,7 @@ export default function DigitalAppPreviewLimit() {
 
       <aside className="baraja-preview-cta">
         <Link to={`/app/decks/${deck.slug}/access`}>
-          Desbloquear mazo completo — {formatDeckPrice(deck)}
+          Consultar acceso completo
         </Link>
         <p>Acceso digital · PDF imprimible · Sin envío</p>
       </aside>

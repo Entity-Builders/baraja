@@ -27,7 +27,7 @@ import {
 } from './components/DigitalDeckCatalog';
 import { DigitalDeckHero } from './components/DigitalDeckHero';
 
-const SHOP_URL = 'https://shop.baraja.com';
+const GENERAL_INQUIRY_URL = 'mailto:hola@baraja.cards?subject=Consulta%20por%20Baraja';
 
 const FAQS = [
   {
@@ -85,7 +85,7 @@ export default function DigitalDeckLibrary() {
       <DigitalDeckHero
         decks={DIGITAL_DECKS}
         featuredDeck={featuredDeck}
-        shopUrl={SHOP_URL}
+        inquiryUrl={GENERAL_INQUIRY_URL}
       />
       <DeckCatalogSection decks={DIGITAL_DECKS} featuredDeck={featuredDeck} />
       <DigitalPrintable deck={featuredDeck} />
@@ -105,7 +105,7 @@ function LandingNav() {
         <a href="#pdf">PDF imprimible</a>
         <a href="#faq">FAQ</a>
         <Link to="/app">Abrir app</Link>
-        <a href={SHOP_URL}>Tienda</a>
+        <a href={GENERAL_INQUIRY_URL}>Consulta</a>
         <a href="#mazos" className="baraja-nav-cta">Ver mazos</a>
       </div>
     </nav>
@@ -162,14 +162,14 @@ function DeckCatalogSection({
           <h2>Mazos por categoría.</h2>
         </div>
         <p>
-          Filtrá por familia, mirá una carta y abrí la tienda para ver el
-          catálogo completo.
+          Filtrá por familia, mirá una carta y escribinos para consultar por
+          una edición.
         </p>
       </div>
       <DeckCatalogFilterBar
         activeFilter={activeFilter}
         filters={filterSummaries}
-        marketplaceUrl={SHOP_URL}
+        inquiryUrl={GENERAL_INQUIRY_URL}
         onFilterChange={setCatalogFilter}
       />
       <p className="baraja-catalog-count">
@@ -182,7 +182,7 @@ function DeckCatalogSection({
         featuredDeckId={featuredDeck.id}
         onPreview={setFullscreenPreview}
       />
-      <MarketplaceBand marketplaceUrl={SHOP_URL} />
+      <MarketplaceBand inquiryUrl={GENERAL_INQUIRY_URL} />
       {fullscreenPreview && (
         <FullscreenCardPreview
           card={fullscreenPreview.card}
@@ -309,10 +309,10 @@ function FinalCTA({ deck }: { deck: DeckSchema }) {
     <section className="baraja-final-cta">
       <p className="baraja-kicker">{deck.name} · {deck.card_count} cartas</p>
       <h2>Jugá o imprimí</h2>
-      <p>Elegí una baraja, probá una carta y seguí al marketplace cuando quieras ver más.</p>
+      <p>Elegí una baraja, probá una carta y escribinos si querés consultarla.</p>
       <div className="baraja-final-actions">
         <a href="#mazos" className="baraja-button baraja-button-primary">Ver colección</a>
-        <a href={SHOP_URL} className="baraja-button baraja-button-outline">Ver todos</a>
+        <a href={GENERAL_INQUIRY_URL} className="baraja-button baraja-button-outline">Consultar</a>
       </div>
     </section>
   );
@@ -325,7 +325,7 @@ function LandingFooter() {
       <span>© 2026 Baraja · Mazos digitales en español</span>
       <div>
         <a href="#mazos">Colección</a>
-        <a href={SHOP_URL}>Tienda</a>
+        <a href={GENERAL_INQUIRY_URL}>Consulta</a>
         <a href="#pdf">PDF imprimible</a>
         <a href="#faq">FAQ</a>
         <a href="mailto:hola@baraja.cards">Contacto</a>

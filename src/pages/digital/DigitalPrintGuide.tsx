@@ -24,7 +24,7 @@ export default function DigitalPrintGuide() {
         <Link to={`/decks/${deck.slug}`} className="digital-brand">{deck.name}</Link>
         <div className="digital-nav-links">
           <Link to={`/decks/${deck.slug}/session`}>Sesión</Link>
-          <Link to={`/decks/${deck.slug}/access`}>Acceso</Link>
+          <Link to={`/decks/${deck.slug}/access`}>Consulta</Link>
         </div>
       </nav>
 
@@ -54,9 +54,9 @@ export default function DigitalPrintGuide() {
           <p className="digital-kicker">Licencia</p>
           <h2>{printableLabel}</h2>
           <p>
-            La compra base incluye impresión personal. La licencia profesional
-            permite usar copias impresas dentro de sesiones o talleres propios,
-            sin reventa del archivo ni de copias sueltas.
+            La licencia personal habilita impresión para uso propio. La
+            licencia profesional se acuerda para sesiones o talleres, sin
+            reventa del archivo ni de copias sueltas.
           </p>
         </div>
         <div>

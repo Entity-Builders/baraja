@@ -6,7 +6,6 @@ import {
 } from '@eb-packages/deck-engine';
 import { CardCanvas } from '../../../components/cards/CardCanvas';
 import {
-  formatDeckPrice,
   getDeckCatalogFacet,
   hasPrintablePdf,
 } from '../../../lib/digitalDeckCatalog';
@@ -26,14 +25,14 @@ export interface DeckCardPreviewSelection {
 interface DeckCatalogFilterBarProps {
   activeFilter: CatalogFilterId;
   filters: CatalogFilterSummary[];
-  marketplaceUrl: string;
+  inquiryUrl: string;
   onFilterChange: (filterId: CatalogFilterId) => void;
 }
 
 export function DeckCatalogFilterBar({
   activeFilter,
   filters,
-  marketplaceUrl,
+  inquiryUrl,
   onFilterChange,
 }: DeckCatalogFilterBarProps) {
   return (
@@ -56,8 +55,8 @@ export function DeckCatalogFilterBar({
           );
         })}
       </div>
-      <a className="baraja-catalog-marketplace" href={marketplaceUrl}>
-        Ver todos en shop.baraja.com
+      <a className="baraja-catalog-marketplace" href={inquiryUrl}>
+        Consultar por una baraja
       </a>
     </div>
   );
@@ -148,7 +147,7 @@ function DeckCatalogCard({
         <p className="baraja-public-deck-summary">{catalogFacet.summary}</p>
         <p className="baraja-public-deck-facts">{deckFacts.join(' · ')}</p>
         <p className="baraja-public-deck-note">
-          {formatDeckPrice(deck)} · {hasPrintablePdf(deck) ? 'PDF incluido' : 'Acceso digital'}
+          {hasPrintablePdf(deck) ? 'Digital + PDF imprimible' : 'Acceso digital consultable'}
         </p>
         <div className="baraja-public-deck-actions">
           <Link to={`/decks/${deck.slug}`}>Explorar mazo</Link>
@@ -159,18 +158,18 @@ function DeckCatalogCard({
 }
 
 interface MarketplaceBandProps {
-  marketplaceUrl: string;
+  inquiryUrl: string;
 }
 
-export function MarketplaceBand({ marketplaceUrl }: MarketplaceBandProps) {
+export function MarketplaceBand({ inquiryUrl }: MarketplaceBandProps) {
   return (
     <div className="baraja-marketplace-band">
       <div>
-        <p className="baraja-kicker">Marketplace</p>
-        <h3>Más mazos, nuevas categorías y lanzamientos.</h3>
+        <p className="baraja-kicker">Consulta</p>
+        <h3>¿Querés usar una baraja o pedir una edición?</h3>
       </div>
-      <a className="baraja-button baraja-button-outline" href={marketplaceUrl}>
-        Ir a shop.baraja.com
+      <a className="baraja-button baraja-button-outline" href={inquiryUrl}>
+        Escribir a Baraja
       </a>
     </div>
   );

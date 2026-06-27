@@ -3,7 +3,6 @@ import { getPreviewCards } from '@eb-packages/deck-engine';
 import {
   DIGITAL_DECKS,
   formatDeckCategory,
-  formatDeckPrice,
   getDeckAudienceBadges,
   hasVerifiedDigitalDeckAccess,
 } from '../../lib/digitalDeckCatalog';
@@ -50,7 +49,7 @@ export default function DigitalAppCollections() {
                       <small key={badge}>{badge}</small>
                     ))}
                   </div>
-                  <strong>{owned ? 'Abrir sesión' : `Comprar acceso · ${formatDeckPrice(deck)}`}</strong>
+                  <strong>{owned ? 'Abrir sesión' : 'Consultar acceso'}</strong>
                 </div>
               </Link>
             );

@@ -7218,6 +7218,7 @@ body::before {
 
 .baraja-app-detail-actions a,
 .baraja-preview-cta a,
+.baraja-pdf-card a,
 .baraja-pdf-card button,
 .baraja-daily-actions button:first-child {
   display: grid;
@@ -8894,6 +8895,7 @@ body::before {
 .baraja-game-phone .baraja-app-primary-action,
 .baraja-app-detail-actions a,
 .baraja-preview-cta a,
+.baraja-pdf-card a,
 .baraja-pdf-card button,
 .baraja-daily-actions button:first-child,
 .baraja-collection-card strong,
@@ -8912,6 +8914,7 @@ body::before {
 .baraja-app-primary-action,
 .baraja-app-detail-actions a,
 .baraja-preview-cta a,
+.baraja-pdf-card a,
 .baraja-pdf-card button,
 .baraja-daily-actions button {
   font-family: var(--baraja-body);

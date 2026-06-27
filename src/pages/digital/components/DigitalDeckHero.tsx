@@ -21,13 +21,13 @@ const HERO_ROTATION_INTERVAL_MS = 6800;
 interface DigitalDeckHeroProps {
   decks: DeckSchema[];
   featuredDeck: DeckSchema;
-  shopUrl: string;
+  inquiryUrl: string;
 }
 
 export function DigitalDeckHero({
   decks,
   featuredDeck,
-  shopUrl,
+  inquiryUrl,
 }: DigitalDeckHeroProps) {
   const [heroItems, setHeroItems] = useState(() => getHeroRotationItems(decks));
   const [selectedSlotId, setSelectedSlotId] = useState(heroItems[0]?.slot.id ?? featuredDeck.id);
@@ -147,7 +147,7 @@ export function DigitalDeckHero({
         </p>
         <div className="baraja-actions baraja-hero-actions">
           <a href="#mazos" className="baraja-button baraja-button-primary">Ver barajas</a>
-          <a href={shopUrl} className="baraja-button baraja-button-outline">Tienda</a>
+          <a href={inquiryUrl} className="baraja-button baraja-button-outline">Consultar</a>
         </div>
       </div>
 
