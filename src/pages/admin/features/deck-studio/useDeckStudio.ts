@@ -1,10 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Template } from '@pdfme/common';
 import { SupabaseDeckRepository } from '../../../../lib/deckRepository';
-import type { RawDeckContent } from '@eb-packages/deck-engine';
-import { getTemplateForDeck, createDefaultCardTemplate, cardUsesFlujob } from '../../../../lib/pdfmeConfig';
-import { getFrameDataUri } from '../../../../lib/cardFrame';
-import { coverCropToJpeg } from '../../../../lib/PrintEngine';
+import type { DeckSchema, RawDeckContent } from '@eb-packages/deck-engine';
+import { getTemplateForDeck, createDefaultCardTemplate } from '../../../../lib/pdfmeConfig';
 import {
   CARD_FIELD_DEFINITIONS,
   applyFieldPlacementsToTemplate,
@@ -13,7 +11,11 @@ import {
   normalizeFieldPlacements,
   type FieldPlacementMap,
 } from '../../../../lib/cardFieldPlacements';
-import { getCardQrUrl, shouldRenderPrintableQr } from '@eb-packages/deck-engine';
+import { buildDeckStudioMockData } from './deckStudioMockData';
+import {
+  getTemplateDimensions,
+  scaleTemplateToCardSize,
+} from './deckStudioTemplateUtils';
 
 const deckRepo = new SupabaseDeckRepository();
 
@@ -30,39 +32,13 @@ interface AnalyzeTypographyResponse {
   error?: string;
 }
 
-function getCleanWhenToUse(text: string, doHide: boolean): string {
-  if (!text) return '';
-  if (!doHide) return text;
-  return text.replace(/([.¡!]\s*)?[Pp]ara\s*\d+[+-]?\s*jugador(es)?\.?/g, '').trim();
-}
-
-function dataUrlToBlobUrl(dataUrl: string): string {
-  if (!dataUrl.startsWith('data:')) return dataUrl;
-  try {
-    const arr = dataUrl.split(',');
-    const mimeMatch = arr[0].match(/:(.*?);/);
-    const mime = mimeMatch ? mimeMatch[1] : '';
-    const bstr = atob(arr[1] || '');
-    let n = bstr.length;
-    const u8arr = new Uint8Array(n);
-    while (n--) {
-      u8arr[n] = bstr.charCodeAt(n);
-    }
-    return URL.createObjectURL(new Blob([u8arr], { type: mime }));
-  } catch (err) {
-    console.warn('Failed converting base64 to blob', err);
-    return dataUrl;
-  }
-}
-
-
 export function useDeckStudio() {
   const [decks, setDecks] = useState<RawDeckContent[]>([]);
   const [selectedDeckId, setSelectedDeckId] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
   const [activeRawDeck, setActiveRawDeck] = useState<RawDeckContent | null>(null);
-  const [activeResolvedDeck, setActiveResolvedDeck] = useState<any>(null);
+  const [activeResolvedDeck, setActiveResolvedDeck] = useState<DeckSchema | null>(null);
   const [activeTemplate, setActiveTemplate] = useState<Template | null>(null);
   const [mockData, setMockData] = useState<Record<string, string> | null>(null);
   const [activeCardIndex, setActiveCardIndex] = useState<number>(0);
@@ -86,54 +62,25 @@ export function useDeckStudio() {
   }, []);
 
   const loadMockDataForCard = useCallback(async (
-    deck: any,
+    deck: DeckSchema,
     template: Template,
     cardIndex: number,
     overrideHiddenFields?: Record<string, boolean>,
   ) => {
-    const card = deck.cards[cardIndex];
-    if (!card) return;
-    const shouldIncludeQr = shouldRenderPrintableQr(deck);
+    const result = await buildDeckStudioMockData({
+      deck,
+      template,
+      cardIndex,
+      hiddenFields,
+      overrideHiddenFields,
+    });
+    if (!result) return;
 
-    const w = (typeof template.basePdf === 'object' && 'width' in template.basePdf) ? template.basePdf.width : 70;
-    const h = (typeof template.basePdf === 'object' && 'height' in template.basePdf) ? template.basePdf.height : 120;
-
-    const mData: Record<string, string> = {
-      number: `#${String(card.front.number).padStart(2, '0')}`,
-      title: card.front.title,
-    };
-
-    if (card.front.art_url) {
-      const artData = await coverCropToJpeg(card.front.art_url, w, h);
-      mData.art = dataUrlToBlobUrl(artData);
+    if (result.backgroundDataUri) {
+      _bgRawDataUri = result.backgroundDataUri;
     }
 
-    if (cardUsesFlujob(card)) {
-      mData.back_ai_image = dataUrlToBlobUrl(card.back?.back_image_url || '');
-      mData.qr_overlay = !shouldIncludeQr || overrideHiddenFields?.qr
-        ? ''
-        : (card.back?.qr_url || getCardQrUrl(deck.slug ?? 'baraja', card.front.number));
-    } else {
-      const frameUri = await getFrameDataUri(deck.slug);
-      const bgData = await coverCropToJpeg(frameUri, w, h);
-      _bgRawDataUri = bgData; // keep raw data: URI for server-side Vision calls
-      mData.bg = dataUrlToBlobUrl(bgData);
-
-      const resolveHide = overrideHiddenFields || hiddenFields || {};
-      const whenToUse = resolveHide.when_to_use || resolveHide.whenToUse
-        ? ''
-        : getCleanWhenToUse(card.back?.when_to_use || '', !!resolveHide.player_count);
-      mData.when_to_use = whenToUse;
-      mData.whenToUse = whenToUse;
-      mData.phrase      = resolveHide.phrase      ? '' : (card.back?.phrase      ? `"${card.back.phrase}"`          : '');
-      mData.instruction = resolveHide.instruction ? '' : (card.back?.instruction || '');
-      mData.answer      = resolveHide.answer      ? '' : (card.back?.answer      ? `Rta: ${card.back.answer}`       : '');
-      mData.fun_fact    = resolveHide.fun_fact    ? '' : (card.back?.fun_fact    ? `💡 ${card.back.fun_fact}`       : '');
-      mData.qr          = !shouldIncludeQr || resolveHide.qr ? '' : (card.back?.qr_url      || getCardQrUrl(deck.slug ?? 'baraja', card.front.number));
-      mData.brand       = resolveHide.brand       ? '' : `Baraja · ${deck.name}`;
-    }
-
-    setMockData(mData);
+    setMockData(result.mockData);
   }, [hiddenFields]);
 
   const loadDeckLayout = useCallback(async (deckId: string) => {
@@ -154,8 +101,7 @@ export function useDeckStudio() {
     if (isPlayersHidden) initialHiddenFields.player_count = true;
 
     // Extract card dimensions from the loaded template
-    const loadedW = (typeof template.basePdf === 'object' && 'width' in template.basePdf) ? template.basePdf.width : 70;
-    const loadedH = (typeof template.basePdf === 'object' && 'height' in template.basePdf) ? template.basePdf.height : 120;
+    const { width: loadedW, height: loadedH } = getTemplateDimensions(template);
     const placedTemplate = applyFieldPlacementsToTemplate(template, initialFieldPlacements, loadedW, loadedH);
 
     setActiveRawDeck(rawDeck);
@@ -273,7 +219,7 @@ export function useDeckStudio() {
     await deckRepo.updateDeckSettings(activeRawDeck.id, {
       design_template_overrides: {
         ...(activeRawDeck.design_template_overrides || {}),
-        layout_config: normalizedTemplate as any,
+        layout_config: normalizedTemplate as unknown as Record<string, unknown>,
         hidden_fields: hiddenFields,
         field_placements: fieldPlacements,
       }
@@ -283,7 +229,7 @@ export function useDeckStudio() {
       ...prev,
       design_template_overrides: {
         ...(prev.design_template_overrides || {}),
-        layout_config: normalizedTemplate as any,
+        layout_config: normalizedTemplate as unknown as Record<string, unknown>,
         hidden_fields: hiddenFields,
         field_placements: fieldPlacements,
       }
@@ -292,50 +238,13 @@ export function useDeckStudio() {
     alert('✅ Layout y opciones de contenido guardados correctamente para ' + activeRawDeck.name);
   }, [activeRawDeck, hiddenFields, fieldPlacements]);
 
-  /** Full-bleed element names — these always snap to cover the entire card */
-  const FULL_BLEED_ELEMENTS = new Set(['art', 'bg', 'back_ai_image']);
-
   /** Update card dimensions (mm) — scales all schema elements proportionally */
   const handleCardSizeChange = useCallback((w: number, h: number) => {
     setCardWidth(prevW => {
       setCardHeight(prevH => {
-        const ratioW = prevW > 0 ? w / prevW : 1;
-        const ratioH = prevH > 0 ? h / prevH : 1;
-
         setActiveTemplate(prev => {
           if (!prev) return prev;
-
-          const scaledSchemas = prev.schemas.map(page =>
-            page.map(schema => {
-              // Full-bleed elements always snap to cover the entire card
-              if (FULL_BLEED_ELEMENTS.has(schema.name)) {
-                return {
-                  ...schema,
-                  position: { x: 0, y: 0 },
-                  width: w,
-                  height: h,
-                };
-              }
-
-              // All other elements: scale proportionally
-              const pos = schema.position as { x: number; y: number };
-              return {
-                ...schema,
-                position: {
-                  x: Math.round((pos.x * ratioW) * 100) / 100,
-                  y: Math.round((pos.y * ratioH) * 100) / 100,
-                },
-                width: Math.round((schema.width * ratioW) * 100) / 100,
-                height: Math.round((schema.height * ratioH) * 100) / 100,
-              };
-            })
-          );
-
-          return {
-            ...prev,
-            basePdf: { width: w, height: h, padding: [0, 0, 0, 0] as [number, number, number, number] },
-            schemas: scaledSchemas,
-          };
+          return scaleTemplateToCardSize(prev, w, h, prevW, prevH);
         });
 
         return h;
@@ -355,8 +264,7 @@ export function useDeckStudio() {
 
     setAnalyzing(true);
     try {
-      const w = (typeof activeTemplate.basePdf === 'object' && 'width' in activeTemplate.basePdf) ? activeTemplate.basePdf.width : 70;
-      const h = (typeof activeTemplate.basePdf === 'object' && 'height' in activeTemplate.basePdf) ? activeTemplate.basePdf.height : 120;
+      const { width: w, height: h } = getTemplateDimensions(activeTemplate);
 
       const { DECK_EDITIONS } = await import('../../../../lib/editions');
       const edition = DECK_EDITIONS.find(e => e.deckEngineIds?.includes(activeRawDeck.id) || e.id === activeRawDeck.id);
