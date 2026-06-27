@@ -4,7 +4,6 @@ import { useDeckStudio } from './features/deck-studio/useDeckStudio';
 import { DeckDesignerRunner, type DeckDesignerRunnerRef } from './features/deck-studio/DeckDesignerRunner';
 import { AIPanelSidebar } from './components/AIPanelSidebar';
 import { AdminDeckWorkspaceNav } from './components/AdminDeckWorkspaceNav';
-import type { Template } from '@pdfme/common';
 import { FieldPlacementPanel } from './components/CardFieldInventoryPanel';
 import { TuckBoxSidebar } from './components/TuckBoxSidebar';
 import { DesignScopePanel } from './components/DesignScopePanel';
@@ -14,9 +13,7 @@ import { DeckGenerationStatusPanel } from './components/DeckGenerationStatusPane
 import { AdminTemplatesHeader } from './components/AdminTemplatesHeader';
 import { useSavedDeckConfigs } from './hooks/useSavedDeckConfigs';
 import { useTuckBoxPreview } from './hooks/useTuckBoxPreview';
-
-type TemplateSchema = Template['schemas'][number][number];
-type TemplateSchemaWithContent = TemplateSchema & { content?: string };
+import { useTemplateAssetGeneration } from './hooks/useTemplateAssetGeneration';
 
 interface AdminTemplatesProps {
   embeddedDeckId?: string;
@@ -117,6 +114,16 @@ export default function AdminTemplates({ embeddedDeckId }: AdminTemplatesProps =
     cardHeight,
     numCards,
     enabled: showTuckBox,
+  });
+  const {
+    handleBackgroundGenerated,
+    handleAssetGenerated,
+  } = useTemplateAssetGeneration({
+    activeDeck: activeRawDeck,
+    activeTemplate,
+    getLiveTemplate: syncLiveTemplate,
+    setMockData,
+    onTemplateChange: setActiveTemplate,
   });
 
   if (loading) return <div style={{ padding: '2rem', color: 'white' }}>Cargando...</div>;
@@ -243,71 +250,8 @@ export default function AdminTemplates({ embeddedDeckId }: AdminTemplatesProps =
                 widthMm={cardWidth}
                 heightMm={cardHeight}
                 hiddenFields={hiddenFields}
-                onBackgroundGenerated={async (dataUrl, w, h, face) => {
-                  const liveTemplate = designerRunnerRef.current?.getLatestCombinedTemplate() || activeTemplate;
-                  if (!liveTemplate) return;
-                  const newTemplate = { ...liveTemplate, basePdf: { width: w, height: h, padding: [0, 0, 0, 0] as [number, number, number, number] } };
-                  const pageIdx = face === 'front' ? 0 : 1;
-                  const targetNode = face === 'front' ? 'art' : 'bg';
-                  
-                  // Immediately update the mockData so the designer's render cycle doesn't overwrite our new BG with the old cached one
-                  setMockData(prev => prev ? { ...prev, [targetNode]: dataUrl } : prev);
-                  
-                  if (newTemplate.schemas[pageIdx]) {
-                    const bgIdx = newTemplate.schemas[pageIdx].findIndex((schema) => schema.name === targetNode);
-                    if (bgIdx >= 0) {
-                      const sm = [...newTemplate.schemas[pageIdx]];
-                      const updatedSchema: TemplateSchemaWithContent = { ...sm[bgIdx], content: dataUrl };
-                      sm[bgIdx] = updatedSchema;
-                      newTemplate.schemas[pageIdx] = sm;
-                    }
-                  }
-                  setActiveTemplate(newTemplate);
-                  try {
-                    await fetch('/__cms__/set-frame', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ dataUrl, face, deckId: activeRawDeck.id }),
-                    });
-                  } catch (err) {
-                    console.error('Error setting frame globally:', err);
-                  }
-                }}
-                onAssetGenerated={async (content, type, face, elementName) => {
-                  const liveTemplate = designerRunnerRef.current?.getLatestCombinedTemplate() || activeTemplate;
-                  if (!liveTemplate) return;
-                  const newTemplate = { ...liveTemplate };
-                  const pageIdx = face === 'front' ? 0 : 1;
-                  if (!newTemplate.schemas[pageIdx]) return;
-                  const arr = [...newTemplate.schemas[pageIdx]];
-                  
-                  const finalName = elementName || `asset_${Date.now()}`;
-                  const existingIdx = arr.findIndex(node => node.name === finalName);
-
-                  if (existingIdx >= 0) {
-                    // Update existing
-                    const updatedSchema: TemplateSchemaWithContent = { ...arr[existingIdx], content };
-                    arr[existingIdx] = updatedSchema;
-                  } else {
-                    // Insert new
-                    const bgIndex = arr.findIndex(node => node.name === 'bg' || node.name === 'art');
-                    const insertPos = bgIndex >= 0 ? bgIndex + 1 : 0;
-                    
-                    const defaultW = type === 'image' ? 60 : 50;
-                    const defaultH = type === 'image' ? 40 : 30;
-
-                    arr.splice(insertPos, 0, {
-                      name: finalName,
-                      type: type,
-                      position: { x: 10, y: 30 },
-                      width: defaultW,
-                      height: defaultH,
-                      content: content,
-                    });
-                  }
-                  newTemplate.schemas[pageIdx] = arr;
-                  setActiveTemplate(newTemplate);
-                }}
+                onBackgroundGenerated={handleBackgroundGenerated}
+                onAssetGenerated={handleAssetGenerated}
               />
 
               {showAdvancedDesignTools && (
