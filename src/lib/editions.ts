@@ -39,7 +39,7 @@ export const DECK_EDITIONS: DeckEdition[] = [
     visualMood: 'calm therapeutic wellness, soft warm gradients, gentle aurora light, serene teal and amber tones, smooth organic curves, zen garden aesthetic, minimal and soothing',
     fields: [
       { key: 'when_to_use', label: 'cuando usarla (header)', description: 'Contexto o situación emocional. Corto, mayúsculas.', typicalLength: 'short', required: true },
-      { key: 'phrase',      label: 'frase principal',       description: 'Una frase poderosa y concisa. El cuerpo visual central.', typicalLength: 'medium', required: true },
+      { key: 'phrase',      label: 'frase de anclaje',      description: 'Una frase poderosa y concisa. Puede tener protagonismo en mazos de regulación.', typicalLength: 'medium', required: true },
       { key: 'instruction', label: 'instrucción / técnica', description: 'Pasos de la técnica corporal o ejercicio regulatorio.', typicalLength: 'long', required: true },
       { key: 'answer',      label: 'respuesta (opcional)', description: 'Raramente usada en esta edición.', typicalLength: 'short', required: false },
     ],
@@ -57,18 +57,18 @@ export const DECK_EDITIONS: DeckEdition[] = [
     deckEngineIds: ['trivia-sobre-cine-argentino', 'trivia-sobre-peliculas-de-comedia-romantica'],
     label: 'Trivia',
     emoji: '🎯',
-    description: 'Preguntas y respuestas. Header de categoría, pregunta principal, pista opcional y respuesta oculta.',
+    description: 'Preguntas y respuestas. Header de categoría, hook breve, pregunta principal y respuesta.',
     visualMood: 'bold quiz energy, electric blue and gold accents, sharp geometric shapes, clean modern graphic design, knowledge competition vibes, bright accent highlights, crisp minimal layout',
     fields: [
       { key: 'when_to_use', label: 'categoría (header)',    description: 'Categoría de la pregunta. Ej: HISTORIA, CIENCIA, POP.', typicalLength: 'short', required: true },
-      { key: 'phrase',      label: 'pregunta principal',   description: 'La pregunta. Es el elemento más grande y prominente.', typicalLength: 'medium', required: true },
-      { key: 'instruction', label: 'pista / contexto',     description: 'Una pista o dato adicional. Opcional.', typicalLength: 'medium', required: false },
+      { key: 'phrase',      label: 'gancho / clima',       description: 'Frase breve que prepara la pregunta sin revelar la respuesta.', typicalLength: 'short', required: true },
+      { key: 'instruction', label: 'pregunta principal',   description: 'La pregunta que el jugador debe responder. Es el payload jugable.', typicalLength: 'medium', required: true },
       { key: 'answer',      label: 'respuesta',            description: 'La respuesta, generalmente en la parte inferior. Puede estar oculta.', typicalLength: 'short', required: true },
     ],
     sampleCard: {
       when_to_use: 'HISTORIA ARGENTINA',
-      phrase: '¿En qué año se declaró la independencia argentina?',
-      instruction: 'Pista: fue en Tucumán, durante el Congreso Constituyente.',
+      phrase: 'Una fecha que cambió todo.',
+      instruction: '¿En qué año se declaró la independencia argentina?',
       answer: 'Rta: 9 de Julio de 1816.',
       qr: 'https://baraja.cards/c/trivia-sobre-cine-argentino/01',
       brand: 'Baraja · Trivia',
@@ -83,8 +83,8 @@ export const DECK_EDITIONS: DeckEdition[] = [
     visualMood: 'playful colorful energy, vibrant rainbow accents, fun pop-art style, bouncy rounded shapes, modern illustration, bright cheerful palette, clean flat design',
     fields: [
       { key: 'when_to_use', label: 'contexto / rango etario', description: 'Para quién o cuándo se usa. Ej: PARA ROMPER EL HIELO.', typicalLength: 'short', required: true },
-      { key: 'phrase',      label: 'título del juego / reto',  description: 'El nombre o acción central del juego.', typicalLength: 'short', required: true },
-      { key: 'instruction', label: 'reglas / instrucciones',   description: 'Cómo se juega. Pueden ser varios pasos.', typicalLength: 'long', required: true },
+      { key: 'phrase',      label: 'gancho / título breve',    description: 'Nombre o clima del reto. Secundario frente a las reglas.', typicalLength: 'short', required: true },
+      { key: 'instruction', label: 'reglas / acción principal', description: 'Cómo se juega o qué debe hacer el jugador. Es el payload jugable.', typicalLength: 'long', required: true },
       { key: 'answer',      label: 'variante / puntos',        description: 'Variante del juego o sistema de puntuación.', typicalLength: 'short', required: false },
     ],
     sampleCard: {
@@ -105,8 +105,8 @@ export const DECK_EDITIONS: DeckEdition[] = [
     visualMood: 'bold vibrant party energy, hot pink and electric purple gradients, fun and irreverent pop style, modern graphic design, playful bold shapes, bright saturated colors',
     fields: [
       { key: 'when_to_use', label: 'contexto del error',   description: 'La categoría del momento vergonzoso. Ej: ERRORES FINANCIEROS.', typicalLength: 'short', required: true },
-      { key: 'phrase',      label: 'frase / titular',      description: 'La frase irónica o golpe de humor. Central y grande.', typicalLength: 'medium', required: true },
-      { key: 'instruction', label: 'mecánica del juego',   description: 'Lo que el jugador debe hacer o contar.', typicalLength: 'long', required: true },
+      { key: 'phrase',      label: 'gancho irónico',       description: 'Frase breve o golpe de humor. Acompaña la mecánica, no la reemplaza.', typicalLength: 'medium', required: true },
+      { key: 'instruction', label: 'mecánica principal',   description: 'Lo que el jugador debe hacer o contar. Es el payload jugable.', typicalLength: 'long', required: true },
       { key: 'answer',      label: 'penalidad / premio',   description: 'Consecuencia del reto.', typicalLength: 'short', required: false },
     ],
     sampleCard: {
@@ -126,8 +126,8 @@ export const DECK_EDITIONS: DeckEdition[] = [
     visualMood: 'elegant minimalist, clean background, subtle accents, modern and refined, simple geometric layout, premium packaging feel',
     fields: [
       { key: 'when_to_use', label: 'campo 1 (header)',   description: 'Texto corto de cabecera.', typicalLength: 'short', required: false },
-      { key: 'phrase',      label: 'campo 2 (principal)', description: 'El elemento central y más prominente de la carta.', typicalLength: 'medium', required: true },
-      { key: 'instruction', label: 'campo 3 (cuerpo)',   description: 'Texto secundario.', typicalLength: 'long', required: false },
+      { key: 'phrase',      label: 'campo 2 (hook)',      description: 'Gancho editorial breve o clima de la carta.', typicalLength: 'medium', required: true },
+      { key: 'instruction', label: 'campo 3 (acción)',    description: 'Instrucción, pregunta o contenido principal de uso.', typicalLength: 'long', required: false },
       { key: 'answer',      label: 'campo 4 (pie)',      description: 'Texto de pie de carta.', typicalLength: 'short', required: false },
     ],
     sampleCard: {

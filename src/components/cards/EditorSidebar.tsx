@@ -41,7 +41,8 @@ export function EditorSidebar({ card, onClose, onSave, onUpdateCard, generatingA
         </div>
         
         <div className={styles.formGroup}>
-          <label className={styles.label} htmlFor="card-phrase">Phrase</label>
+          <label className={styles.label} htmlFor="card-phrase">Hook / Secondary phrase</label>
+          <p className={styles.fieldHint}>Flavor line. The instruction should carry the playable action.</p>
           <textarea 
             id="card-phrase"
             name="phrase"
@@ -52,7 +53,8 @@ export function EditorSidebar({ card, onClose, onSave, onUpdateCard, generatingA
         </div>
         
         <div className={styles.formGroup}>
-          <label className={styles.label} htmlFor="card-instruction">Instruction</label>
+          <label className={styles.label} htmlFor="card-instruction">Instruction / Main action</label>
+          <p className={styles.fieldHint}>What the player reads, answers, does, or facilitates.</p>
           <textarea 
             id="card-instruction"
             name="instruction"

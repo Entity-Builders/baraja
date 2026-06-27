@@ -139,6 +139,7 @@ export default function AdminFrameGenerator() {
   const [cardContent, setCardContent] = useState(
     DECK_EDITIONS.find(e => e.id === 'barometro')!.sampleCard
   );
+  const primaryTypographyKey = cardType === 'therapeutic' ? 'phrase' : 'instruction';
   const [showCardContext] = useState(true);
 
     const selectedEdition = DECK_EDITIONS.find(e => e.id === selectedEditionId)!;
@@ -305,6 +306,8 @@ export default function AdminFrameGenerator() {
             description: selectedEdition.description,
             fields: selectedEdition.fields,
           },
+          cardType,
+          layout: builderMetadata.layout,
           // Send manual overrides if provided
           customVisualPrompt: customPrompt.trim() ? customPrompt : undefined,
           customConstraints: customConstraints.trim() ? customConstraints : undefined,
@@ -353,9 +356,10 @@ export default function AdminFrameGenerator() {
           h: activePreview.heightMm,
           edition: selectedEdition,
           cardContent,
+          cardType,
           // When remix=true, we pass a random seed so the AI explores a different layout constellation
           remixInstruction: remix
-            ? `IMPORTANT: Explore a RADICALLY DIFFERENT layout from the default one. Shift text blocks to unexpected positions using the image's visual elements as your guide (e.g. if a lunar object is on the upper right, push the phrase to the lower left). Also vary font weights dramatically: use 'thin' or '300' for some zones and 'bold' or '900' for others. Be bold. Seed: ${Math.random()}`
+            ? `IMPORTANT: Explore a RADICALLY DIFFERENT layout from the default one. Shift text blocks to unexpected positions using the image's visual elements as your guide (e.g. if a lunar object is on the upper right, push the primary text block to the lower left). Also vary font weights dramatically: use 'thin' or '300' for some zones and 'bold' or '900' for others. Be bold. Seed: ${Math.random()}`
             : undefined,
         }),
       });
@@ -1157,8 +1161,8 @@ export default function AdminFrameGenerator() {
                       key={key}
                       label={key.toUpperCase()}
                       field={zone}
-                      uiColor={key === 'phrase' ? '#f8d56b' : '#94a3b8'}
-                      highlight={key === 'phrase'}
+                      uiColor={key === primaryTypographyKey ? '#f8d56b' : '#94a3b8'}
+                      highlight={key === primaryTypographyKey}
                       onUpdateSvg={(svg) => handleUpdateTypographyContainerSvg(key, svg)}
                     />
                   );

@@ -5,7 +5,7 @@ const FIELD_OPTIONS = [
   { key: 'brand',        label: 'Marca / Nombre Mazo' },
   { key: 'qr',          label: 'Código QR' },
   { key: 'when_to_use', label: 'Box: Cuándo Usar' },
-  { key: 'phrase',      label: 'Box: Frase Principal' },
+  { key: 'phrase',      label: 'Box: Hook / Frase' },
   { key: 'instruction', label: 'Box: Instrucción' },
   { key: 'fun_fact',    label: 'Box: Fun Fact' },
   { key: 'answer',      label: 'Box: Respuesta' },

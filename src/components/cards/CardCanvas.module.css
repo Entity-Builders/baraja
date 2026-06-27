@@ -302,6 +302,11 @@
   justify-content: center;
 }
 
+.backContentInstructionFirst {
+  padding: 19% 11.4% 17%;
+  gap: 2.8cqi;
+}
+
 /* ── Text elements — scale with card container width via cqi ── */
 
 .whenText {
@@ -321,7 +326,7 @@
 
 .phraseText {
   font-family: var(--ff-phrase);
-  font-size: 9.5cqi;
+  font-size: var(--fs-phrase, 9.5cqi);
   font-weight: 700;
   line-height: var(--lh-phrase, 1.2);
   color: var(--c-phrase);
@@ -330,15 +335,31 @@
 
 .instructionText {
   font-family: var(--ff-instruction);
-  font-size: 5.2cqi;
+  font-size: var(--fs-instruction, 5.2cqi);
   line-height: var(--lh-instruction, 1.45);
   color: var(--c-instruction);
   margin: 0;
 }
 
+.backContentInstructionFirst .phraseText {
+  max-width: 92%;
+  font-size: min(var(--fs-phrase, 6.2cqi), 6.8cqi);
+  font-weight: 600;
+  line-height: 1.18;
+  opacity: 0.84;
+}
+
+.backContentInstructionFirst .instructionText {
+  max-width: 96%;
+  font-size: min(var(--fs-instruction, 6.7cqi), 7.2cqi);
+  font-weight: 500;
+  line-height: var(--lh-instruction, 1.35);
+  color: var(--c-phrase);
+}
+
 .answerText {
   font-family: var(--ff-answer);
-  font-size: 4cqi;
+  font-size: var(--fs-answer, 4cqi);
   font-weight: 600;
   color: var(--c-answer);
   margin: 0;

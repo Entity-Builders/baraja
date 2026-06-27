@@ -172,6 +172,51 @@ function getFallbackContrastVars(overrides: Record<string, string>): CSSProperti
   return vars as CSSProperties;
 }
 
+const INSTRUCTION_FIRST_DIGITAL_CATEGORIES = new Set([
+  'conversation',
+  'trivia',
+  'language-learning',
+  'team-building',
+  'coaching',
+  'creative-prompts',
+]);
+
+const INSTRUCTION_FIRST_CATALOG_COLLECTIONS = new Set([
+  'social-games',
+  'couples-dating',
+  'team-tools',
+  'trivia-games',
+  'learning',
+]);
+
+const INSTRUCTION_FIRST_BACK_FIELD_ORDER: Partial<Record<CardFieldDefinition['key'], number>> = {
+  when_to_use: 0,
+  instruction: 1,
+  answer: 2,
+  fun_fact: 3,
+  phrase: 4,
+  qr: 5,
+  brand: 6,
+};
+
+function shouldUseInstructionFirstBack(deck: DeckSchema): boolean {
+  const category = deck.digital?.category;
+  const collection = deck.digital?.catalog?.collection;
+
+  return Boolean(
+    (category && INSTRUCTION_FIRST_DIGITAL_CATEGORIES.has(category)) ||
+    (collection && INSTRUCTION_FIRST_CATALOG_COLLECTIONS.has(collection)),
+  );
+}
+
+function sortInstructionFirstBackFields(fields: CardFieldDefinition[]): CardFieldDefinition[] {
+  return [...fields].sort((a, b) => {
+    const orderA = INSTRUCTION_FIRST_BACK_FIELD_ORDER[a.key] ?? 99;
+    const orderB = INSTRUCTION_FIRST_BACK_FIELD_ORDER[b.key] ?? 99;
+    return orderA - orderB;
+  });
+}
+
 // ── Component ────────────────────────────────────────────────────────────────
 
 export function CardCanvas({
@@ -203,9 +248,14 @@ export function CardCanvas({
     ? card.back.qr_url || getCardQrUrl(deck.slug ?? 'baraja', card.front.number)
     : '';
   const brand       = `Baraja · ${deck.name}`;
+  const instructionFirstBack = shouldUseInstructionFirstBack(deck);
   const placements = useMemo(() => normalizeFieldPlacements(deck.design), [deck.design]);
   const frontFields = useMemo(() => getFieldDefinitionsForPlacement(placements, 'front'), [placements]);
   const backFields = useMemo(() => getFieldDefinitionsForPlacement(placements, 'back'), [placements]);
+  const orderedBackFields = useMemo(
+    () => instructionFirstBack ? sortInstructionFirstBackFields(backFields) : backFields,
+    [backFields, instructionFirstBack],
+  );
   const frontTextFields = frontFields.filter(
     field => !['number', 'title', 'qr', 'brand'].includes(field.key),
   );
@@ -240,8 +290,8 @@ export function CardCanvas({
   const typographyVars = useMemo<CSSProperties>(() => {
     // Apply adaptive sizing to all text zones using the AI size as max, falling back to defaults.
     const vars: Record<string, string> = {
-      '--fs-phrase': adaptiveFontSize(phrase, typo?.phrase?.fontSize, 9.5, false),
-      '--fs-instruction': adaptiveFontSize(instruction, typo?.instruction?.fontSize, 6.5, true),
+      '--fs-phrase': adaptiveFontSize(phrase, typo?.phrase?.fontSize, instructionFirstBack ? 6.8 : 9.5, false),
+      '--fs-instruction': adaptiveFontSize(instruction, typo?.instruction?.fontSize, instructionFirstBack ? 7.2 : 6.5, true),
       '--fs-when': adaptiveFontSize(whenToUse, typo?.whenToUse?.fontSize, 4.5, true),
       '--fs-answer': adaptiveFontSize(answer, typo?.answer?.fontSize, 5.5, true),
     };
@@ -267,7 +317,7 @@ export function CardCanvas({
     if (typo.qrFgColor)           vars['--c-qr-fg']       = typo.qrFgColor;
 
     return vars as CSSProperties;
-  }, [typo, phrase, instruction, whenToUse, answer]);
+  }, [typo, phrase, instruction, whenToUse, answer, instructionFirstBack]);
 
   const pdfmeTemplate = useMemo(
     () => getPdfmeLayoutConfig(deck),
@@ -391,6 +441,7 @@ export function CardCanvas({
   const wrapperStyle = hasPdfmeBack || card.back.back_image_url
     ? typographyVars
     : { ...typographyVars, ...fallbackContrastVars };
+  const backContentClassName = `${styles.backContent} ${instructionFirstBack ? styles.backContentInstructionFirst : ''}`.trim();
 
   return (
     <div
@@ -523,8 +574,8 @@ export function CardCanvas({
                   }
                 }}
               />
-              <div className={styles.backContent}>
-                {backFields.map(renderBackField)}
+              <div className={backContentClassName}>
+                {orderedBackFields.map(renderBackField)}
               </div>
             </>
           )}

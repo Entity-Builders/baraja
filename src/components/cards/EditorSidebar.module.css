@@ -51,10 +51,17 @@
 
 .label {
   display: block;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.35rem;
   opacity: 0.7;
   font-size: 0.85rem;
   font-weight: 500;
+}
+
+.fieldHint {
+  margin: 0 0 0.5rem;
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 0.72rem;
+  line-height: 1.35;
 }
 
 .input {
