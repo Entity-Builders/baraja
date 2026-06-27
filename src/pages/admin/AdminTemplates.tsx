@@ -1,20 +1,11 @@
-import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useDeckStudio } from './features/deck-studio/useDeckStudio';
 import { DeckDesignerRunner, type DeckDesignerRunnerRef } from './features/deck-studio/DeckDesignerRunner';
 import { CardNavigator } from './features/deck-studio/CardNavigator';
 import { AIPanelSidebar } from './components/AIPanelSidebar';
 import { AdminDeckWorkspaceNav } from './components/AdminDeckWorkspaceNav';
-import { getEditionBySlug } from '../../lib/editions';
 import type { Template } from '@pdfme/common';
-import {
-  calculateTuckBoxDimensions,
-  generateTuckBoxSVG,
-  generateTuckBoxPdf,
-  getEditionColors,
-  type TuckBoxParams,
-  type TuckBoxContent,
-} from '../../lib/TuckBoxEngine';
 import { FieldPlacementPanel } from './components/CardFieldInventoryPanel';
 import { TuckBoxSidebar } from './components/TuckBoxSidebar';
 import { DesignScopePanel } from './components/DesignScopePanel';
@@ -22,6 +13,7 @@ import { LayoutToolsPanel } from './components/LayoutToolsPanel';
 import { SavedConfigsPanel } from './components/SavedConfigsPanel';
 import { DeckGenerationStatusPanel } from './components/DeckGenerationStatusPanel';
 import { useSavedDeckConfigs } from './hooks/useSavedDeckConfigs';
+import { useTuckBoxPreview } from './hooks/useTuckBoxPreview';
 
 type TemplateSchema = Template['schemas'][number][number];
 type TemplateSchemaWithContent = TemplateSchema & { content?: string };
@@ -70,15 +62,12 @@ export default function AdminTemplates({ embeddedDeckId }: AdminTemplatesProps =
     return liveTemplate || undefined;
   }, [setActiveTemplate]);
 
+  const shouldOpenTuckBox = searchParams.get('tool') === 'tuckbox';
+
   // ── Tuck Box state ─────────────────────────────────────────────
-  const [showTuckBox, setShowTuckBox] = useState(false);
+  const [showTuckBox, setShowTuckBox] = useState(() => shouldOpenTuckBox);
   const [showProductionTools, setShowProductionTools] = useState(false);
   const [showAdvancedDesignTools, setShowAdvancedDesignTools] = useState(false);
-  const [tuckTolerance, setTuckTolerance] = useState(1);
-  const [tuckThickness, setTuckThickness] = useState(0.4);
-  const [tuckBleed, setTuckBleed] = useState(3);
-  const [isGeneratingTuckPdf, setIsGeneratingTuckPdf] = useState(false);
-
   const {
     savedConfigs,
     selectedConfigId,
@@ -105,70 +94,30 @@ export default function AdminTemplates({ embeddedDeckId }: AdminTemplatesProps =
     if (deckFromQuery && deckFromQuery !== selectedDeckId) {
       setSelectedDeckId(deckFromQuery);
     }
-    if (searchParams.get('tool') === 'tuckbox') {
-      setShowTuckBox(true);
-    }
   }, [embeddedDeckId, searchParams, selectedDeckId, setSelectedDeckId]);
 
-  // ── Tuck Box derived state ──────────────────────────────────────
   const numCards = activeResolvedDeck?.cards?.length || 30;
-  const editionConfig = activeRawDeck?.slug ? getEditionBySlug(activeRawDeck.slug) : null;
-  const editionId = editionConfig?.id || 'custom';
-  const editionLabel = editionConfig?.label || activeRawDeck?.name || 'Custom';
-  const editionColors = getEditionColors(editionId);
-
-  const tuckParams: TuckBoxParams = useMemo(() => ({
-    cardWidth: cardWidth,
-    cardHeight: cardHeight,
-    numCards,
-    cardThickness: tuckThickness,
-    tolerance: tuckTolerance,
-    bleed: tuckBleed,
-  }), [cardWidth, cardHeight, numCards, tuckThickness, tuckTolerance, tuckBleed]);
-
-  const tuckContent: TuckBoxContent = useMemo(() => ({
-    deckName: activeRawDeck?.name || 'Baraja',
+  const {
+    tuckDims,
+    tuckSvg,
     editionLabel,
-    description: editionConfig?.description || '',
+    editionColors,
+    tuckTolerance,
+    tuckThickness,
+    tuckBleed,
+    isGeneratingTuckPdf,
+    setTuckTolerance,
+    setTuckThickness,
+    setTuckBleed,
+    handleDownloadTuckSvg,
+    handleDownloadTuckPdf,
+  } = useTuckBoxPreview({
+    activeDeck: activeRawDeck,
+    cardWidth,
+    cardHeight,
     numCards,
-  }), [activeRawDeck?.name, editionLabel, editionConfig?.description, numCards]);
-
-  const tuckDims = useMemo(() => calculateTuckBoxDimensions(tuckParams), [tuckParams]);
-
-  const tuckSvg = useMemo(() => {
-    if (!activeRawDeck || !showTuckBox) return '';
-    return generateTuckBoxSVG(tuckParams, editionColors, tuckContent);
-  }, [activeRawDeck, showTuckBox, tuckParams, editionColors, tuckContent]);
-
-  const handleDownloadTuckSvg = useCallback(() => {
-    if (!tuckSvg || !activeRawDeck) return;
-    const blob = new Blob([tuckSvg], { type: 'image/svg+xml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `TuckBox_${activeRawDeck.name.replace(/\s+/g, '_')}.svg`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [tuckSvg, activeRawDeck]);
-
-  const handleDownloadTuckPdf = useCallback(async () => {
-    if (!activeRawDeck) return;
-    setIsGeneratingTuckPdf(true);
-    try {
-      const blob = await generateTuckBoxPdf(tuckParams, editionColors, tuckContent);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `TuckBox_${activeRawDeck.name.replace(/\s+/g, '_')}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error('Tuck box PDF failed:', err);
-      alert('Error: ' + (err instanceof Error ? err.message : String(err)));
-    } finally {
-      setIsGeneratingTuckPdf(false);
-    }
-  }, [activeRawDeck, tuckParams, editionColors, tuckContent]);
+    enabled: showTuckBox,
+  });
 
   if (loading) return <div style={{ padding: '2rem', color: 'white' }}>Cargando...</div>;
 
