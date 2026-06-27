@@ -12,8 +12,44 @@ export const CATALOG_FILTERS = [
 
 export type CatalogFilterId = typeof CATALOG_FILTERS[number]['id'];
 
+export interface CatalogFilterSummary {
+  id: CatalogFilterId;
+  label: string;
+  count: number;
+}
+
 export function deckMatchesCatalogFilter(deck: DeckSchema, filterId: CatalogFilterId): boolean {
   return filterId === 'all' || getDeckCatalogFacet(deck).familyId === filterId;
+}
+
+export function getCatalogFilterSummaries(decks: DeckSchema[]): CatalogFilterSummary[] {
+  const countsByFilter = new Map<CatalogFilterId, number>(
+    CATALOG_FILTERS.map((filter) => [filter.id, filter.id === 'all' ? decks.length : 0])
+  );
+
+  for (const deck of decks) {
+    const familyId = getDeckCatalogFacet(deck).familyId;
+
+    if (isCatalogFilterId(familyId)) {
+      countsByFilter.set(familyId, (countsByFilter.get(familyId) ?? 0) + 1);
+    }
+  }
+
+  return CATALOG_FILTERS.map((filter) => ({
+    ...filter,
+    count: countsByFilter.get(filter.id) ?? 0,
+  }));
+}
+
+export function getDecksByCatalogFilter(
+  decks: DeckSchema[],
+  filterId: CatalogFilterId
+): DeckSchema[] {
+  if (filterId === 'all') {
+    return decks;
+  }
+
+  return decks.filter((deck) => deckMatchesCatalogFilter(deck, filterId));
 }
 
 export function getCatalogFilterFromSearch(search: string): CatalogFilterId {
@@ -29,4 +65,8 @@ export function formatCatalogPlayerCount(playerCount: string): string {
     .replace('jugadores', 'jug.')
     .replace('personas', 'pers.')
     .trim();
+}
+
+function isCatalogFilterId(value: string): value is CatalogFilterId {
+  return CATALOG_FILTERS.some((filter) => filter.id === value);
 }

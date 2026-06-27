@@ -8,33 +8,25 @@ import {
 import {
   DIGITAL_DECKS,
   FEATURED_DIGITAL_DECK,
-  formatDeckPrice,
-  getDeckCatalogFacet,
   getDeckPrintableLabel,
   getDeckPrintableVersion,
-  hasPrintablePdf,
 } from '../../lib/digitalDeckCatalog';
-import {
-  HERO_ROTATION_CONFIG_EVENT,
-  getHeroRotationItems,
-  type HeroRotationItem,
-  type HeroRotationSlot,
-} from '../../lib/heroRotationConfig';
 import { trackBarajaEvent } from '../../services/analytics';
-import { CardCanvas } from '../../components/cards/CardCanvas';
+import { FullscreenCardPreview } from '../../components/decks/FullscreenCardPreview';
 import {
-  FullscreenCardPreview,
-  type FullscreenPreviewMode,
-} from '../../components/decks/FullscreenCardPreview';
-import {
-  CATALOG_FILTERS,
-  deckMatchesCatalogFilter,
-  formatCatalogPlayerCount,
+  getCatalogFilterSummaries,
+  getDecksByCatalogFilter,
   getCatalogFilterFromSearch,
   type CatalogFilterId,
 } from '../../lib/catalogFilters';
+import {
+  DeckCatalogFilterBar,
+  DeckCatalogGrid,
+  MarketplaceBand,
+  type DeckCardPreviewSelection,
+} from './components/DigitalDeckCatalog';
+import { DigitalDeckHero } from './components/DigitalDeckHero';
 
-const HERO_ROTATION_INTERVAL_MS = 6800;
 const SHOP_URL = 'https://shop.baraja.com';
 
 const FAQS = [
@@ -90,7 +82,11 @@ export default function DigitalDeckLibrary() {
   return (
     <main className="baraja-landing">
       <LandingNav />
-      <Hero decks={DIGITAL_DECKS} featuredDeck={featuredDeck} />
+      <DigitalDeckHero
+        decks={DIGITAL_DECKS}
+        featuredDeck={featuredDeck}
+        shopUrl={SHOP_URL}
+      />
       <DeckCatalogSection decks={DIGITAL_DECKS} featuredDeck={featuredDeck} />
       <DigitalPrintable deck={featuredDeck} />
       <FAQ />
@@ -116,325 +112,6 @@ function LandingNav() {
   );
 }
 
-function Hero({
-  decks,
-  featuredDeck,
-}: {
-  decks: DeckSchema[];
-  featuredDeck: DeckSchema;
-}) {
-  const [heroItems, setHeroItems] = useState(() => getHeroRotationItems(decks));
-  const [selectedSlotId, setSelectedSlotId] = useState(heroItems[0]?.slot.id ?? featuredDeck.id);
-  const [isAutoPaused, setIsAutoPaused] = useState(false);
-  const selectedItem = heroItems.find((item) => item.slot.id === selectedSlotId) ?? heroItems[0];
-  const selectedDeck = selectedItem?.deck ?? featuredDeck;
-  const selectedCard = selectedItem?.card ?? getPreviewCards(selectedDeck, 1)[0] ?? selectedDeck.cards[0] ?? null;
-  const selectedGenre = selectedItem?.slot ?? {
-    label: 'Baraja',
-    claim: 'elegir una carta y dejar que haga su trabajo',
-    tone: 'conversation',
-  };
-
-  useEffect(() => {
-    function refreshHeroItems() {
-      setHeroItems(getHeroRotationItems(decks));
-    }
-
-    refreshHeroItems();
-    window.addEventListener('storage', refreshHeroItems);
-    window.addEventListener(HERO_ROTATION_CONFIG_EVENT, refreshHeroItems);
-
-    return () => {
-      window.removeEventListener('storage', refreshHeroItems);
-      window.removeEventListener(HERO_ROTATION_CONFIG_EVENT, refreshHeroItems);
-    };
-  }, [decks]);
-
-  useEffect(() => {
-    if (heroItems.length > 0 && !heroItems.some((item) => item.slot.id === selectedSlotId)) {
-      const nextSlotId = heroItems[0].slot.id;
-      const frame = window.requestAnimationFrame(() => {
-        setSelectedSlotId(nextSlotId);
-      });
-
-      return () => window.cancelAnimationFrame(frame);
-    }
-
-    return undefined;
-  }, [heroItems, selectedSlotId]);
-
-  const visibleHeroItems: HeroRotationItem[] = useMemo(() => (
-    heroItems.length > 0
-      ? heroItems
-      : selectedCard ? [{
-        slot: {
-          id: selectedSlotId,
-          label: selectedGenre.label,
-          claim: selectedGenre.claim,
-          tone: selectedGenre.tone as HeroRotationSlot['tone'],
-          deckSlug: selectedDeck.slug,
-          enabled: true,
-        },
-        deck: selectedDeck,
-        card: selectedCard,
-      }] : []
-  ), [heroItems, selectedCard, selectedDeck, selectedGenre.claim, selectedGenre.label, selectedGenre.tone, selectedSlotId]);
-
-  const selectedIndex = Math.max(
-    0,
-    visibleHeroItems.findIndex((item) => item.slot.id === selectedSlotId)
-  );
-
-  const selectSlot = useCallback((slotId: string) => {
-    setSelectedSlotId(slotId);
-  }, []);
-
-  const selectRelativeSlot = useCallback((direction: -1 | 1) => {
-    const nextIndex = (selectedIndex + direction + visibleHeroItems.length) % visibleHeroItems.length;
-    const nextSlotId = visibleHeroItems[nextIndex]?.slot.id;
-
-    if (nextSlotId) {
-      selectSlot(nextSlotId);
-    }
-  }, [selectedIndex, selectSlot, visibleHeroItems]);
-
-  useEffect(() => {
-    if (isAutoPaused || visibleHeroItems.length < 2) {
-      return undefined;
-    }
-
-    if (window.matchMedia('(max-width: 680px), (prefers-reduced-motion: reduce)').matches) {
-      return undefined;
-    }
-
-    const timer = window.setTimeout(() => {
-      selectRelativeSlot(1);
-    }, HERO_ROTATION_INTERVAL_MS);
-
-    return () => window.clearTimeout(timer);
-  }, [isAutoPaused, selectRelativeSlot, visibleHeroItems.length]);
-
-  if (!selectedCard) {
-    return null;
-  }
-
-  return (
-    <section className="baraja-hero">
-      <div className="baraja-hero-bloom" aria-hidden="true" />
-      <div className="baraja-hero-copy">
-        <p className="baraja-kicker baraja-hero-kicker">Online + PDF imprimible</p>
-        <h1>Mazos digitales en español</h1>
-        <HeroCategoryTabs
-          activeSlotId={selectedSlotId}
-          items={visibleHeroItems}
-          onSelect={selectSlot}
-        />
-        <p className="baraja-hero-mobile-summary" key={`mobile-${selectedSlotId}`}>
-          Para {selectedGenre.claim}
-        </p>
-        <p className="baraja-lead baraja-lead-dynamic">
-          <span className="baraja-lead-static baraja-lead-static--intro">Cartas listas para</span>
-          <span className="baraja-lead-claim" key={selectedSlotId}>{selectedGenre.claim}</span>
-          <span className="baraja-lead-static baraja-lead-static--details">
-            Jugá online. Bajá el PDF cuando quieras llevarlas a la mesa.
-          </span>
-        </p>
-        <div className="baraja-actions baraja-hero-actions">
-          <a href="#mazos" className="baraja-button baraja-button-primary">Ver barajas</a>
-          <a href={SHOP_URL} className="baraja-button baraja-button-outline">Tienda</a>
-        </div>
-      </div>
-
-      <HeroCardCarousel
-        activeSlotId={selectedSlotId}
-        isAutoPaused={isAutoPaused}
-        items={visibleHeroItems}
-        onInteractionEnd={() => setIsAutoPaused(false)}
-        onInteractionStart={() => setIsAutoPaused(true)}
-        onNext={() => selectRelativeSlot(1)}
-        onPrevious={() => selectRelativeSlot(-1)}
-      />
-    </section>
-  );
-}
-
-function HeroCategoryTabs({
-  activeSlotId,
-  items,
-  onSelect,
-}: {
-  activeSlotId: string;
-  items: HeroRotationItem[];
-  onSelect: (slotId: string) => void;
-}) {
-  if (items.length < 2) {
-    return null;
-  }
-
-  return (
-    <div className="baraja-hero-category-tabs" aria-label="Categorías de mazos">
-      {items.map((item) => {
-        const isActive = item.slot.id === activeSlotId;
-
-        return (
-          <button
-            aria-pressed={isActive}
-            className={`baraja-hero-deck-tab baraja-hero-deck-tab--${item.slot.tone}${
-              isActive ? ' baraja-hero-deck-tab--active' : ''
-            }`}
-            key={item.slot.id}
-            type="button"
-            onClick={() => onSelect(item.slot.id)}
-          >
-            {item.slot.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function HeroCardCarousel({
-  activeSlotId,
-  isAutoPaused,
-  items,
-  onInteractionEnd,
-  onInteractionStart,
-  onNext,
-  onPrevious,
-}: {
-  activeSlotId: string;
-  isAutoPaused: boolean;
-  items: HeroRotationItem[];
-  onInteractionEnd: () => void;
-  onInteractionStart: () => void;
-  onNext: () => void;
-  onPrevious: () => void;
-}) {
-  const activeIndex = Math.max(0, items.findIndex((item) => item.slot.id === activeSlotId));
-  const activeItem = items[activeIndex] ?? items[0];
-
-  if (!activeItem) {
-    return null;
-  }
-
-  return (
-    <div
-      className={`baraja-hero-carousel${isAutoPaused ? ' baraja-hero-carousel--paused' : ''}`}
-      aria-label="Carrusel de categorías"
-      onBlur={onInteractionEnd}
-      onFocus={onInteractionStart}
-      onPointerDown={onInteractionStart}
-      onPointerEnter={onInteractionStart}
-      onPointerLeave={onInteractionEnd}
-    >
-      <div className="baraja-hero-carousel-stage" key={activeItem.slot.id}>
-        <HeroCardPreview
-          selectedCard={activeItem.card}
-          selectedDeck={activeItem.deck}
-        />
-      </div>
-      {items.length > 1 && (
-        <div className="baraja-hero-carousel-controls">
-          <button
-            aria-label="Categoría anterior"
-            className="baraja-hero-carousel-arrow"
-            type="button"
-            onClick={onPrevious}
-          >
-            ‹
-          </button>
-          <div className="baraja-hero-carousel-dots" aria-hidden="true">
-            {items.map((item, index) => (
-              <span
-                className={`baraja-hero-carousel-dot${
-                  index === activeIndex ? ' baraja-hero-carousel-dot--active' : ''
-                }`}
-                key={item.slot.id}
-              />
-            ))}
-          </div>
-          <button
-            aria-label="Siguiente categoría"
-            className="baraja-hero-carousel-arrow"
-            type="button"
-            onClick={onNext}
-          >
-            ›
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function HeroCardPreview({
-  selectedCard,
-  selectedDeck,
-}: {
-  selectedCard: Card;
-  selectedDeck: DeckSchema;
-}) {
-  const [fullscreenPreviewMode, setFullscreenPreviewMode] = useState<FullscreenPreviewMode | null>(null);
-
-  return (
-    <>
-      <div
-        className="baraja-hero-card-demo baraja-hero-card-demo--clean"
-        id="probar-carta"
-        aria-label={`Frente y reverso de ${selectedCard.front.title}`}
-      >
-        <div className="baraja-hero-card-spread">
-          <figure className="baraja-hero-card-face baraja-hero-card-face--front">
-            <button
-              aria-label={`Ver frente de ${selectedCard.front.title} de ${selectedDeck.name} en pantalla completa`}
-              className="baraja-hero-card-face-button"
-              data-preview-label="Ver frente"
-              type="button"
-              onClick={() => setFullscreenPreviewMode('front')}
-            >
-              <CardCanvas
-                card={selectedCard}
-                deck={selectedDeck}
-                flipped={false}
-                showInfoRow={false}
-                showQr={false}
-              />
-            </button>
-            <figcaption>Frente</figcaption>
-          </figure>
-          <figure className="baraja-hero-card-face baraja-hero-card-face--back">
-            <button
-              aria-label={`Ver reverso de ${selectedCard.front.title} de ${selectedDeck.name} en pantalla completa`}
-              className="baraja-hero-card-face-button"
-              data-preview-label="Ver reverso"
-              type="button"
-              onClick={() => setFullscreenPreviewMode('back')}
-            >
-              <CardCanvas
-                card={selectedCard}
-                deck={selectedDeck}
-                flipped
-                showInfoRow={false}
-                showQr={false}
-              />
-            </button>
-            <figcaption>Reverso</figcaption>
-          </figure>
-        </div>
-      </div>
-      {fullscreenPreviewMode && (
-        <FullscreenCardPreview
-          card={selectedCard}
-          deck={selectedDeck}
-          initialMode={fullscreenPreviewMode}
-          onClose={() => setFullscreenPreviewMode(null)}
-        />
-      )}
-    </>
-  );
-}
-
 function DeckCatalogSection({
   decks,
   featuredDeck,
@@ -448,11 +125,7 @@ function DeckCatalogSection({
     () => getCatalogFilterFromSearch(location.search),
     [location.search]
   );
-  const [fullscreenPreview, setFullscreenPreview] = useState<{
-    deck: DeckSchema;
-    card: Card;
-    initialMode: FullscreenPreviewMode;
-  } | null>(null);
+  const [fullscreenPreview, setFullscreenPreview] = useState<DeckCardPreviewSelection | null>(null);
 
   const setCatalogFilter = useCallback((filterId: CatalogFilterId) => {
     const params = new URLSearchParams(location.search);
@@ -473,8 +146,12 @@ function DeckCatalogSection({
   }, [location.pathname, location.search, navigate]);
 
   const filteredDecks = useMemo(
-    () => decks.filter((deck) => deckMatchesCatalogFilter(deck, activeFilter)),
+    () => getDecksByCatalogFilter(decks, activeFilter),
     [activeFilter, decks]
+  );
+  const filterSummaries = useMemo(
+    () => getCatalogFilterSummaries(decks),
+    [decks]
   );
 
   return (
@@ -489,107 +166,23 @@ function DeckCatalogSection({
           catálogo completo.
         </p>
       </div>
-      <div className="baraja-catalog-controls">
-        <div className="baraja-filter-row" aria-label="Filtrar mazos">
-          {CATALOG_FILTERS.map((filter) => {
-            const isActive = filter.id === activeFilter;
-            const count = decks.filter((deck) => deckMatchesCatalogFilter(deck, filter.id)).length;
-
-            return (
-              <button
-                aria-pressed={isActive}
-                className={`baraja-filter-chip${isActive ? ' baraja-filter-chip-active' : ''}`}
-                key={filter.id}
-                type="button"
-                onClick={() => setCatalogFilter(filter.id)}
-              >
-                <span>{filter.label}</span>
-                <small>{count}</small>
-              </button>
-            );
-          })}
-        </div>
-        <a className="baraja-catalog-marketplace" href={SHOP_URL}>
-          Ver todos en shop.baraja.com
-        </a>
-      </div>
+      <DeckCatalogFilterBar
+        activeFilter={activeFilter}
+        filters={filterSummaries}
+        marketplaceUrl={SHOP_URL}
+        onFilterChange={setCatalogFilter}
+      />
       <p className="baraja-catalog-count">
         {filteredDecks.length === decks.length
           ? `${decks.length} mazos publicados`
           : `${filteredDecks.length} de ${decks.length} mazos visibles`}
       </p>
-      <div className="baraja-public-deck-grid">
-        {filteredDecks.map((deck) => {
-          const previewCard = getPreviewCards(deck, 1)[0] ?? deck.cards[0];
-          const catalogFacet = getDeckCatalogFacet(deck);
-          const deckFacts = [
-            catalogFacet.subcategory,
-            formatCatalogPlayerCount(deck.metadata.player_count),
-            `${deck.card_count} cartas`,
-          ];
-          const isFeatured = deck.id === featuredDeck.id;
-
-          return (
-            <article
-              className={`baraja-public-deck-card${isFeatured ? ' baraja-public-deck-card--featured' : ''}`}
-              key={deck.id}
-            >
-              <div className="baraja-public-deck-art">
-                {previewCard ? (
-                  <button
-                    aria-label={`Ver frente de ${previewCard.front.title} de ${deck.name} en pantalla completa`}
-                    className="baraja-public-deck-preview-button"
-                    type="button"
-                    onClick={() => setFullscreenPreview({ deck, card: previewCard, initialMode: 'front' })}
-                  >
-                    <span className="baraja-public-deck-preview-card">
-                      <CardCanvas
-                        card={previewCard}
-                        deck={deck}
-                        flipped={false}
-                        showInfoRow={false}
-                        showQr={false}
-                      />
-                    </span>
-                    <span className="baraja-public-deck-preview-label">Ver frente</span>
-                  </button>
-                ) : (
-                  <strong>{deck.name}</strong>
-                )}
-                {isFeatured && (
-                  <span className="baraja-public-deck-trial-badge">Muestra disponible</span>
-                )}
-              </div>
-              <div className="baraja-public-deck-copy">
-                <div className="baraja-public-deck-meta">
-                  <p>{catalogFacet.familyLabel}</p>
-                  <span className="baraja-public-deck-count">{catalogFacet.subcategory}</span>
-                </div>
-                <h3>
-                  <Link to={`/decks/${deck.slug}`}>{deck.name}</Link>
-                </h3>
-                <p className="baraja-public-deck-summary">{catalogFacet.summary}</p>
-                <p className="baraja-public-deck-facts">{deckFacts.join(' · ')}</p>
-                <p className="baraja-public-deck-note">
-                  {formatDeckPrice(deck)} · {hasPrintablePdf(deck) ? 'PDF incluido' : 'Acceso digital'}
-                </p>
-                <div className="baraja-public-deck-actions">
-                  <Link to={`/decks/${deck.slug}`}>Explorar mazo</Link>
-                </div>
-              </div>
-            </article>
-          );
-        })}
-      </div>
-      <div className="baraja-marketplace-band">
-        <div>
-          <p className="baraja-kicker">Marketplace</p>
-          <h3>Más mazos, nuevas categorías y lanzamientos.</h3>
-        </div>
-        <a className="baraja-button baraja-button-outline" href={SHOP_URL}>
-          Ir a shop.baraja.com
-        </a>
-      </div>
+      <DeckCatalogGrid
+        decks={filteredDecks}
+        featuredDeckId={featuredDeck.id}
+        onPreview={setFullscreenPreview}
+      />
+      <MarketplaceBand marketplaceUrl={SHOP_URL} />
       {fullscreenPreview && (
         <FullscreenCardPreview
           card={fullscreenPreview.card}
