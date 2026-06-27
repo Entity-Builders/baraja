@@ -31,7 +31,7 @@ export function useAllDecks(): UseAllDecksResult {
       })
       .catch((err) => {
         console.error('[useAllDecks]', err);
-        setError(String(err));
+        setError('No se pudieron cargar los mazos. Revisá la conexión y volvé a intentar.');
       })
       .finally(() => setLoading(false));
   }, []);

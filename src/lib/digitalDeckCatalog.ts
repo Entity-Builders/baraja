@@ -1,8 +1,13 @@
 import {
   DECKS,
+  getDeckCatalogBreadcrumb as getSharedDeckCatalogBreadcrumb,
+  getDeckCatalogFacet as getSharedDeckCatalogFacet,
   getPrintableAccess,
   getPreviewCards,
   getDeckSessionModes,
+  type DeckCatalogCategoryId,
+  type DeckCatalogCollectionId,
+  type DeckCatalogBreadcrumbItem,
   type DeckSchema,
 } from '@eb-packages/deck-engine';
 
@@ -11,6 +16,19 @@ export const DIGITAL_DECKS: DeckSchema[] = Object.values(DECKS).filter(
 );
 
 export const FEATURED_DIGITAL_DECK = DIGITAL_DECKS[0] ?? null;
+
+export type DeckCatalogFamilyId = DeckCatalogCollectionId;
+
+export interface DeckCatalogFacet {
+  familyId: DeckCatalogFamilyId;
+  familyLabel: string;
+  subcategory: string;
+  summary: string;
+  collectionId: DeckCatalogCollectionId;
+  collectionLabel: string;
+  categoryId: DeckCatalogCategoryId;
+  categoryLabel: string;
+}
 
 export function findDigitalDeck(slug: string | undefined): DeckSchema | null {
   if (!slug) {
@@ -40,8 +58,7 @@ export function getDeckHeroImage(deck: DeckSchema): string | undefined {
 }
 
 export function hasPrintablePdf(deck: DeckSchema): boolean {
-  void deck;
-  return true;
+  return getPrintableAccess(deck)?.enabled === true;
 }
 
 export function getDeckPrintableVersion(deck: DeckSchema): string {
@@ -91,6 +108,25 @@ export function getDeckAudienceBadges(deck: DeckSchema): string[] {
   return Array.from(badges).slice(0, 5);
 }
 
+export function getDeckCatalogFacet(deck: DeckSchema): DeckCatalogFacet {
+  const facet = getSharedDeckCatalogFacet(deck);
+
+  return {
+    familyId: facet.collectionId,
+    familyLabel: facet.collectionLabel,
+    subcategory: facet.categoryLabel,
+    summary: facet.summary,
+    collectionId: facet.collectionId,
+    collectionLabel: facet.collectionLabel,
+    categoryId: facet.categoryId,
+    categoryLabel: facet.categoryLabel,
+  };
+}
+
+export function getDeckCatalogBreadcrumb(deck: DeckSchema): DeckCatalogBreadcrumbItem[] {
+  return getSharedDeckCatalogBreadcrumb(deck);
+}
+
 export function getRelatedDigitalDecks(deck: DeckSchema, limit = 3): DeckSchema[] {
   const currentTags = new Set(deck.digital?.tags ?? []);
   const currentModes = new Set(getDeckSessionModes(deck));
@@ -117,11 +153,7 @@ export function getRelatedDigitalDecks(deck: DeckSchema, limit = 3): DeckSchema[
 }
 
 export function formatDeckCategory(deck: DeckSchema): string {
-  if (deck.digital?.category === 'emotional-regulation') {
-    return 'Regulación emocional';
-  }
-
-  return deck.digital?.category?.replaceAll('-', ' ') ?? 'Mazo digital';
+  return getDeckCatalogFacet(deck).categoryLabel;
 }
 
 function getRelatedDeckScore(

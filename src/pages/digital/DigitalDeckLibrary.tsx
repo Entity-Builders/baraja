@@ -1,19 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   getPreviewCards,
-  getDeckSessionModes,
   type Card,
   type DeckSchema,
 } from '@eb-packages/deck-engine';
 import {
   DIGITAL_DECKS,
   FEATURED_DIGITAL_DECK,
-  formatDeckCategory,
   formatDeckPrice,
+  getDeckCatalogFacet,
   getDeckPrintableLabel,
   getDeckPrintableVersion,
-  getDeckAudienceBadges,
   hasPrintablePdf,
 } from '../../lib/digitalDeckCatalog';
 import {
@@ -24,21 +22,20 @@ import {
 } from '../../lib/heroRotationConfig';
 import { trackBarajaEvent } from '../../services/analytics';
 import { CardCanvas } from '../../components/cards/CardCanvas';
+import {
+  FullscreenCardPreview,
+  type FullscreenPreviewMode,
+} from '../../components/decks/FullscreenCardPreview';
+import {
+  CATALOG_FILTERS,
+  deckMatchesCatalogFilter,
+  formatCatalogPlayerCount,
+  getCatalogFilterFromSearch,
+  type CatalogFilterId,
+} from '../../lib/catalogFilters';
 
 const HERO_ROTATION_INTERVAL_MS = 6800;
 const SHOP_URL = 'https://shop.baraja.com';
-
-const CATALOG_FILTERS = [
-  { id: 'all', label: 'Todos' },
-  { id: 'emotions', label: 'Emociones' },
-  { id: 'conversation', label: 'Conversación' },
-  { id: 'teams', label: 'Equipos' },
-  { id: 'trivia', label: 'Trivia' },
-  { id: 'facilitators', label: 'Facilitadores' },
-  { id: 'printable', label: 'Imprimibles' },
-] as const;
-
-type CatalogFilterId = typeof CATALOG_FILTERS[number]['id'];
 
 const FAQS = [
   {
@@ -243,8 +240,8 @@ function Hero({
           </span>
         </p>
         <div className="baraja-actions baraja-hero-actions">
-          <a href="#probar-carta" className="baraja-button baraja-button-primary">Probar una carta</a>
-          <a href="#mazos" className="baraja-button baraja-button-outline">Ver barajas</a>
+          <a href="#mazos" className="baraja-button baraja-button-primary">Ver barajas</a>
+          <a href={SHOP_URL} className="baraja-button baraja-button-outline">Tienda</a>
         </div>
       </div>
 
@@ -378,35 +375,63 @@ function HeroCardPreview({
   selectedCard: Card;
   selectedDeck: DeckSchema;
 }) {
+  const [fullscreenPreviewMode, setFullscreenPreviewMode] = useState<FullscreenPreviewMode | null>(null);
+
   return (
-    <div
-      className="baraja-hero-card-demo baraja-hero-card-demo--clean"
-      id="probar-carta"
-      aria-label={`Frente y reverso de ${selectedCard.front.title}`}
-    >
-      <div className="baraja-hero-card-spread">
-        <figure className="baraja-hero-card-face baraja-hero-card-face--front">
-          <CardCanvas
-            card={selectedCard}
-            deck={selectedDeck}
-            flipped={false}
-            showInfoRow={false}
-            showQr={false}
-          />
-          <figcaption>Frente</figcaption>
-        </figure>
-        <figure className="baraja-hero-card-face baraja-hero-card-face--back">
-          <CardCanvas
-            card={selectedCard}
-            deck={selectedDeck}
-            flipped
-            showInfoRow={false}
-            showQr={false}
-          />
-          <figcaption>Reverso</figcaption>
-        </figure>
+    <>
+      <div
+        className="baraja-hero-card-demo baraja-hero-card-demo--clean"
+        id="probar-carta"
+        aria-label={`Frente y reverso de ${selectedCard.front.title}`}
+      >
+        <div className="baraja-hero-card-spread">
+          <figure className="baraja-hero-card-face baraja-hero-card-face--front">
+            <button
+              aria-label={`Ver frente de ${selectedCard.front.title} de ${selectedDeck.name} en pantalla completa`}
+              className="baraja-hero-card-face-button"
+              data-preview-label="Ver frente"
+              type="button"
+              onClick={() => setFullscreenPreviewMode('front')}
+            >
+              <CardCanvas
+                card={selectedCard}
+                deck={selectedDeck}
+                flipped={false}
+                showInfoRow={false}
+                showQr={false}
+              />
+            </button>
+            <figcaption>Frente</figcaption>
+          </figure>
+          <figure className="baraja-hero-card-face baraja-hero-card-face--back">
+            <button
+              aria-label={`Ver reverso de ${selectedCard.front.title} de ${selectedDeck.name} en pantalla completa`}
+              className="baraja-hero-card-face-button"
+              data-preview-label="Ver reverso"
+              type="button"
+              onClick={() => setFullscreenPreviewMode('back')}
+            >
+              <CardCanvas
+                card={selectedCard}
+                deck={selectedDeck}
+                flipped
+                showInfoRow={false}
+                showQr={false}
+              />
+            </button>
+            <figcaption>Reverso</figcaption>
+          </figure>
+        </div>
       </div>
-    </div>
+      {fullscreenPreviewMode && (
+        <FullscreenCardPreview
+          card={selectedCard}
+          deck={selectedDeck}
+          initialMode={fullscreenPreviewMode}
+          onClose={() => setFullscreenPreviewMode(null)}
+        />
+      )}
+    </>
   );
 }
 
@@ -417,7 +442,36 @@ function DeckCatalogSection({
   decks: DeckSchema[];
   featuredDeck: DeckSchema;
 }) {
-  const [activeFilter, setActiveFilter] = useState<CatalogFilterId>('all');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activeFilter = useMemo(
+    () => getCatalogFilterFromSearch(location.search),
+    [location.search]
+  );
+  const [fullscreenPreview, setFullscreenPreview] = useState<{
+    deck: DeckSchema;
+    card: Card;
+    initialMode: FullscreenPreviewMode;
+  } | null>(null);
+
+  const setCatalogFilter = useCallback((filterId: CatalogFilterId) => {
+    const params = new URLSearchParams(location.search);
+
+    if (filterId === 'all') {
+      params.delete('catalog');
+    } else {
+      params.set('catalog', filterId);
+    }
+
+    const search = params.toString();
+
+    navigate({
+      pathname: location.pathname,
+      search: search ? `?${search}` : '',
+      hash: 'mazos',
+    }, { replace: true });
+  }, [location.pathname, location.search, navigate]);
+
   const filteredDecks = useMemo(
     () => decks.filter((deck) => deckMatchesCatalogFilter(deck, activeFilter)),
     [activeFilter, decks]
@@ -428,12 +482,11 @@ function DeckCatalogSection({
       <div className="baraja-section-header baraja-catalog-intro">
         <div>
           <p className="baraja-kicker">Colección</p>
-          <h2>Elegí tu próximo mazo.</h2>
+          <h2>Mazos por categoría.</h2>
         </div>
         <p>
-          {decks.length} mazos disponibles. Filtrá por tema, intención o forma
-          de juego; probá una carta antes de decidir y seguí al marketplace si
-          querés ver todo el catálogo.
+          Filtrá por familia, mirá una carta y abrí la tienda para ver el
+          catálogo completo.
         </p>
       </div>
       <div className="baraja-catalog-controls">
@@ -448,7 +501,7 @@ function DeckCatalogSection({
                 className={`baraja-filter-chip${isActive ? ' baraja-filter-chip-active' : ''}`}
                 key={filter.id}
                 type="button"
-                onClick={() => setActiveFilter(filter.id)}
+                onClick={() => setCatalogFilter(filter.id)}
               >
                 <span>{filter.label}</span>
                 <small>{count}</small>
@@ -468,6 +521,12 @@ function DeckCatalogSection({
       <div className="baraja-public-deck-grid">
         {filteredDecks.map((deck) => {
           const previewCard = getPreviewCards(deck, 1)[0] ?? deck.cards[0];
+          const catalogFacet = getDeckCatalogFacet(deck);
+          const deckFacts = [
+            catalogFacet.subcategory,
+            formatCatalogPlayerCount(deck.metadata.player_count),
+            `${deck.card_count} cartas`,
+          ];
           const isFeatured = deck.id === featuredDeck.id;
 
           return (
@@ -476,8 +535,24 @@ function DeckCatalogSection({
               key={deck.id}
             >
               <div className="baraja-public-deck-art">
-                {previewCard?.front.art_url ? (
-                  <img src={previewCard.front.art_url} alt="" />
+                {previewCard ? (
+                  <button
+                    aria-label={`Ver frente de ${previewCard.front.title} de ${deck.name} en pantalla completa`}
+                    className="baraja-public-deck-preview-button"
+                    type="button"
+                    onClick={() => setFullscreenPreview({ deck, card: previewCard, initialMode: 'front' })}
+                  >
+                    <span className="baraja-public-deck-preview-card">
+                      <CardCanvas
+                        card={previewCard}
+                        deck={deck}
+                        flipped={false}
+                        showInfoRow={false}
+                        showQr={false}
+                      />
+                    </span>
+                    <span className="baraja-public-deck-preview-label">Ver frente</span>
+                  </button>
                 ) : (
                   <strong>{deck.name}</strong>
                 )}
@@ -487,33 +562,19 @@ function DeckCatalogSection({
               </div>
               <div className="baraja-public-deck-copy">
                 <div className="baraja-public-deck-meta">
-                  <p>{formatDeckCategory(deck)}</p>
-                  <span className="baraja-public-deck-count">{deck.card_count} cartas</span>
+                  <p>{catalogFacet.familyLabel}</p>
+                  <span className="baraja-public-deck-count">{catalogFacet.subcategory}</span>
                 </div>
                 <h3>
                   <Link to={`/decks/${deck.slug}`}>{deck.name}</Link>
                 </h3>
-                <span>{deck.description}</span>
-                <div className="baraja-deck-badges">
-                  {getDeckAudienceBadges(deck).slice(0, 4).map((badge) => (
-                    <small key={badge}>{badge}</small>
-                ))}
-                </div>
+                <p className="baraja-public-deck-summary">{catalogFacet.summary}</p>
+                <p className="baraja-public-deck-facts">{deckFacts.join(' · ')}</p>
                 <p className="baraja-public-deck-note">
-                  {formatDeckPrice(deck)} · PDF imprimible incluido
+                  {formatDeckPrice(deck)} · {hasPrintablePdf(deck) ? 'PDF incluido' : 'Acceso digital'}
                 </p>
                 <div className="baraja-public-deck-actions">
-                  {isFeatured ? (
-                    <>
-                      <Link to={`/decks/${deck.slug}`}>Explorar mazo</Link>
-                      <Link to={`/decks/${deck.slug}/session`}>Probar una carta</Link>
-                    </>
-                  ) : (
-                    <>
-                      <Link to={`/decks/${deck.slug}`}>Ver mazo</Link>
-                      <Link to={`/decks/${deck.slug}/session`}>Probar una carta</Link>
-                    </>
-                  )}
+                  <Link to={`/decks/${deck.slug}`}>Explorar mazo</Link>
                 </div>
               </div>
             </article>
@@ -529,6 +590,14 @@ function DeckCatalogSection({
           Ir a shop.baraja.com
         </a>
       </div>
+      {fullscreenPreview && (
+        <FullscreenCardPreview
+          card={fullscreenPreview.card}
+          deck={fullscreenPreview.deck}
+          initialMode={fullscreenPreview.initialMode}
+          onClose={() => setFullscreenPreview(null)}
+        />
+      )}
     </section>
   );
 }
@@ -646,7 +715,7 @@ function FinalCTA({ deck }: { deck: DeckSchema }) {
   return (
     <section className="baraja-final-cta">
       <p className="baraja-kicker">{deck.name} · {deck.card_count} cartas</p>
-      <h2>Jugá online o imprimilo</h2>
+      <h2>Jugá o imprimí</h2>
       <p>Elegí una baraja, probá una carta y seguí al marketplace cuando quieras ver más.</p>
       <div className="baraja-final-actions">
         <a href="#mazos" className="baraja-button baraja-button-primary">Ver colección</a>
@@ -670,31 +739,4 @@ function LandingFooter() {
       </div>
     </footer>
   );
-}
-
-function deckMatchesCatalogFilter(deck: DeckSchema, filterId: CatalogFilterId): boolean {
-  const category = deck.digital?.category;
-  const tags = new Set(deck.digital?.tags ?? []);
-  const sessionModes = new Set(getDeckSessionModes(deck));
-  const playerCount = deck.metadata.player_count.toLocaleLowerCase('es-AR');
-  const searchableText = `${deck.name} ${deck.description} ${category ?? ''} ${Array.from(tags).join(' ')}`.toLocaleLowerCase('es-AR');
-
-  switch (filterId) {
-    case 'all':
-      return true;
-    case 'emotions':
-      return category === 'emotional-regulation' || category === 'introspection' || tags.has('introspeccion') || tags.has('emociones');
-    case 'conversation':
-      return category === 'conversation' || sessionModes.has('pair') || sessionModes.has('group') || searchableText.includes('convers');
-    case 'teams':
-      return category === 'team-building' || searchableText.includes('equipo') || searchableText.includes('oficina') || playerCount.includes('personas');
-    case 'trivia':
-      return category === 'trivia' || searchableText.includes('trivia');
-    case 'facilitators':
-      return sessionModes.has('facilitator') || category === 'coaching' || tags.has('facilitadores') || searchableText.includes('taller');
-    case 'printable':
-      return hasPrintablePdf(deck);
-  }
-
-  return true;
 }

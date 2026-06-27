@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   flipCardFace,
-  getDeckSessionModes,
   getPreviewCards,
   type Card,
   type CardFace,
@@ -10,22 +9,22 @@ import {
 } from '@eb-packages/deck-engine';
 import {
   formatDeckPrice,
+  getDeckCatalogBreadcrumb,
+  getDeckCatalogFacet,
   getDeckHeroImage,
-  getDeckPrintableVersion,
+  hasPrintablePdf,
 } from '../../lib/digitalDeckCatalog';
 import { RelatedDecksSection } from '../../components/decks/RelatedDecksSection';
 import { trackBarajaEvent } from '../../services/analytics';
-import { usePwaStatus } from '../../hooks/usePwaStatus';
 import { CardCanvas } from '../../components/cards/CardCanvas';
 import { useDeck } from '../../hooks/useDeck';
 
 export default function DigitalDeckDetail() {
   const { slug } = useParams();
   const { deck, loading } = useDeck(slug);
-  const { isStandalone } = usePwaStatus();
   const [flippedCards, setFlippedCards] = useState<Record<string, CardFace>>({});
   const previewCards = deck ? getPreviewCards(deck, 3) : [];
-  const lockedCount = deck ? Math.max(0, deck.card_count - previewCards.length) : 0;
+  const printableEnabled = deck ? hasPrintablePdf(deck) : false;
 
   useEffect(() => {
     if (!deck) {
@@ -37,16 +36,16 @@ export default function DigitalDeckDetail() {
       deck_slug: deck.slug,
       card_count: deck.card_count,
       preview_card_count: previewCards.length,
-      printable_enabled: true,
+      printable_enabled: printableEnabled,
       surface: 'deck_detail',
     });
     trackBarajaEvent('baraja_paywall_viewed', {
       deck_id: deck.id,
       deck_slug: deck.slug,
-      locked_count: lockedCount,
+      locked_count: Math.max(0, deck.card_count - previewCards.length),
       surface: 'deck_detail',
     });
-  }, [deck, lockedCount, previewCards.length]);
+  }, [deck, previewCards.length, printableEnabled]);
 
   if (loading && !deck) {
     return (
@@ -74,36 +73,71 @@ export default function DigitalDeckDetail() {
     }));
   }
 
+  const catalogFacet = getDeckCatalogFacet(deck);
+  const breadcrumb = getDeckCatalogBreadcrumb(deck);
+  const catalogSearch = `?catalog=${catalogFacet.collectionId}`;
+  const landingCopy = deck.digital?.landing;
+  const heroImage = getDeckHeroImage(deck);
+
   return (
     <main className="digital-shell">
       <nav className="digital-nav">
         <Link to="/" className="digital-brand">Baraja.cards</Link>
         <div className="digital-nav-links">
-          <Link to={`/decks/${deck.slug}/session`}>Sesión</Link>
-          <Link to={`/install?deck=${deck.slug}`}>
-            {isStandalone ? 'App lista' : 'Instalar'}
+          <Link to={{ pathname: '/', search: catalogSearch, hash: '#mazos' }}>
+            {catalogFacet.collectionLabel}
           </Link>
-          <Link to={`/decks/${deck.slug}/print-guide`}>PDF imprimible</Link>
+          <Link
+            to={`/decks/${deck.slug}/access`}
+            onClick={() => trackBarajaEvent('baraja_checkout_started', {
+              deck_id: deck.id,
+              deck_slug: deck.slug,
+              surface: 'deck_detail_nav',
+            })}
+          >
+            Comprar
+          </Link>
         </div>
       </nav>
 
       <section className="digital-detail-hero">
         <div className="digital-detail-copy">
-          <p className="digital-kicker">{deck.digital?.category}</p>
+          <nav className="digital-breadcrumb" aria-label="Ubicación del mazo">
+            {breadcrumb.map((item, index) => {
+              const isLast = index === breadcrumb.length - 1;
+              const prefix = item.kind === 'collection'
+                ? 'Colección:'
+                : item.kind === 'category' ? 'Categoría:' : '';
+              const label = (
+                <>
+                  {prefix && <span>{prefix}</span>}
+                  {item.label}
+                </>
+              );
+
+              return (
+                <span className="digital-breadcrumb-item" key={`${item.kind}-${item.id}`}>
+                  {isLast ? (
+                    <strong aria-current="page">{label}</strong>
+                  ) : (
+                    <Link to={{ pathname: '/', search: catalogSearch, hash: '#mazos' }}>
+                      {label}
+                    </Link>
+                  )}
+                  {!isLast && <small aria-hidden="true">/</small>}
+                </span>
+              );
+            })}
+          </nav>
           <h1>{deck.name}</h1>
-          <p className="digital-lead">{deck.description}</p>
-          <div className="digital-meta-row digital-meta-row-large">
-            <span>{deck.card_count} cartas</span>
-            <span>{getDeckSessionModes(deck).join(' / ')}</span>
-            <span>{getDeckPrintableVersion(deck)}</span>
-          </div>
+          <p className="digital-lead">{landingCopy?.hero_promise ?? deck.description}</p>
+          <p className="digital-detail-summary">
+            {landingCopy?.hero_supporting_copy ?? catalogFacet.summary}
+          </p>
           <div className="digital-actions">
-            <Link to={`/decks/${deck.slug}/session`} className="btn-primary">
-              Comenzar
-            </Link>
             <Link
               to={`/decks/${deck.slug}/access`}
-              className="btn-ghost"
+              className="btn-primary"
               onClick={() => trackBarajaEvent('baraja_checkout_started', {
                 deck_id: deck.id,
                 deck_slug: deck.slug,
@@ -112,20 +146,21 @@ export default function DigitalDeckDetail() {
             >
               Comprar acceso {formatDeckPrice(deck)}
             </Link>
-            <Link to={`/install?deck=${deck.slug}`} className="digital-inline-link">
-              {isStandalone ? 'Abrir como app instalada' : 'Instalar Baraja'}
-            </Link>
           </div>
         </div>
         <div className="digital-detail-media">
-          {getDeckHeroImage(deck) && <img src={getDeckHeroImage(deck)} alt="" />}
+          {heroImage && <img src={heroImage} alt="" />}
         </div>
       </section>
 
-      <section className="digital-section">
+      <section className="digital-section" id="preview">
         <div className="digital-section-header">
-          <p className="digital-kicker">Preview</p>
-          <h2>Tres cartas abiertas</h2>
+          <p className="digital-kicker">Muestra</p>
+          <h2>Una muestra del tono</h2>
+          <p className="digital-section-intro">
+            {landingCopy?.preview_intro ??
+              'Algunas cartas alcanzan para entender la experiencia sin revelar el mazo completo.'}
+          </p>
         </div>
         <div className="digital-preview-grid">
           {previewCards.map((card) => (
@@ -143,10 +178,10 @@ export default function DigitalDeckDetail() {
       <section className="digital-band">
         <div>
           <p className="digital-kicker">Acceso completo</p>
-          <h2>{lockedCount} cartas quedan desbloqueadas al comprar.</h2>
+          <h2>El mazo completo queda desbloqueado al comprar.</h2>
           <p>
-            El acceso pago suma sesión completa, favoritos locales y el paquete
-            imprimible descargable incluido.
+            {landingCopy?.unlock_summary ??
+              'El acceso pago suma sesión completa, favoritos locales y el paquete imprimible cuando el mazo lo incluye.'}
           </p>
         </div>
         <Link
@@ -158,7 +193,7 @@ export default function DigitalDeckDetail() {
             surface: 'locked_band',
           })}
         >
-          Ver acceso
+          Comprar acceso {formatDeckPrice(deck)}
         </Link>
       </section>
 

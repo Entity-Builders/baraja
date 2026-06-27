@@ -1,39 +1,48 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import {
+  DECK_CATALOG_CATEGORIES,
+  DECK_CATALOG_COLLECTIONS,
+  type DeckCatalogCategoryId,
+  type DeckCatalogCollectionId,
+} from '@eb-packages/deck-engine';
+import {
+  getErrorMessage,
+  getStringField,
+  readJsonRecord,
+  toEnrichResponse,
+  toGenerationResult,
+  toGenerationStreamEvent,
+  toPromptPreviewResponse,
+  type EnrichedItem,
+  type GenerationResult,
+  type GenerationStreamEvent,
+} from './generationResponseParsers';
 
 // ── Types ────────────────────────────────────────────────────
 
 type DeckType = 'trivia' | 'introspection' | 'party' | 'custom';
 type TriviaDifficulty = 'easy' | 'medium' | 'hard' | 'mixed';
 
+interface Preset {
+  label: string;
+  topic: string;
+  context: string;
+  type: DeckType;
+  collection: DeckCatalogCollectionId;
+  category: DeckCatalogCategoryId;
+  moment: string;
+  buyerSentence: string;
+  landingPromise: string;
+  previewPolicy: string;
+  cardCount?: number;
+  artStyle?: string;
+}
+
 interface GenerationLog {
   type: 'info' | 'success' | 'error' | 'progress' | 'prompt';
   message: string;
   timestamp: number;
-}
-
-interface GenerationResult {
-  success: boolean;
-  slug?: string;
-  name?: string;
-  card_count?: number;
-  error?: string;
-}
-
-interface EnrichedItem {
-  title: string;
-  year?: string;
-  director?: string;
-  genre?: string;
-  actors?: string;
-  plot?: string;
-  poster?: string;
-  imdbRating?: string;
-  awards?: string;
-  country?: string;
-  wikiExtract?: string;
-  _notFound?: boolean;
-  _error?: string;
 }
 
 // ── Component ────────────────────────────────────────────────
@@ -49,6 +58,14 @@ export default function AdminGenerateEdition() {
   const [difficulty, setDifficulty] = useState<TriviaDifficulty>('mixed');
   const [artStyle, setArtStyle] = useState('');
 
+  // Catalog and landing intent
+  const [catalogCollection, setCatalogCollection] = useState<DeckCatalogCollectionId>('social-games');
+  const [catalogCategory, setCatalogCategory] = useState<DeckCatalogCategoryId>('between-friends');
+  const [deckMoment, setDeckMoment] = useState('');
+  const [buyerSentence, setBuyerSentence] = useState('');
+  const [landingPromise, setLandingPromise] = useState('');
+  const [previewPolicy, setPreviewPolicy] = useState('');
+
   // Phase 2: Enrichment
   const [seedText, setSeedText] = useState('');
   const [enrichedData, setEnrichedData] = useState<EnrichedItem[] | null>(null);
@@ -59,6 +76,7 @@ export default function AdminGenerateEdition() {
 
   // Generation state
   const [generating, setGenerating] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [logs, setLogs] = useState<GenerationLog[]>([]);
   const [result, setResult] = useState<GenerationResult | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
@@ -66,6 +84,22 @@ export default function AdminGenerateEdition() {
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs]);
+
+  useEffect(() => {
+    const category = DECK_CATALOG_CATEGORIES[catalogCategory];
+
+    if (category?.collection === catalogCollection) {
+      return;
+    }
+
+    const nextCategory = Object.values(DECK_CATALOG_CATEGORIES).find(
+      (candidate) => candidate.collection === catalogCollection && candidate.id !== 'other'
+    );
+
+    if (nextCategory) {
+      setCatalogCategory(nextCategory.id);
+    }
+  }, [catalogCategory, catalogCollection]);
 
   function addLog(type: GenerationLog['type'], message: string) {
     setLogs(prev => [...prev, { type, message, timestamp: Date.now() }]);
@@ -90,7 +124,15 @@ export default function AdminGenerateEdition() {
         }),
       });
 
-      const data: any = await res.json();
+      const data = toEnrichResponse(await readJsonRecord(res));
+      if (!data.success) {
+        throw new Error(data.error);
+      }
+
+      if (!res.ok) {
+        throw new Error('El servidor rechazó el enriquecimiento.');
+      }
+
       if (data.success) {
         const found = data.data.filter((d: EnrichedItem) => !d._notFound && !d._error);
         const notFound = data.data.filter((d: EnrichedItem) => d._notFound);
@@ -103,11 +145,9 @@ export default function AdminGenerateEdition() {
         for (const item of found) {
           addLog('info', `  🎬 ${item.title} (${item.year}) — Dir: ${item.director} — ⭐ ${item.imdbRating}`);
         }
-      } else {
-        addLog('error', `❌ Enrichment failed: ${data.error}`);
       }
-    } catch (err: any) {
-      addLog('error', `❌ Network error: ${err.message}`);
+    } catch (err: unknown) {
+      addLog('error', `❌ No se pudo enriquecer la lista: ${getErrorMessage(err, 'Revisá el servidor local y volvé a intentar.')}`);
     } finally {
       setEnriching(false);
     }
@@ -126,16 +166,22 @@ export default function AdminGenerateEdition() {
         body: JSON.stringify(payload),
       });
 
-      const data: any = await res.json();
+      const data = toPromptPreviewResponse(await readJsonRecord(res));
+      if (!data.success) {
+        throw new Error(data.error);
+      }
+
+      if (!res.ok) {
+        throw new Error('El servidor rechazó la previsualización.');
+      }
+
       if (data.success) {
         setPromptPreview(data.userPrompt);
-        addLog('info', `📊 Estimated tokens: ~${data.estimatedTokens}`);
+        addLog('info', `📊 Estimated tokens: ~${data.estimatedTokens ?? 'n/a'}`);
         addLog('prompt', data.userPrompt);
-      } else {
-        addLog('error', `❌ Preview failed: ${data.error}`);
       }
-    } catch (err: any) {
-      addLog('error', `❌ Network error: ${err.message}`);
+    } catch (err: unknown) {
+      addLog('error', `❌ No se pudo previsualizar el prompt: ${getErrorMessage(err, 'Revisá el servidor local y volvé a intentar.')}`);
     }
   }
 
@@ -143,15 +189,160 @@ export default function AdminGenerateEdition() {
 
   function buildPayload() {
     const validEnriched = enrichedData?.filter(d => !d._notFound && !d._error) || undefined;
+    const promptContext = buildPromptContext();
+    const category = DECK_CATALOG_CATEGORIES[catalogCategory];
     return {
       topic: topic.trim(),
       cardCount,
-      additionalContext: additionalContext.trim() || undefined,
+      additionalContext: promptContext || undefined,
       deckType,
       difficulty: deckType === 'trivia' ? difficulty : undefined,
       artStyle: artStyle || undefined,
       enrichedData: validEnriched && validEnriched.length > 0 ? validEnriched : undefined,
+      digitalDraft: {
+        catalog: {
+          collection: catalogCollection,
+          category: catalogCategory,
+        },
+        tags: [
+          catalogCollection,
+          catalogCategory,
+          category?.shortLabel?.toLowerCase().replace(/\s+/g, '-') ?? '',
+        ].filter(Boolean),
+        landing: {
+          hero_promise: landingPromise.trim() || undefined,
+          hero_supporting_copy: buildHeroSupportingCopy() || undefined,
+          preview_intro: previewPolicy.trim() || undefined,
+          unlock_summary: buildUnlockSummary(),
+        },
+      },
     };
+  }
+
+  function buildHeroSupportingCopy() {
+    const parts = [
+      deckMoment.trim() ? `Momento: ${deckMoment.trim()}` : '',
+      buyerSentence.trim() ? `Comprador: ${buyerSentence.trim()}` : '',
+    ].filter(Boolean);
+
+    return parts.join(' ');
+  }
+
+  function buildUnlockSummary() {
+    const collection = DECK_CATALOG_COLLECTIONS[catalogCollection];
+    return `El acceso completo desbloquea la sesión digital, las cartas del mazo y el paquete imprimible si esta edición lo incluye. Se guarda como draft de ${collection.label}.`;
+  }
+
+  function buildPromptContext() {
+    const collection = DECK_CATALOG_COLLECTIONS[catalogCollection];
+    const category = DECK_CATALOG_CATEGORIES[catalogCategory];
+    const sections = [
+      additionalContext.trim(),
+      [
+        '## Catalog and Landing Intent',
+        `- Collection: ${collection.label} (${collection.id})`,
+        `- Category: ${category.label} (${category.id})`,
+        deckMoment.trim() ? `- Moment: ${deckMoment.trim()}` : '',
+        buyerSentence.trim() ? `- Buyer sentence: ${buyerSentence.trim()}` : '',
+        landingPromise.trim() ? `- Landing promise: ${landingPromise.trim()}` : '',
+        previewPolicy.trim() ? `- Preview policy: ${previewPolicy.trim()}` : '',
+        '- Generate the deck as a Baraja catalog draft, not as a standalone prompt dump.',
+        '- The name, description, cards, and tone must serve the moment and buyer sentence.',
+        '- Do not sell the deck by raw card count; sell context fit, tone, and use.',
+        '- Back copy hierarchy: instruction is the primary playable payload; phrase is only a short editorial hook unless this is a pure introspection/regulation deck.',
+      ].filter(Boolean).join('\n'),
+    ].filter(Boolean);
+
+    return sections.join('\n\n') || undefined;
+  }
+
+  function recordGenerationResult(data: GenerationResult, registrySynced: boolean) {
+    if (data.success) {
+      addLog('success', `✅ Edition created: "${data.name ?? 'Nueva edición'}"`);
+      addLog('success', `Cards generated: ${data.card_count ?? 0}`);
+      addLog('info', `Slug: ${data.slug ?? 'sin-slug'}`);
+      addLog(registrySynced ? 'success' : 'progress', registrySynced
+        ? '🔄 Runtime deck registry synced.'
+        : '🔄 Syncing runtime deck registry...');
+    } else {
+      addLog('error', `❌ Generation failed: ${data.error ?? 'La generación falló sin detalle.'}`);
+    }
+
+    setResult(data);
+  }
+
+  function handleGenerationStreamEvent(event: GenerationStreamEvent) {
+    if (event.type === 'progress') {
+      addLog('progress', event.message);
+      return;
+    }
+
+    if (event.type === 'error') {
+      addLog('error', `❌ ${event.message}`);
+      setResult({ success: false, error: event.message });
+      return;
+    }
+
+    recordGenerationResult(event.data, true);
+  }
+
+  function handleSseBlock(block: string) {
+    const dataLine = block
+      .split('\n')
+      .find((line) => line.startsWith('data: '));
+
+    if (!dataLine) {
+      return;
+    }
+
+    const dataStr = dataLine.slice(6).trim();
+    if (!dataStr) {
+      return;
+    }
+
+    try {
+      const parsed: unknown = JSON.parse(dataStr);
+      const event = toGenerationStreamEvent(parsed);
+
+      if (event) {
+        handleGenerationStreamEvent(event);
+      }
+    } catch (err: unknown) {
+      console.error('[AdminGenerateEdition] Failed to parse SSE block:', err);
+      addLog('error', '❌ El servidor devolvió un evento de generación inválido.');
+    }
+  }
+
+  async function readGenerationStream(response: Response) {
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('No se pudo leer el stream de generación.');
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+      const blocks = buffer.split('\n\n');
+      buffer = blocks.pop() ?? '';
+
+      for (const block of blocks) {
+        handleSseBlock(block);
+      }
+    }
+
+    buffer += decoder.decode();
+
+    if (buffer.trim()) {
+      handleSseBlock(buffer);
+    }
   }
 
   async function handleGenerate(e: React.FormEvent) {
@@ -178,74 +369,135 @@ export default function AdminGenerateEdition() {
       
       if (contentType && contentType.includes('application/json')) {
         // Fallback for immediate errors like 500 or 400
-        const data = await res.json() as GenerationResult;
-        if (data.success) {
-          addLog('success', `✅ Edition created: "${data.name}"`);
-          addLog('success', `Cards generated: ${data.card_count}`);
-          addLog('info', `Slug: ${data.slug}`);
-          addLog('info', `⚠️ Run "yarn workspace @eb-packages/deck-engine sync" to register in DECKS, then restart the dev server.`);
-          setResult(data);
-        } else {
-          addLog('error', `❌ Generation failed: ${data.error}`);
-          setResult(data);
-        }
+        recordGenerationResult(toGenerationResult(await readJsonRecord(res)), false);
       } else {
-        // SSE Stream parsing
-        const reader = res.body?.getReader();
-        const decoder = new TextDecoder();
-        if (!reader) throw new Error('No reader available from response');
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n\n');
-          
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const dataStr = line.substring(6);
-              if (!dataStr.trim()) continue;
-              
-              try {
-                const event = JSON.parse(dataStr);
-                if (event.type === 'progress') {
-                  addLog('progress', event.message);
-                } else if (event.type === 'error') {
-                  addLog('error', `❌ ${event.message}`);
-                  setResult({ success: false, error: event.message });
-                } else if (event.type === 'done') {
-                  addLog('success', `✅ Edition created: "${event.data.name}"`);
-                  addLog('success', `Cards generated: ${event.data.card_count}`);
-                  addLog('info', `Slug: ${event.data.slug}`);
-                  addLog('info', `⚠️ Run "yarn workspace @eb-packages/deck-engine sync" to register in DECKS, then restart the dev server.`);
-                  setResult(event.data);
-                }
-              } catch (e) {
-                console.error('Failed to parse SSE line:', dataStr);
-              }
-            }
-          }
-        }
+        await readGenerationStream(res);
       }
-    } catch (err: any) {
-      addLog('error', `❌ Network error: ${err.message}`);
-      setResult({ success: false, error: err.message });
+    } catch (err: unknown) {
+      const message = getErrorMessage(err, 'Revisá el servidor local y volvé a intentar.');
+      addLog('error', `❌ No se pudo generar la edición: ${message}`);
+      setResult({ success: false, error: message });
     } finally {
       setGenerating(false);
     }
   }
 
+  async function handleSyncDecks() {
+    if (syncing) return;
+
+    setSyncing(true);
+    addLog('progress', '🔄 Syncing deck registry...');
+
+    try {
+      const res = await fetch('/__cms__/sync-decks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await readJsonRecord(res);
+
+      if (!res.ok || data.success !== true) {
+        throw new Error(getStringField(data, 'error') ?? 'No se pudo sincronizar el registro.');
+      }
+
+      addLog('success', '✅ decks.ts regenerated. If a stale view remains, refresh the admin.');
+    } catch (err: unknown) {
+      addLog('error', `❌ Sync failed: ${getErrorMessage(err, 'Revisá el servidor local y volvé a intentar.')}`);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   // ── Presets ─────────────────────────────────────────────────
 
-  const presets = [
-    { label: '🧠 Introspección', topic: 'Mazo de introspección y autoconocimiento', context: 'Tono calmo, directo, sin clichés de autoayuda. Para adultos que necesitan parar y pensar.', type: 'introspection' as DeckType },
-    { label: '🍷 Primera cita', topic: 'Mazo para romper el hielo en la primera cita', context: 'Divertido pero no cursi. Preguntas que revelan personalidad sin ser invasivas.', type: 'party' as DeckType },
-    { label: '⚽ Trivia fútbol', topic: 'Trivia sobre la historia del fútbol argentino', context: 'Mezcla de dificultades. Desde clásicos hasta datos poco conocidos.', type: 'trivia' as DeckType },
-    { label: '🎬 Trivia cine', topic: 'Trivia sobre cine argentino y latinoamericano', context: 'Películas icónicas, directores, premios, behind-the-scenes.', type: 'trivia' as DeckType },
-    { label: '🎲 Party game', topic: 'Juego de cartas para jugar entre amigos en una juntada', context: 'Retos, verdad o consecuencia, preguntas absurdas.', type: 'party' as DeckType },
-    { label: '💼 Team building', topic: 'Mazo de team building para equipos de trabajo', context: 'Preguntas que generan conexión entre colegas sin ser incómodas.', type: 'party' as DeckType },
+  const presets: Preset[] = [
+    {
+      label: '🧠 Introspección',
+      topic: 'Mazo de introspección y autoconocimiento',
+      context: 'Tono calmo, directo, sin clichés de autoayuda. Para adultos que necesitan parar y pensar.',
+      type: 'introspection',
+      collection: 'self-work',
+      category: 'introspection',
+      moment: 'La persona necesita detener ruido mental, nombrar lo que pasa y elegir una acción mínima.',
+      buyerSentence: 'Necesito parar y pensar sin que me hablen como si todo estuviera bien.',
+      landingPromise: 'Cartas para cortar la inercia y mirar lo que está pasando sin anestesia.',
+      previewPolicy: 'Elegir 1-3 cartas que muestren intensidad, claridad y cierre seguro.',
+      cardCount: 20,
+    },
+    {
+      label: '🍷 Primera cita',
+      topic: 'Mazo para romper el hielo en la primera cita',
+      context: 'Divertido pero no cursi. Preguntas que revelan personalidad sin ser invasivas.',
+      type: 'party',
+      collection: 'couples-dating',
+      category: 'first-date',
+      moment: 'Dos personas quieren esquivar la entrevista laboral disfrazada de cita.',
+      buyerSentence: 'Quiero conversación real sin caer en preguntas incómodas o solemnes.',
+      landingPromise: 'Preguntas para romper el hielo sin convertir la cita en una entrevista.',
+      previewPolicy: 'Mostrar variedad: mood, humor creativo y una interacción liviana.',
+      cardCount: 20,
+    },
+    {
+      label: '⚽ Trivia fútbol',
+      topic: 'Trivia sobre la historia del fútbol argentino',
+      context: 'Mezcla de dificultades. Desde clásicos hasta datos poco conocidos. Evitar likeness realista, escudos, marcas y camisetas exactas.',
+      type: 'trivia',
+      collection: 'trivia-games',
+      category: 'football',
+      moment: 'Previa, entretiempo o juntada futbolera donde todos opinan y alguien tiene que demostrar si sabe.',
+      buyerSentence: 'Quiero una trivia de fútbol argentino que active discusión, memoria y chicana.',
+      landingPromise: 'Trivia futbolera para cortar la discusión o prenderla de una vez.',
+      previewPolicy: 'Mostrar mito, final histórica y potrero sin revelar las mejores respuestas.',
+      cardCount: 30,
+      artStyle: 'stylized-illustration',
+    },
+    {
+      label: '🎬 Trivia cine',
+      topic: 'Trivia sobre cine argentino y latinoamericano',
+      context: 'Películas icónicas, directores, premios, behind-the-scenes. Priorizar preguntas conversables, no datos enciclopédicos.',
+      type: 'trivia',
+      collection: 'trivia-games',
+      category: 'argentine-cinema',
+      moment: 'Grupo de amigos o cinéfilos quiere jugar, discutir escenas y medir memoria cultural.',
+      buyerSentence: 'Quiero una trivia local que no sea cultura general genérica.',
+      landingPromise: 'Trivia de cine argentino para jugar y terminar discutiendo escenas.',
+      previewPolicy: 'Mostrar preguntas reconocibles, conversables y con sabor local.',
+      cardCount: 30,
+      artStyle: 'cinematic',
+    },
+    {
+      label: '🎲 Party game',
+      topic: 'Juego de cartas para jugar entre amigos en una juntada',
+      context: 'Retos, verdad o consecuencia, preguntas absurdas. No depender de alcohol ni exponer a nadie de forma incómoda.',
+      type: 'party',
+      collection: 'social-games',
+      category: 'between-friends',
+      moment: 'Amigos en una juntada necesitan salir de los temas de siempre sin ponerse solemnes.',
+      buyerSentence: 'Necesito algo para que la noche no muera y la conversación se ponga mejor.',
+      landingPromise: 'Un mazo para estirar la noche cuando la mesa ya está lista para hablar de otra cosa.',
+      previewPolicy: 'Mostrar humor, confesión liviana y conversación de grupo.',
+      cardCount: 40,
+    },
+    {
+      label: '💼 Team building',
+      topic: 'Mazo de team building para equipos de trabajo',
+      context: 'Preguntas que generan conexión entre colegas sin ser incómodas. Evitar consultoría vacía y dinámicas infantiles.',
+      type: 'party',
+      collection: 'team-tools',
+      category: 'office',
+      moment: 'Un equipo necesita abrir una reunión, cortar rutina o conocerse sin team building forzado.',
+      buyerSentence: 'Necesito una dinámica rápida que no dé vergüenza y haga hablar al equipo.',
+      landingPromise: 'Dinámicas breves para que un equipo deje de ser solo una cadena de mails.',
+      previewPolicy: 'Mostrar dinámicas rápidas que un facilitador pueda usar sin preparar una sesión entera.',
+      cardCount: 30,
+    },
   ];
+
+  const catalogCollections = Object.values(DECK_CATALOG_COLLECTIONS).filter(
+    (collection) => collection.id !== 'other'
+  );
+  const catalogCategories = Object.values(DECK_CATALOG_CATEGORIES).filter(
+    (category) => category.collection === catalogCollection && category.id !== 'other'
+  );
 
   // ── Styles ─────────────────────────────────────────────────
 
@@ -324,6 +576,14 @@ export default function AdminGenerateEdition() {
                       setTopic(preset.topic);
                       setAdditionalContext(preset.context);
                       setDeckType(preset.type);
+                      setCatalogCollection(preset.collection);
+                      setCatalogCategory(preset.category);
+                      setDeckMoment(preset.moment);
+                      setBuyerSentence(preset.buyerSentence);
+                      setLandingPromise(preset.landingPromise);
+                      setPreviewPolicy(preset.previewPolicy);
+                      setCardCount(preset.cardCount ?? 30);
+                      setArtStyle(preset.artStyle ?? '');
                     }}
                     disabled={generating}
                     style={{
@@ -362,6 +622,85 @@ export default function AdminGenerateEdition() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* ── Catalog & Landing Intent ──────────────── */}
+              <div style={{
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-md)',
+                padding: '1rem',
+                background: 'rgba(212, 175, 100, 0.04)',
+              }}>
+                <label style={labelStyle}>Catalog & Landing Intent</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                  <div>
+                    <span style={{ display: 'block', fontSize: '0.68rem', opacity: 0.45, marginBottom: '0.35rem' }}>
+                      Collection
+                    </span>
+                    <select
+                      value={catalogCollection}
+                      onChange={(e) => setCatalogCollection(e.target.value as DeckCatalogCollectionId)}
+                      disabled={generating}
+                      style={{ ...inputStyle, cursor: 'pointer' }}
+                    >
+                      {catalogCollections.map((collection) => (
+                        <option key={collection.id} value={collection.id}>
+                          {collection.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <span style={{ display: 'block', fontSize: '0.68rem', opacity: 0.45, marginBottom: '0.35rem' }}>
+                      Category
+                    </span>
+                    <select
+                      value={catalogCategory}
+                      onChange={(e) => setCatalogCategory(e.target.value as DeckCatalogCategoryId)}
+                      disabled={generating}
+                      style={{ ...inputStyle, cursor: 'pointer' }}
+                    >
+                      {catalogCategories.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <textarea
+                  value={deckMoment}
+                  onChange={(e) => setDeckMoment(e.target.value)}
+                  placeholder='Moment: e.g. "Amigos en una sobremesa necesitan salir de los temas de siempre."'
+                  disabled={generating}
+                  style={{ ...inputStyle, minHeight: '58px', resize: 'vertical', marginBottom: '0.75rem' }}
+                />
+                <input
+                  value={buyerSentence}
+                  onChange={(e) => setBuyerSentence(e.target.value)}
+                  placeholder='Buyer sentence: e.g. "Necesito algo para que la noche no muera."'
+                  disabled={generating}
+                  style={{ ...inputStyle, marginBottom: '0.75rem' }}
+                />
+                <input
+                  value={landingPromise}
+                  onChange={(e) => setLandingPromise(e.target.value)}
+                  placeholder='Landing promise: one sentence above the fold'
+                  disabled={generating}
+                  style={{ ...inputStyle, marginBottom: '0.75rem' }}
+                />
+                <textarea
+                  value={previewPolicy}
+                  onChange={(e) => setPreviewPolicy(e.target.value)}
+                  placeholder="Preview policy: what 1-3 cards should reveal without spoiling the deck"
+                  disabled={generating}
+                  style={{ ...inputStyle, minHeight: '58px', resize: 'vertical' }}
+                />
+
+                <p style={{ fontSize: '0.72rem', opacity: 0.45, margin: '0.75rem 0 0' }}>
+                  New editions are saved as unpublished catalog drafts with landing copy and preview guidance.
+                </p>
               </div>
 
               {/* ── Topic ─────────────────────────────────── */}
@@ -654,20 +993,20 @@ export default function AdminGenerateEdition() {
                 </div>
                 <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                   <button
-                    onClick={() => {
-                      alert(`Run this command to register the deck:\n\nyarn workspace @eb-packages/deck-engine sync\n\nThen restart the dev server to see "${result.name}" in the dashboard.`);
-                    }}
+                    onClick={handleSyncDecks}
+                    disabled={syncing}
                     style={{
                       background: 'transparent',
                       border: '1px solid var(--color-gold)',
                       color: 'var(--color-gold)',
                       padding: '0.5rem 1rem',
                       borderRadius: 'var(--radius-sm)',
-                      cursor: 'pointer',
+                      cursor: syncing ? 'not-allowed' : 'pointer',
                       fontSize: '0.8rem',
+                      opacity: syncing ? 0.5 : 1,
                     }}
                   >
-                    📋 Sync Instructions
+                    {syncing ? '⏳ Syncing...' : '🔄 Sync Registry'}
                   </button>
                   <button
                     onClick={() => {
