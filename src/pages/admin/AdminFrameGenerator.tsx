@@ -1,38 +1,40 @@
-import { useState, useRef, useEffect } from 'react';
-import { setFrameTheme, setFrameTypography, setActiveDeckId, loadGoogleFonts } from '../../lib/cardFrame';
+import { useState, useRef } from 'react';
+import { setFrameTheme, setFrameTypography, setActiveDeckId } from '../../lib/cardFrame';
 import { Link } from 'react-router-dom';
-import { buildMasterTemplatePrompt, buildArtDirectorMetaPrompt, buildStructuralConstraints, LAYOUT_PRESETS, type BarajaTemplateMetadata, type CardLayout, type CardType, DECKS, type DeckId } from '@eb-packages/deck-engine';
+import { buildMasterTemplatePrompt, buildArtDirectorMetaPrompt, buildStructuralConstraints, type BarajaTemplateMetadata, type CardLayout, type CardType, type DeckId } from '@eb-packages/deck-engine';
 import { DECK_EDITIONS } from '../../lib/editions';
 import { SupabaseDeckRepository } from '../../lib/deckRepository';
 import { createDefaultCardTemplate } from '../../lib/pdfmeConfig';
+import { useFrameLibrary } from './hooks/useFrameLibrary';
+import { useFrameTypographyFonts } from './hooks/useFrameTypographyFonts';
 import { FrameGeneratorControls } from './components/frame-generator/FrameGeneratorControls';
 import { FrameLayoutPanel } from './components/frame-generator/FrameLayoutPanel';
 import { FrameLibraryGallery } from './components/frame-generator/FrameLibraryGallery';
 import { FramePreviewPanel } from './components/frame-generator/FramePreviewPanel';
-import type { GeneratedFrame, GenerateResponse, FramesLibraryResponse, LibraryFrame } from './frameGeneratorTypes';
+import type { GeneratedFrame, GenerateResponse, LibraryFrame } from './frameGeneratorTypes';
 import { isTypoZone } from './frameGeneratorTypes';
-
-
-const DIMENSION_PRESETS = [
-  { label: 'Baraja Standard (70×120mm)', widthMm: 70, heightMm: 120 },
-  { label: 'Bridge Cards (57×89mm)', widthMm: 57, heightMm: 89 },
-  { label: 'Poker Cards (63×88mm)', widthMm: 63, heightMm: 88 },
-  { label: 'Tarot (70×121mm)', widthMm: 70, heightMm: 121 },
-];
+import {
+  DEFAULT_FRAME_BUILDER_METADATA,
+  FRAME_DIMENSION_PRESETS,
+  createGeneratedFrameFromResponse,
+  findFrameEdition,
+  getActiveCardFields,
+  getCardContentForFrameGeneration,
+  getFrameDeckAutofill,
+  getFrameDimensions,
+  getFrameDownloadFilename,
+  getFramePreviewSize,
+  mapLibraryFrameToGeneratedFrame,
+} from './utils/frameGeneratorUtils';
 
 export default function AdminFrameGenerator() {
   // Config state
   const [face, setFace] = useState<'front' | 'back'>('back');
   const [cardType, setCardType] = useState<CardType>('party');
   const [layoutPresetId, setLayoutPresetId] = useState<string>('back-standard');
-  const [builderMetadata, setBuilderMetadata] = useState<BarajaTemplateMetadata>({
-    themeDescription: 'Party Drinking game, dark neon club vibe',
-    cardType: 'party',
-    layout: LAYOUT_PRESETS['back-standard'].layout,
-    primaryColorHex: '',
-  });
-  const [customPrompt] = useState('');
-  const [customConstraints] = useState('');
+  const [builderMetadata, setBuilderMetadata] = useState<BarajaTemplateMetadata>(DEFAULT_FRAME_BUILDER_METADATA);
+  const customPrompt = '';
+  const customConstraints = '';
   const [dimPresetIdx, setDimPresetIdx] = useState(0);
   const [customWidth, setCustomWidth] = useState(70);
   const [customHeight, setCustomHeight] = useState(120);
@@ -45,9 +47,9 @@ export default function AdminFrameGenerator() {
     DECK_EDITIONS.find(e => e.id === 'barometro')!.sampleCard
   );
   const primaryTypographyKey = cardType === 'therapeutic' ? 'phrase' : 'instruction';
-  const [showCardContext] = useState(true);
+  const showCardContext = true;
 
-    const selectedEdition = DECK_EDITIONS.find(e => e.id === selectedEditionId)!;
+  const selectedEdition = findFrameEdition(selectedEditionId);
 
   // Generation state
   const [loading, setLoading] = useState(false);
@@ -56,117 +58,24 @@ export default function AdminFrameGenerator() {
   const [history, setHistory] = useState<GeneratedFrame[]>([]);
   const [activePreview, setActivePreview] = useState<GeneratedFrame | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [frameThemeChoice] = useState<'dark' | 'light'>('dark');
+  const frameThemeChoice: 'dark' | 'light' = 'dark';
   const [refinementText, setRefinementText] = useState('');
+  const frameLibrary = useFrameLibrary({ onError: setError });
 
   // Load any suggested fonts dynamically so the preview renders accurately
-  useEffect(() => {
-    if (!activePreview?.typography) return;
-    const typo = activePreview.typography;
-    
-    const families: string[] = [];
-    Object.keys(typo).forEach(key => {
-      if (['brand', 'qrFgColor', 'ttfUrls', 'focalPoints'].includes(key)) {
-         if (key === 'brand' && typo.brand?.fontFamily) {
-            families.push(typo.brand.fontFamily);
-         }
-         return;
-      }
-      const zone = typo[key];
-      if (isTypoZone(zone) && zone.fontFamily) {
-         families.push(zone.fontFamily);
-      }
-    });
-
-    if (families.length) {
-      loadGoogleFonts(families);
-    }
-  }, [activePreview?.typography]);
-
-  // Library state
-  const [libraryFrames, setLibraryFrames] = useState<LibraryFrame[]>([]);
-  const [loadingLibrary, setLoadingLibrary] = useState(false);
-  const [savingToLibrary, setSavingToLibrary] = useState(false);
-
-  useEffect(() => {
-    fetchLibrary();
-  }, []);
-
-  async function fetchLibrary() {
-    try {
-      setLoadingLibrary(true);
-      const res = await fetch('/__cms__/list-frames-library');
-      const data = await res.json() as FramesLibraryResponse;
-      if (data.success && data.frames) {
-        setLibraryFrames(data.frames);
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoadingLibrary(false);
-    }
-  }
-
-  async function handleSaveToLibrary(frame: GeneratedFrame) {
-    try {
-      setSavingToLibrary(true);
-      const res = await fetch('/__cms__/save-frame-library', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          dataUrl: frame.dataUrl,
-          prompt: frame.prompt,
-          typography: frame.typography,
-          face: frame.face,
-          widthMm: frame.widthMm,
-          heightMm: frame.heightMm,
-          presetId: frame.presetId,
-        }),
-      });
-      const data = await res.json() as { success: boolean; error?: string };
-      if (data.success) {
-        fetchLibrary(); // refresh the gallery
-      } else {
-        throw new Error(data.error);
-      }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSavingToLibrary(false);
-    }
-  }
+  useFrameTypographyFonts(activePreview?.typography);
 
   function handleSelectFromLibrary(libFrame: LibraryFrame) {
-    const frame: GeneratedFrame = {
-      // libFrame.url is the path to the stored image
-      dataUrl: libFrame.url,
-      presetId: libFrame.presetId,
-      prompt: libFrame.prompt,
-      face: libFrame.face,
-      widthMm: libFrame.widthMm,
-      heightMm: libFrame.heightMm,
-      timestamp: libFrame.timestamp,
-      typography: libFrame.typography,
-    };
-    setActivePreview(frame);
+    setActivePreview(mapLibraryFrameToGeneratedFrame(libFrame));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   const downloadRef = useRef<HTMLAnchorElement>(null);
-
-  const dims = dimPresetIdx < DIMENSION_PRESETS.length
-    ? DIMENSION_PRESETS[dimPresetIdx]
-    : { label: 'Custom', widthMm: customWidth, heightMm: customHeight };
-
-  // Card aspect ratio for preview
-  const aspectRatio = dims.widthMm / dims.heightMm;
-  const previewHeight = 420;
-  const previewWidth = Math.round(previewHeight * aspectRatio);
+  const dims = getFrameDimensions(dimPresetIdx, customWidth, customHeight);
+  const previewSize = getFramePreviewSize(dims);
 
   async function handleGenerate(refinementText?: string) {
-    const activeFields = Object.keys(cardContent || {}).filter(k => 
-      !['back_image_url', 'back_image_versions', 'qr_url'].includes(k) && typeof cardContent[k] === 'string' && !!cardContent[k]
-    );
+    const activeFields = getActiveCardFields(cardContent);
     const metadata: BarajaTemplateMetadata = { 
       ...builderMetadata, 
       face, 
@@ -188,7 +97,6 @@ export default function AdminFrameGenerator() {
     setSaveSuccess(false);
 
     try {
-      const hasContent = cardContent.when_to_use || cardContent.phrase || cardContent.instruction;
       const res = await fetch('/__cms__/generate-frame', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -200,11 +108,11 @@ export default function AdminFrameGenerator() {
           face,
           widthMm: dims.widthMm,
           heightMm: dims.heightMm,
-          cardContent: hasContent ? {
-            ...cardContent,
-            frameDescription: promptToSend.slice(0, 120),
-            framePalette: frameThemeChoice === 'light' ? 'light/warm parchment' : 'dark navy or black',
-          } : undefined,
+          cardContent: getCardContentForFrameGeneration({
+            cardContent,
+            frameThemeChoice,
+            promptToSend,
+          }),
           edition: {
             id: selectedEdition.id,
             label: selectedEdition.label,
@@ -226,16 +134,14 @@ export default function AdminFrameGenerator() {
         throw new Error(data.error || 'La generación falló sin mensaje de error.');
       }
 
-      const frame: GeneratedFrame = {
+      const frame = createGeneratedFrameFromResponse({
         dataUrl: data.dataUrl,
-        presetId: 'master-builder',
-        prompt: promptToSend,
         face,
-        widthMm: dims.widthMm,
         heightMm: dims.heightMm,
-        timestamp: Date.now(),
+        prompt: promptToSend,
         typography: data.typography,
-      };
+        widthMm: dims.widthMm,
+      });
 
       setHistory(prev => [frame, ...prev.slice(0, 7)]); // Keep last 8
       setActivePreview(frame);
@@ -340,10 +246,8 @@ export default function AdminFrameGenerator() {
 
   function handleDownload(frame: GeneratedFrame) {
     if (!downloadRef.current) return;
-    const ext = frame.dataUrl.startsWith('data:image/png') ? 'png' : 'jpg';
-    const filename = `frame-${frame.face}-${frame.widthMm}x${frame.heightMm}-${frame.timestamp}.${ext}`;
     downloadRef.current.href = frame.dataUrl;
-    downloadRef.current.download = filename;
+    downloadRef.current.download = getFrameDownloadFilename(frame);
     downloadRef.current.click();
   }
 
@@ -404,31 +308,20 @@ export default function AdminFrameGenerator() {
 
   function handleSelectDeckEngineDeck(deckId: DeckId) {
     setSelectedDeckId(deckId);
-    const deck = DECKS[deckId];
-    if (!deck) return;
+    const autofill = getFrameDeckAutofill(deckId);
+    if (!autofill) return;
 
     setBuilderMetadata(prev => ({
       ...prev,
-      themeDescription: `${deck.name}. ${deck.metadata.topic}. Ambientación: ${deck.metadata.tone}.`,
-      primaryColorHex: deck.design?.primary_color || prev.primaryColorHex,
+      ...autofill.deckMetadata,
+      primaryColorHex: autofill.deckMetadata.primaryColorHex || prev.primaryColorHex,
     }));
 
-    const localEdition = DECK_EDITIONS.find(edition =>
-      edition.deckEngineIds?.includes(deckId) || edition.id === deckId
-    );
-    if (!localEdition) return;
+    if (!autofill.edition) return;
 
-    setSelectedEditionId(localEdition.id);
-    setCardContent(localEdition.sampleCard);
-
-    const typeMap: Record<string, CardType> = {
-      barometro: 'therapeutic',
-      trivia: 'trivia',
-      juegos: 'game',
-      rompelo: 'party',
-    };
-    const inferredType = typeMap[localEdition.id] ?? 'custom';
-    handleCardTypeChange(inferredType);
+    setSelectedEditionId(autofill.edition.id);
+    setCardContent(autofill.edition.sampleCard);
+    handleCardTypeChange(autofill.inferredType);
   }
 
   function handleEnhanceThemeDescription() {
@@ -475,7 +368,7 @@ export default function AdminFrameGenerator() {
           cardType={cardType}
           customHeight={customHeight}
           customWidth={customWidth}
-          dimensionPresets={DIMENSION_PRESETS}
+          dimensionPresets={FRAME_DIMENSION_PRESETS}
           dimPresetIdx={dimPresetIdx}
           face={face}
           structuralPreview={buildStructuralConstraints(builderMetadata)}
@@ -501,12 +394,12 @@ export default function AdminFrameGenerator() {
           face={face}
           history={history}
           loading={loading}
-          previewHeight={previewHeight}
-          previewWidth={previewWidth}
+          previewHeight={previewSize.height}
+          previewWidth={previewSize.width}
           primaryTypographyKey={primaryTypographyKey}
           refinementText={refinementText}
           saveSuccess={saveSuccess}
-          savingToLibrary={savingToLibrary}
+          savingToLibrary={frameLibrary.saving}
           selectedDeckId={selectedDeckId}
           showCardContext={showCardContext}
           showSafeZone={showSafeZone}
@@ -514,7 +407,7 @@ export default function AdminFrameGenerator() {
           onDownload={handleDownload}
           onGenerate={handleGenerate}
           onRefinementTextChange={setRefinementText}
-          onSaveToLibrary={handleSaveToLibrary}
+          onSaveToLibrary={frameLibrary.saveToLibrary}
           onSelectHistoryFrame={setActivePreview}
           onSetActive={handleSetActive}
           onToggleSafeZone={setShowSafeZone}
@@ -531,8 +424,8 @@ export default function AdminFrameGenerator() {
       
       <FrameLibraryGallery
         activePreview={activePreview}
-        frames={libraryFrames}
-        loading={loadingLibrary}
+        frames={frameLibrary.frames}
+        loading={frameLibrary.loading}
         onSelectFrame={handleSelectFromLibrary}
       />
 
