@@ -9,6 +9,9 @@ interface Env {
   ASSETS: { fetch: typeof fetch };
   DB: D1Database;
   PRINT_FILES: R2Bucket;
+  BARAJA_ADMIN_EMAIL?: string;
+  BARAJA_ADMIN_PASSWORD?: string;
+  BARAJA_ADMIN_SESSION_SECRET?: string;
   STRIPE_WEBHOOK_SECRET?: string;
   VITE_SUPABASE_URL?: string;
   VITE_SUPABASE_ANON_KEY?: string;
@@ -68,12 +71,27 @@ function getEditionSlugFromUrl(url: URL): string | null {
 
 // ── SEO Injection & Context ───────────────────────────────────
 
-function getVibeContext(cf: any) {
+type BarajaCfProperties = Request['cf'];
+
+interface SeoEditionRow {
+  name?: string;
+  description?: string;
+  landing_config?: {
+    hero?: {
+      titleHtml?: string;
+      subtitle?: string;
+    };
+  };
+}
+
+function getVibeContext(cf: BarajaCfProperties) {
   let timeOfDay = 'day';
   let season = 'spring';
 
   try {
-    const tz = cf?.timezone || 'America/Argentina/Buenos_Aires';
+    const tz = typeof cf?.timezone === 'string'
+      ? cf.timezone
+      : 'America/Argentina/Buenos_Aires';
     const formatter = new Intl.DateTimeFormat('en-US', {
       timeZone: tz,
       hour: 'numeric',
@@ -87,7 +105,10 @@ function getVibeContext(cf: any) {
     else timeOfDay = 'night';
 
     const month = new Date().getMonth(); // 0-11
-    const isNorth = (cf?.latitude || -34) >= 0;
+    const latitude = typeof cf?.latitude === 'number'
+      ? cf.latitude
+      : Number.parseFloat(String(cf?.latitude ?? -34));
+    const isNorth = Number.isFinite(latitude) ? latitude >= 0 : false;
     
     if (month >= 2 && month <= 4) {
       season = isNorth ? 'spring' : 'autumn';
@@ -102,7 +123,11 @@ function getVibeContext(cf: any) {
     console.warn('[getVibeContext] Error extracting context:', e);
   }
 
-  return { timeOfDay, season, city: cf?.city || 'Unknown' };
+  return {
+    timeOfDay,
+    season,
+    city: typeof cf?.city === 'string' ? cf.city : 'Unknown',
+  };
 }
 
 async function rewriteHtmlForSeo(request: Request, response: Response, slug: string, env: Env): Promise<Response> {
@@ -121,18 +146,20 @@ async function rewriteHtmlForSeo(request: Request, response: Response, slug: str
     });
 
     if (!res.ok) return response;
-    const data = await res.json() as any[];
+    const data = await res.json() as SeoEditionRow[];
     if (!data || data.length === 0) return response;
 
     const edition = data[0];
     const config = edition.landing_config || {};
     
-    const title = config.hero?.titleHtml ? config.hero.titleHtml.replace(/<[^>]+>/g, ' ') : edition.name;
+    const title = config.hero?.titleHtml
+      ? config.hero.titleHtml.replace(/<[^>]+>/g, ' ')
+      : edition.name || 'Baraja';
     const description = config.hero?.subtitle || edition.description || '';
 
     const vibeContext = getVibeContext(request.cf);
 
-    let rewriter = new HTMLRewriter()
+    const rewriter = new HTMLRewriter()
       .on('title', {
         element(element) {
           element.setInnerContent(`${title} | Baraja`, { html: false });
@@ -160,6 +187,10 @@ async function rewriteHtmlForSeo(request: Request, response: Response, slug: str
 async function handleApi(request: Request, url: URL, env: Env): Promise<Response> {
   const { pathname } = url;
 
+  if (pathname.startsWith('/api/admin/')) {
+    return handleAdminApi(request, url, env);
+  }
+
   // POST /api/leads — Email capture from landing page
   if (pathname === '/api/leads' && request.method === 'POST') {
     return handleLeadCapture(request, env);
@@ -174,6 +205,237 @@ async function handleApi(request: Request, url: URL, env: Env): Promise<Response
     status: 404,
     headers: { 'Content-Type': 'application/json' },
   });
+}
+
+// ── Admin Auth ────────────────────────────────────────────────
+
+interface AdminSessionPayload {
+  exp: number;
+  iat: number;
+  sub: string;
+}
+
+interface AdminLoginPayload {
+  email?: unknown;
+  password?: unknown;
+}
+
+const ADMIN_SESSION_COOKIE = 'baraja_admin_session';
+const ADMIN_SESSION_MAX_AGE_SECONDS = 60 * 60 * 10;
+
+async function handleAdminApi(request: Request, url: URL, env: Env): Promise<Response> {
+  if (url.pathname === '/api/admin/session' && request.method === 'GET') {
+    const session = await readAdminSession(request, env);
+    return jsonResponse({
+      authenticated: Boolean(session),
+      email: session?.sub ?? null,
+    });
+  }
+
+  if (url.pathname === '/api/admin/login' && request.method === 'POST') {
+    return handleAdminLogin(request, url, env);
+  }
+
+  if (url.pathname === '/api/admin/logout' && request.method === 'POST') {
+    return jsonResponse(
+      { authenticated: false },
+      200,
+      { 'Set-Cookie': buildAdminSessionCookie('', url, 0) },
+    );
+  }
+
+  const session = await readAdminSession(request, env);
+  if (!session) {
+    return jsonResponse({ error: 'Admin session required' }, 401);
+  }
+
+  return jsonResponse({ error: 'Not found' }, 404);
+}
+
+async function handleAdminLogin(request: Request, url: URL, env: Env): Promise<Response> {
+  const config = getAdminAuthConfig(env);
+
+  if (!config.password || !config.secret) {
+    return jsonResponse({ error: 'Admin login is not configured.' }, 503);
+  }
+
+  const payload = await readAdminLoginPayload(request);
+  const email = normalizeAdminEmail(payload?.email);
+  const password = typeof payload?.password === 'string' ? payload.password : '';
+  const emailMatches = config.email ? email === config.email : Boolean(email);
+  const passwordMatches = safeEqual(password, config.password);
+
+  if (!emailMatches || !passwordMatches) {
+    return jsonResponse({ error: 'Credenciales inválidas.' }, 401);
+  }
+
+  const token = await createAdminSessionToken(
+    {
+      sub: email,
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + ADMIN_SESSION_MAX_AGE_SECONDS,
+    },
+    config.secret,
+  );
+
+  return jsonResponse(
+    { authenticated: true, email },
+    200,
+    { 'Set-Cookie': buildAdminSessionCookie(token, url, ADMIN_SESSION_MAX_AGE_SECONDS) },
+  );
+}
+
+async function readAdminLoginPayload(request: Request): Promise<AdminLoginPayload | null> {
+  try {
+    const payload = await request.json();
+    if (!payload || typeof payload !== 'object') {
+      return null;
+    }
+    return payload as AdminLoginPayload;
+  } catch {
+    return null;
+  }
+}
+
+async function readAdminSession(request: Request, env: Env): Promise<AdminSessionPayload | null> {
+  const config = getAdminAuthConfig(env);
+  if (!config.secret) {
+    return null;
+  }
+
+  const token = getCookieValue(request, ADMIN_SESSION_COOKIE);
+  if (!token) {
+    return null;
+  }
+
+  return verifyAdminSessionToken(token, config.secret);
+}
+
+function getAdminAuthConfig(env: Env) {
+  const password = env.BARAJA_ADMIN_PASSWORD || '';
+  const sessionSecret = env.BARAJA_ADMIN_SESSION_SECRET || password;
+  const email = normalizeAdminEmail(env.BARAJA_ADMIN_EMAIL);
+
+  return {
+    email: email || null,
+    password,
+    secret: sessionSecret,
+  };
+}
+
+function buildAdminSessionCookie(token: string, url: URL, maxAgeSeconds: number): string {
+  const secure = url.protocol === 'https:' ? '; Secure' : '';
+  const value = token ? `${ADMIN_SESSION_COOKIE}=${token}` : `${ADMIN_SESSION_COOKIE}=`;
+  return `${value}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAgeSeconds}${secure}`;
+}
+
+function getCookieValue(request: Request, name: string): string | null {
+  const cookieHeader = request.headers.get('Cookie');
+  if (!cookieHeader) {
+    return null;
+  }
+
+  for (const part of cookieHeader.split(';')) {
+    const [rawName, ...rawValue] = part.trim().split('=');
+    if (rawName === name) {
+      return rawValue.join('=') || null;
+    }
+  }
+
+  return null;
+}
+
+async function createAdminSessionToken(
+  payload: AdminSessionPayload,
+  secret: string,
+): Promise<string> {
+  const encodedPayload = base64UrlEncode(new TextEncoder().encode(JSON.stringify(payload)));
+  const signature = await signAdminValue(encodedPayload, secret);
+  return `${encodedPayload}.${signature}`;
+}
+
+async function verifyAdminSessionToken(
+  token: string,
+  secret: string,
+): Promise<AdminSessionPayload | null> {
+  const [encodedPayload, signature] = token.split('.');
+  if (!encodedPayload || !signature) {
+    return null;
+  }
+
+  const expectedSignature = await signAdminValue(encodedPayload, secret);
+  if (!safeEqual(signature, expectedSignature)) {
+    return null;
+  }
+
+  try {
+    const payload = JSON.parse(base64UrlDecode(encodedPayload)) as AdminSessionPayload;
+    if (
+      !payload ||
+      typeof payload.sub !== 'string' ||
+      typeof payload.exp !== 'number' ||
+      payload.exp <= Math.floor(Date.now() / 1000)
+    ) {
+      return null;
+    }
+
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+async function signAdminValue(value: string, secret: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(value));
+  return base64UrlEncode(new Uint8Array(signature));
+}
+
+function base64UrlEncode(bytes: Uint8Array): string {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function base64UrlDecode(value: string): string {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized.padEnd(normalized.length + ((4 - normalized.length % 4) % 4), '=');
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return new TextDecoder().decode(bytes);
+}
+
+function normalizeAdminEmail(value: unknown): string {
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}
+
+function safeEqual(left: string, right: string): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  let result = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    result |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  }
+
+  return result === 0;
 }
 
 // ── Lead Capture ──────────────────────────────────────────────
@@ -199,7 +461,9 @@ async function handleLeadCapture(request: Request, env: Env): Promise<Response> 
 
 // ── Stripe Webhook ────────────────────────────────────────────
 
-async function handleStripeWebhook(_request: Request, _env: Env): Promise<Response> {
+async function handleStripeWebhook(request: Request, env: Env): Promise<Response> {
+  void request;
+  void env;
   // TODO: Phase 2 — verify Stripe signature, create order, trigger PDF generation
   console.log('[/api/webhook/stripe] received — stub, not yet implemented');
   return jsonResponse({ received: true });
@@ -207,13 +471,15 @@ async function handleStripeWebhook(_request: Request, _env: Env): Promise<Respon
 
 // ── Helpers ───────────────────────────────────────────────────
 
-function jsonResponse(body: unknown, status = 200): Response {
+function jsonResponse(body: unknown, status = 200, extraHeaders?: HeadersInit): Response {
+  const headers = new Headers(extraHeaders);
+  headers.set('Content-Type', 'application/json');
+  headers.set('Cache-Control', 'no-store');
+  headers.set('Access-Control-Allow-Origin', '*');
+
   return new Response(JSON.stringify(body), {
     status,
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-    },
+    headers,
   });
 }
 
@@ -233,4 +499,3 @@ function handleCardScan(slug: string, cardNumber: number, requestUrl: URL): Resp
 
   return Response.redirect(destination.toString(), 302);
 }
-

@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import AdminAuthGate from './pages/admin/AdminAuthGate';
 import './index.css';
 
 const DynamicEditionLanding = lazy(() => import('./pages/DynamicEditionLanding'));
@@ -85,7 +86,9 @@ export default function App() {
         {/* Quick Admin Routes */}
         <Route path="/admin/*" element={
           <Suspense fallback={<LoadingScreen />}>
-            <AdminApp />
+            <AdminAuthGate>
+              <AdminApp />
+            </AdminAuthGate>
           </Suspense>
         } />
 

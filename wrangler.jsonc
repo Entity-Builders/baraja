@@ -38,6 +38,19 @@
 					"pattern": "*.baraja.cards",
 					"custom_domain": true
 				}
+			],
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "baraja-db",
+					"database_id": "1be18d08-7120-4df6-9892-bfd1938aa37c"
+				}
+			],
+			"r2_buckets": [
+				{
+					"binding": "PRINT_FILES",
+					"bucket_name": "baraja-print-files"
+				}
 			]
 		}
 	}
