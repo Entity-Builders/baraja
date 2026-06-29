@@ -11,7 +11,7 @@ import {
   type DeckSchema,
 } from '@eb-packages/deck-engine';
 
-const BARAJA_CONTACT_EMAIL = 'hola@baraja.cards';
+export const BARAJA_CONTACT_EMAIL = 'juanobrach@gmail.com';
 
 export const DIGITAL_DECKS: DeckSchema[] = Object.values(DECKS).filter(
   (deck) => deck.digital?.is_published === true

@@ -6,6 +6,7 @@ import {
   type DeckSchema,
 } from '@eb-packages/deck-engine';
 import {
+  BARAJA_CONTACT_EMAIL,
   DIGITAL_DECKS,
   FEATURED_DIGITAL_DECK,
   getDeckPrintableLabel,
@@ -27,8 +28,8 @@ import {
 } from './components/DigitalDeckCatalog';
 import { DigitalDeckHero } from './components/DigitalDeckHero';
 
-const GENERAL_INQUIRY_URL = 'mailto:hola@baraja.cards?subject=Consulta%20por%20Baraja';
-const CUSTOM_EDITION_URL = 'mailto:hola@baraja.cards?subject=Edici%C3%B3n%20a%20medida%20de%20Baraja';
+const GENERAL_INQUIRY_URL = `mailto:${BARAJA_CONTACT_EMAIL}?subject=Consulta%20por%20Baraja`;
+const CUSTOM_EDITION_URL = `mailto:${BARAJA_CONTACT_EMAIL}?subject=Edici%C3%B3n%20a%20medida%20de%20Baraja`;
 
 function trackInquiryStart(source: string, ctaId: string, surface = 'landing') {
   trackBarajaEvent('baraja_inquiry_started', {
@@ -73,7 +74,7 @@ const FAQS = [
     answer:
       'Sí, pero el uso profesional necesita una licencia adecuada. Para talleres, coaching, terapia, educación o equipos, escribinos y vemos el caso.',
     ctaLabel: 'Consultar uso profesional',
-    ctaHref: 'mailto:hola@baraja.cards?subject=Uso%20profesional%20de%20Baraja',
+    ctaHref: `mailto:${BARAJA_CONTACT_EMAIL}?subject=Uso%20profesional%20de%20Baraja`,
   },
 ];
 
@@ -402,7 +403,7 @@ function LandingFooter() {
         <a href="#pdf" onClick={() => trackPrintableInterest('footer_pdf')}>PDF imprimible</a>
         <a href="#faq">FAQ</a>
         <a
-          href="mailto:hola@baraja.cards"
+          href={`mailto:${BARAJA_CONTACT_EMAIL}`}
           onClick={() => trackInquiryStart('footer_contacto', 'footer_contacto')}
         >
           Contacto
