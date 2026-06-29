@@ -11,7 +11,10 @@
     "preview": "npm run build && wrangler dev",
     "deploy:prod": "npm run build && wrangler deploy --env production",
     "db:migrate": "wrangler d1 execute baraja-db --file=migrations/0001_initial.sql",
-    "db:migrate:remote": "wrangler d1 execute baraja-db --remote --file=migrations/0001_initial.sql"
+    "db:migrate:remote": "wrangler d1 execute baraja-db --remote --file=migrations/0001_initial.sql",
+    "db:migrate:catalog": "wrangler d1 execute baraja-db --file=migrations/0002_deck_catalog.sql",
+    "db:migrate:catalog:remote": "wrangler d1 execute baraja-db --remote --file=migrations/0002_deck_catalog.sql",
+    "db:seed:decks:sql": "tsx scripts/generate_d1_deck_seed.ts"
   },
   "dependencies": {
     "@eb-packages/analytics": "*",

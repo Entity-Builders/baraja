@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { DECKS } from '@eb-packages/deck-engine';
+import { DECKS, RAW_DECKS } from '@eb-packages/deck-engine';
 import type {
   DeckMetadata,
   DeckPricing,
@@ -9,18 +9,27 @@ import type {
   RawDeckContent,
 } from '@eb-packages/deck-engine';
 
-// The app MUST provide VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY via .env.local
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const viteEnv = (import.meta as unknown as {
+  env?: Record<string, string | undefined>;
+}).env ?? {};
 
-if (!supabaseUrl || !supabaseAnonKey) {
+// The app should provide VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY via env.
+// Admin reads still fall back to bundled deck content when DB config is absent.
+const supabaseUrl = viteEnv.VITE_SUPABASE_URL;
+const supabaseAnonKey = viteEnv.VITE_SUPABASE_ANON_KEY;
+const hasSupabaseConfig = Boolean(supabaseUrl && supabaseAnonKey);
+
+if (!hasSupabaseConfig) {
   console.error(
     '[deckRepository] Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY. ' +
-    'Check apps/baraja/.env.local'
+    'Admin deck reads will use bundled deck content.'
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient(
+  supabaseUrl || 'http://127.0.0.1:54321',
+  supabaseAnonKey || 'missing-anon-key',
+{
   auth: {
     storageKey: 'eb:baraja:supabase-auth',
   },
@@ -28,13 +37,49 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 const localDecks = DECKS as Record<string, DeckSchema>;
+const rawLocalDecks = RAW_DECKS as Record<string, RawDeckContent>;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function getLocalDeck(id: string): DeckSchema | undefined {
-  return localDecks[id];
+  return (
+    localDecks[id] ??
+    Object.values(localDecks).find(
+      (deck) => deck.id === id || deck.slug === id || deck.edition === id
+    )
+  );
+}
+
+function getLocalDeckRows(): RawDeckContent[] {
+  return Object.values(rawLocalDecks);
+}
+
+function getLocalDeckRow(id: string): RawDeckContent | null {
+  return (
+    rawLocalDecks[id] ??
+    Object.values(rawLocalDecks).find(
+      (deck) => deck.id === id || deck.slug === id || deck.edition === id
+    ) ??
+    null
+  );
+}
+
+function buildEditionPayloadFromDeck(deck: RawDeckContent): Record<string, unknown> {
+  return {
+    slug: deck.slug || deck.id,
+    name: deck.name,
+    description: deck.description || '',
+    print_spec_id: deck.print_spec_id,
+    design_template_id: deck.design_template_id,
+    print_specs_overrides: deck.print_specs_overrides || {},
+    design_template_overrides: deck.design_template_overrides || {},
+    landing_config: deck.landing_config || {},
+    metadata: deck.metadata || {},
+    pricing: deck.pricing || { amount: 1500000, currency: 'ars' },
+    digital: deck.digital || {},
+  };
 }
 
 function getDeckMetadata(value: unknown, fallback?: DeckMetadata): DeckMetadata {
@@ -82,7 +127,12 @@ export class SupabaseDeckRepository implements IDeckRepository {
   }
 
   async getDeckById(id: string): Promise<RawDeckContent | null> {
+    if (!hasSupabaseConfig) {
+      return getLocalDeckRow(id);
+    }
+
     const localDeck = getLocalDeck(id);
+    const localRawDeck = getLocalDeckRow(id);
 
     const { data: edition, error: editionError } = await this.client
       .from('editions')
@@ -92,7 +142,7 @@ export class SupabaseDeckRepository implements IDeckRepository {
 
     if (editionError || !edition) {
       console.warn(`[SupabaseDeckRepository] getDeckById edition error for slug ${id}:`, editionError);
-      return null;
+      return getLocalDeckRow(id);
     }
 
     const { data: cards, error: cardsError } = await this.client
@@ -118,17 +168,27 @@ export class SupabaseDeckRepository implements IDeckRepository {
       }
     }
 
+    const resolvedCards = cards && cards.length > 0
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ? (cards || []).map((card: any) => ({
+          id: card.id,
+          front: card.front,
+          back: card.back,
+          tags: card.tags || [],
+        }))
+      : localDeck?.cards ?? [];
+
     return {
-      id: edition.slug, // The legacy ID was the slug
-      edition: edition.slug,
-      name: edition.name,
-      slug: edition.slug,
-      description: edition.description || '',
-      language: 'es', // Assume ES or derive
-      card_count: cards ? cards.length : 0,
+      id: edition.slug || localDeck?.id || id,
+      edition: edition.slug || localDeck?.edition || id,
+      name: edition.name || localDeck?.name || id,
+      slug: edition.slug || localDeck?.slug || id,
+      description: edition.description || localDeck?.description || '',
+      language: localDeck?.language ?? 'es',
+      card_count: resolvedCards.length,
       metadata: getDeckMetadata(edition.metadata, localDeck?.metadata),
-      print_spec_id: edition.print_spec_id,
-      design_template_id: edition.design_template_id,
+      print_spec_id: edition.print_spec_id || localRawDeck?.print_spec_id,
+      design_template_id: edition.design_template_id || localRawDeck?.design_template_id,
       print_specs_overrides: edition.print_specs_overrides || {},
       // Combine DB template schema with local edition overrides
       design_template_overrides: {
@@ -138,24 +198,26 @@ export class SupabaseDeckRepository implements IDeckRepository {
       landing_config: edition.landing_config || {},
       digital: getDigitalConfig(edition.digital, localDeck?.digital),
       pricing: getDeckPricing(edition.pricing, localDeck?.pricing),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      cards: (cards || []).map((card: any) => ({
-        id: card.id,
-        front: card.front,
-        back: card.back,
-        tags: card.tags || [],
-      }))
+      cards: resolvedCards,
     } as RawDeckContent;
   }
 
   async getAllDecks(): Promise<RawDeckContent[]> {
+    if (!hasSupabaseConfig) {
+      return getLocalDeckRows();
+    }
+
     const { data: editions, error } = await this.client
       .from('editions')
       .select('*');
 
     if (error || !editions) {
       console.warn(`[SupabaseDeckRepository] getAllDecks error:`, error);
-      return [];
+      return getLocalDeckRows();
+    }
+
+    if (editions.length === 0) {
+      return getLocalDeckRows();
     }
 
     // Since we usually just list them in UI using name/description, fetching all cards for all decks
@@ -168,12 +230,24 @@ export class SupabaseDeckRepository implements IDeckRepository {
       }
     }
 
+    const seen = new Set(allDecks.map((deck) => deck.slug || deck.id));
+    for (const localDeck of getLocalDeckRows()) {
+      const key = localDeck.slug || localDeck.id;
+      if (!seen.has(key)) {
+        allDecks.push(localDeck);
+      }
+    }
+
     return allDecks;
   }
 
   async updateDeckSettings(id: string, updates: Partial<RawDeckContent>): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const payload: Record<string, any> = {};
+
+    if (!hasSupabaseConfig) {
+      throw new Error('Supabase is not configured; deck settings cannot be persisted.');
+    }
 
     if (updates.print_spec_id !== undefined) {
       payload.print_spec_id = updates.print_spec_id;
@@ -201,10 +275,15 @@ export class SupabaseDeckRepository implements IDeckRepository {
     }
 
     if (Object.keys(payload).length > 0) {
+      const localDeck = getLocalDeckRow(id);
+      const upsertPayload = {
+        ...(localDeck ? buildEditionPayloadFromDeck(localDeck) : { slug: id }),
+        ...payload,
+      };
+
       const { error } = await this.client
         .from('editions')
-        .update(payload)
-        .eq('slug', id);
+        .upsert(upsertPayload, { onConflict: 'slug' });
 
       if (error) {
         console.error(`[SupabaseDeckRepository] updateDeckSettings error for ${id}:`, error);
@@ -218,6 +297,22 @@ export class SupabaseDeckRepository implements IDeckRepository {
    * This is the "clean" assignment path — the preset owns all visual config.
    */
   async assignPreset(editionSlug: string, presetId: string): Promise<void> {
+    if (!hasSupabaseConfig) {
+      throw new Error('Supabase is not configured; preset assignment cannot be persisted.');
+    }
+
+    const localDeck = getLocalDeckRow(editionSlug);
+    if (localDeck) {
+      const { error: upsertError } = await this.client
+        .from('editions')
+        .upsert(buildEditionPayloadFromDeck(localDeck), { onConflict: 'slug' });
+
+      if (upsertError) {
+        console.error(`[SupabaseDeckRepository] assignPreset upsert error:`, upsertError);
+        throw upsertError;
+      }
+    }
+
     const { error } = await this.client
       .from('editions')
       .update({
