@@ -15,6 +15,7 @@ import {
   type HeroRotationItem,
   type HeroRotationSlot,
 } from '../../../lib/heroRotationConfig';
+import { trackBarajaEvent } from '../../../services/analytics';
 
 const HERO_ROTATION_INTERVAL_MS = 6800;
 
@@ -22,12 +23,14 @@ interface DigitalDeckHeroProps {
   decks: DeckSchema[];
   featuredDeck: DeckSchema;
   inquiryUrl: string;
+  onInquiryClick?: () => void;
 }
 
 export function DigitalDeckHero({
   decks,
   featuredDeck,
   inquiryUrl,
+  onInquiryClick,
 }: DigitalDeckHeroProps) {
   const [heroItems, setHeroItems] = useState(() => getHeroRotationItems(decks));
   const [selectedSlotId, setSelectedSlotId] = useState(heroItems[0]?.slot.id ?? featuredDeck.id);
@@ -147,7 +150,13 @@ export function DigitalDeckHero({
         </p>
         <div className="baraja-actions baraja-hero-actions">
           <a href="#mazos" className="baraja-button baraja-button-primary">Ver barajas</a>
-          <a href={inquiryUrl} className="baraja-button baraja-button-outline">Consultar</a>
+          <a
+            href={inquiryUrl}
+            className="baraja-button baraja-button-outline"
+            onClick={onInquiryClick}
+          >
+            Consultar
+          </a>
         </div>
       </div>
 
@@ -282,6 +291,18 @@ function HeroCardPreview({
   selectedDeck: DeckSchema;
 }) {
   const [fullscreenPreviewMode, setFullscreenPreviewMode] = useState<FullscreenPreviewMode | null>(null);
+  const openPreview = (face: FullscreenPreviewMode) => {
+    trackBarajaEvent('baraja_preview_opened', {
+      card_id: selectedCard.id,
+      card_number: selectedCard.front.number,
+      deck_id: selectedDeck.id,
+      deck_slug: selectedDeck.slug,
+      face,
+      source: 'hero_card',
+      surface: 'landing_hero',
+    });
+    setFullscreenPreviewMode(face);
+  };
 
   return (
     <>
@@ -297,7 +318,7 @@ function HeroCardPreview({
               className="baraja-hero-card-face-button"
               data-preview-label="Ver frente"
               type="button"
-              onClick={() => setFullscreenPreviewMode('front')}
+              onClick={() => openPreview('front')}
             >
               <CardCanvas
                 card={selectedCard}
@@ -315,7 +336,7 @@ function HeroCardPreview({
               className="baraja-hero-card-face-button"
               data-preview-label="Ver reverso"
               type="button"
-              onClick={() => setFullscreenPreviewMode('back')}
+              onClick={() => openPreview('back')}
             >
               <CardCanvas
                 card={selectedCard}

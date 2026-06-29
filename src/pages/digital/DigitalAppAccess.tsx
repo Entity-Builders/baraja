@@ -4,6 +4,7 @@ import {
   findDigitalDeck,
   getDeckInquiryHref,
 } from '../../lib/digitalDeckCatalog';
+import { trackBarajaEvent } from '../../services/analytics';
 
 export default function DigitalAppAccess() {
   const { slug } = useParams();
@@ -19,6 +20,26 @@ export default function DigitalAppAccess() {
   }
 
   const inquiryHref = getDeckInquiryHref(deck);
+  const trackInquiry = (source: string, ctaId: string) => {
+    trackBarajaEvent('baraja_inquiry_started', {
+      cta_id: ctaId,
+      cta_kind: 'mailto',
+      deck_id: deck.id,
+      deck_slug: deck.slug,
+      href_type: 'mailto',
+      source,
+      surface: 'pwa_access',
+    });
+  };
+  const trackPrintableInterest = (source: string) => {
+    trackBarajaEvent('baraja_printable_pdf_interest', {
+      deck_id: deck.id,
+      deck_slug: deck.slug,
+      printable_enabled: true,
+      source,
+      surface: 'pwa_access',
+    });
+  };
 
   return (
     <main className="baraja-mobile-app">
@@ -46,7 +67,15 @@ export default function DigitalAppAccess() {
             <span>Carta</span>
             <span>Tarjeta</span>
           </div>
-          <a href={inquiryHref}>Consultar PDF imprimible</a>
+          <a
+            href={inquiryHref}
+            onClick={() => {
+              trackPrintableInterest('pwa_access_pdf_cta');
+              trackInquiry('pwa_access_pdf_cta', 'pwa_access_pdf_cta');
+            }}
+          >
+            Consultar PDF imprimible
+          </a>
         </article>
 
         <article className="baraja-print-rights">
@@ -58,7 +87,11 @@ export default function DigitalAppAccess() {
           </p>
         </article>
 
-        <Link className="baraja-print-guide-link" to={`/app/decks/${deck.slug}/print-guide`}>
+        <Link
+          className="baraja-print-guide-link"
+          to={`/app/decks/${deck.slug}/print-guide`}
+          onClick={() => trackPrintableInterest('pwa_access_print_guide')}
+        >
           Ver guía para imprenta
         </Link>
       </section>

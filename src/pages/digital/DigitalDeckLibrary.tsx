@@ -28,6 +28,24 @@ import {
 import { DigitalDeckHero } from './components/DigitalDeckHero';
 
 const GENERAL_INQUIRY_URL = 'mailto:hola@baraja.cards?subject=Consulta%20por%20Baraja';
+const CUSTOM_EDITION_URL = 'mailto:hola@baraja.cards?subject=Edici%C3%B3n%20a%20medida%20de%20Baraja';
+
+function trackInquiryStart(source: string, ctaId: string, surface = 'landing') {
+  trackBarajaEvent('baraja_inquiry_started', {
+    cta_id: ctaId,
+    cta_kind: 'mailto',
+    href_type: 'mailto',
+    source,
+    surface,
+  });
+}
+
+function trackPrintableInterest(source: string, surface = 'landing') {
+  trackBarajaEvent('baraja_printable_pdf_interest', {
+    source,
+    surface,
+  });
+}
 
 const FAQS = [
   {
@@ -86,11 +104,12 @@ export default function DigitalDeckLibrary() {
         decks={DIGITAL_DECKS}
         featuredDeck={featuredDeck}
         inquiryUrl={GENERAL_INQUIRY_URL}
+        onInquiryClick={() => trackInquiryStart('hero_consulta', 'hero_consulta')}
       />
       <DeckCatalogSection decks={DIGITAL_DECKS} featuredDeck={featuredDeck} />
       <DigitalPrintable deck={featuredDeck} />
       <FAQ />
-      <FinalCTA deck={featuredDeck} />
+      <FinalCTA />
       <LandingFooter />
     </main>
   );
@@ -102,10 +121,15 @@ function LandingNav() {
       <Link to="/" className="baraja-brand">Baraja</Link>
       <div className="baraja-nav-links">
         <a href="#mazos">Colección</a>
-        <a href="#pdf">PDF imprimible</a>
+        <a href="#pdf" onClick={() => trackPrintableInterest('nav_pdf')}>PDF imprimible</a>
         <a href="#faq">FAQ</a>
         <Link to="/app">Abrir app</Link>
-        <a href={GENERAL_INQUIRY_URL}>Consulta</a>
+        <a
+          href={GENERAL_INQUIRY_URL}
+          onClick={() => trackInquiryStart('nav_consulta', 'nav_consulta')}
+        >
+          Consulta
+        </a>
         <a href="#mazos" className="baraja-nav-cta">Ver mazos</a>
       </div>
     </nav>
@@ -129,6 +153,13 @@ function DeckCatalogSection({
 
   const setCatalogFilter = useCallback((filterId: CatalogFilterId) => {
     const params = new URLSearchParams(location.search);
+    const nextDecks = getDecksByCatalogFilter(decks, filterId);
+
+    trackBarajaEvent('baraja_catalog_filter_selected', {
+      filter_id: filterId,
+      result_count: nextDecks.length,
+      surface: 'landing_catalog',
+    });
 
     if (filterId === 'all') {
       params.delete('catalog');
@@ -143,7 +174,20 @@ function DeckCatalogSection({
       search: search ? `?${search}` : '',
       hash: 'mazos',
     }, { replace: true });
-  }, [location.pathname, location.search, navigate]);
+  }, [decks, location.pathname, location.search, navigate]);
+
+  const handlePreview = useCallback((selection: DeckCardPreviewSelection) => {
+    trackBarajaEvent('baraja_preview_opened', {
+      card_id: selection.card.id,
+      card_number: selection.card.front.number,
+      deck_id: selection.deck.id,
+      deck_slug: selection.deck.slug,
+      face: selection.initialMode,
+      source: 'catalog_card',
+      surface: 'landing_catalog',
+    });
+    setFullscreenPreview(selection);
+  }, []);
 
   const filteredDecks = useMemo(
     () => getDecksByCatalogFilter(decks, activeFilter),
@@ -171,6 +215,7 @@ function DeckCatalogSection({
         filters={filterSummaries}
         inquiryUrl={GENERAL_INQUIRY_URL}
         onFilterChange={setCatalogFilter}
+        onInquiryClick={() => trackInquiryStart('catalog_inquiry', 'catalog_inquiry', 'landing_catalog')}
       />
       <p className="baraja-catalog-count">
         {filteredDecks.length === decks.length
@@ -180,9 +225,12 @@ function DeckCatalogSection({
       <DeckCatalogGrid
         decks={filteredDecks}
         featuredDeckId={featuredDeck.id}
-        onPreview={setFullscreenPreview}
+        onPreview={handlePreview}
       />
-      <MarketplaceBand inquiryUrl={GENERAL_INQUIRY_URL} />
+      <MarketplaceBand
+        inquiryUrl={GENERAL_INQUIRY_URL}
+        onInquiryClick={() => trackInquiryStart('marketplace_band', 'marketplace_band', 'landing_catalog')}
+      />
       {fullscreenPreview && (
         <FullscreenCardPreview
           card={fullscreenPreview.card}
@@ -293,7 +341,11 @@ function FAQ() {
             <summary>{faq.question}</summary>
             <p>{faq.answer}</p>
             {'ctaHref' in faq && (
-              <a className="baraja-faq-cta" href={faq.ctaHref}>
+              <a
+                className="baraja-faq-cta"
+                href={faq.ctaHref}
+                onClick={() => trackInquiryStart('faq_professional_use', 'faq_professional_use')}
+              >
                 {faq.ctaLabel}
               </a>
             )}
@@ -304,15 +356,31 @@ function FAQ() {
   );
 }
 
-function FinalCTA({ deck }: { deck: DeckSchema }) {
+function FinalCTA() {
   return (
-    <section className="baraja-final-cta">
-      <p className="baraja-kicker">{deck.name} · {deck.card_count} cartas</p>
-      <h2>Jugá o imprimí</h2>
-      <p>Elegí una baraja, probá una carta y escribinos si querés consultarla.</p>
+      <section className="baraja-final-cta">
+        <p className="baraja-kicker">Ediciones a medida</p>
+      <h2>Una baraja propia para tu organización.</h2>
+      <p>
+        Para empresas, instituciones o comunidades que necesitan una edición
+        diseñada para su contexto: podemos adaptar imágenes, textos, dinámica,
+        QR y PDF imprimible.
+      </p>
+      <div className="baraja-final-points" aria-label="Opciones de personalización">
+        <span>Imágenes propias</span>
+        <span>Textos adaptados</span>
+        <span>QR personalizado</span>
+        <span>Digital + PDF</span>
+      </div>
       <div className="baraja-final-actions">
-        <a href="#mazos" className="baraja-button baraja-button-primary">Ver colección</a>
-        <a href={GENERAL_INQUIRY_URL} className="baraja-button baraja-button-outline">Consultar</a>
+        <a
+          href={CUSTOM_EDITION_URL}
+          className="baraja-button baraja-button-primary"
+          onClick={() => trackInquiryStart('custom_edition', 'custom_edition')}
+        >
+          Consultar edición
+        </a>
+        <a href="#mazos" className="baraja-button baraja-button-outline">Ver ejemplos</a>
       </div>
     </section>
   );
@@ -325,10 +393,20 @@ function LandingFooter() {
       <span>© 2026 Baraja · Mazos digitales en español</span>
       <div>
         <a href="#mazos">Colección</a>
-        <a href={GENERAL_INQUIRY_URL}>Consulta</a>
-        <a href="#pdf">PDF imprimible</a>
+        <a
+          href={GENERAL_INQUIRY_URL}
+          onClick={() => trackInquiryStart('footer_consulta', 'footer_consulta')}
+        >
+          Consulta
+        </a>
+        <a href="#pdf" onClick={() => trackPrintableInterest('footer_pdf')}>PDF imprimible</a>
         <a href="#faq">FAQ</a>
-        <a href="mailto:hola@baraja.cards">Contacto</a>
+        <a
+          href="mailto:hola@baraja.cards"
+          onClick={() => trackInquiryStart('footer_contacto', 'footer_contacto')}
+        >
+          Contacto
+        </a>
       </div>
     </footer>
   );

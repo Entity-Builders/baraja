@@ -27,6 +27,7 @@ interface DeckCatalogFilterBarProps {
   filters: CatalogFilterSummary[];
   inquiryUrl: string;
   onFilterChange: (filterId: CatalogFilterId) => void;
+  onInquiryClick?: () => void;
 }
 
 export function DeckCatalogFilterBar({
@@ -34,6 +35,7 @@ export function DeckCatalogFilterBar({
   filters,
   inquiryUrl,
   onFilterChange,
+  onInquiryClick,
 }: DeckCatalogFilterBarProps) {
   return (
     <div className="baraja-catalog-controls">
@@ -55,7 +57,7 @@ export function DeckCatalogFilterBar({
           );
         })}
       </div>
-      <a className="baraja-catalog-marketplace" href={inquiryUrl}>
+      <a className="baraja-catalog-marketplace" href={inquiryUrl} onClick={onInquiryClick}>
         Consultar por una baraja
       </a>
     </div>
@@ -159,16 +161,21 @@ function DeckCatalogCard({
 
 interface MarketplaceBandProps {
   inquiryUrl: string;
+  onInquiryClick?: () => void;
 }
 
-export function MarketplaceBand({ inquiryUrl }: MarketplaceBandProps) {
+export function MarketplaceBand({ inquiryUrl, onInquiryClick }: MarketplaceBandProps) {
   return (
     <div className="baraja-marketplace-band">
       <div>
         <p className="baraja-kicker">Consulta</p>
         <h3>¿Querés usar una baraja o pedir una edición?</h3>
       </div>
-      <a className="baraja-button baraja-button-outline" href={inquiryUrl}>
+      <a
+        className="baraja-button baraja-button-outline"
+        href={inquiryUrl}
+        onClick={onInquiryClick}
+      >
         Escribir a Baraja
       </a>
     </div>

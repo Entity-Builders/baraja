@@ -56,6 +56,7 @@ export default function DigitalDeckSession() {
   const [paused, setPaused] = useState(false);
   const [autoRevealing, setAutoRevealing] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const revealTimerRef = useRef<number | null>(null);
   const swipeStartXRef = useRef<number | null>(null);
   const startTrackedRef = useRef(false);
@@ -268,6 +269,51 @@ export default function DigitalDeckSession() {
     setFace('front');
     setAutoRevealing(false);
     setToolsOpen(false);
+    setGalleryOpen(false);
+  }
+
+  function openSessionGallery() {
+    setToolsOpen(false);
+    setGalleryOpen(true);
+    trackBarajaEvent('baraja_session_gallery_opened', {
+      deck_id: activeDeck.id,
+      deck_slug: activeDeck.slug,
+      access_state: fullAccess ? 'active' : 'preview',
+      card_count: orderedCards.length,
+      played_count: playedCount,
+      session_mode: sessionMode,
+      surface: 'deck_session',
+    });
+  }
+
+  function closeSessionGallery() {
+    setGalleryOpen(false);
+  }
+
+  function selectGalleryCard(card: Card) {
+    const nextIndex = orderedCards.findIndex((candidate) => candidate.id === card.id);
+
+    if (nextIndex < 0) {
+      return;
+    }
+
+    clearRevealTimer();
+    setDrawIndex(nextIndex + 1);
+    setGalleryOpen(false);
+    setToolsOpen(false);
+    setPaused(false);
+    presentCard(card);
+    trackBarajaEvent('baraja_session_gallery_card_selected', {
+      deck_id: activeDeck.id,
+      deck_slug: activeDeck.slug,
+      card_id: card.id,
+      card_number: card.front.number,
+      access_state: fullAccess ? 'active' : 'preview',
+      card_count: orderedCards.length,
+      played_count: playedCount,
+      session_mode: sessionMode,
+      surface: 'deck_session',
+    });
   }
 
   function drawNextCard() {
@@ -413,6 +459,7 @@ export default function DigitalDeckSession() {
 
   function togglePause() {
     setToolsOpen(false);
+    setGalleryOpen(false);
     setPaused((current) => {
       const next = !current;
 
@@ -450,6 +497,7 @@ export default function DigitalDeckSession() {
     setPaused(false);
     setAutoRevealing(false);
     setToolsOpen(false);
+    setGalleryOpen(false);
     trackBarajaEvent('baraja_session_ended', {
       deck_id: activeDeck.id,
       deck_slug: activeDeck.slug,
@@ -469,8 +517,11 @@ export default function DigitalDeckSession() {
       onDrawNext={drawNextCard}
       onDrawPrevious={drawPreviousCard}
       onEndSession={endSession}
+      onGalleryClose={closeSessionGallery}
+      onGalleryOpen={openSessionGallery}
       onPrimaryAction={handlePrimaryAction}
       onSaveSelectedCard={saveSelectedCard}
+      onSelectGalleryCard={selectGalleryCard}
       onSessionDragStart={handleSessionDragStart}
       onSessionPointerCancel={handleSessionPointerCancel}
       onSessionPointerDown={handleSessionPointerDown}
@@ -481,14 +532,20 @@ export default function DigitalDeckSession() {
       onTogglePause={togglePause}
       onToggleSessionTools={toggleSessionTools}
       onVibrationEnabledChange={setVibrationEnabled}
+      orderedCards={orderedCards}
       paused={paused}
+      playedCount={playedCount}
+      playedCardIds={playedCardIds}
       primaryActionLabel={primaryActionLabel}
       saved={saved}
+      savedCardIds={savedCardIds}
       selectedCard={selectedCard}
       selectedIndex={selectedIndex}
       sessionMode={sessionMode}
       soundEnabled={soundEnabled}
+      galleryOpen={galleryOpen}
       toolsOpen={toolsOpen}
+      totalCardCount={orderedCards.length}
       vibrationEnabled={vibrationEnabled}
     />
   );

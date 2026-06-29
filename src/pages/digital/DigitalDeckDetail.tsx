@@ -60,19 +60,46 @@ export default function DigitalDeckDetail() {
     );
   }
 
-  function toggleCard(cardId: string) {
+  const activeDeck = deck;
+
+  function trackDeckInquiry(source: string, ctaId: string) {
+    trackBarajaEvent('baraja_inquiry_started', {
+      cta_id: ctaId,
+      cta_kind: 'mailto',
+      deck_id: activeDeck.id,
+      deck_slug: activeDeck.slug,
+      href_type: 'mailto',
+      source,
+      surface: 'deck_detail',
+    });
+  }
+
+  function toggleCard(card: Card) {
+    const currentFace = flippedCards[card.id] ?? 'front';
+    const nextFace = flipCardFace(currentFace);
+
+    trackBarajaEvent('baraja_preview_opened', {
+      card_id: card.id,
+      card_number: card.front.number,
+      deck_id: activeDeck.id,
+      deck_slug: activeDeck.slug,
+      face: nextFace,
+      source: 'deck_detail_preview',
+      surface: 'deck_detail',
+    });
+
     setFlippedCards((current) => ({
       ...current,
-      [cardId]: flipCardFace(current[cardId] ?? 'front'),
+      [card.id]: nextFace,
     }));
   }
 
-  const catalogFacet = getDeckCatalogFacet(deck);
-  const breadcrumb = getDeckCatalogBreadcrumb(deck);
+  const catalogFacet = getDeckCatalogFacet(activeDeck);
+  const breadcrumb = getDeckCatalogBreadcrumb(activeDeck);
   const catalogSearch = `?catalog=${catalogFacet.collectionId}`;
-  const landingCopy = deck.digital?.landing;
-  const heroImage = getDeckHeroImage(deck);
-  const inquiryHref = getDeckInquiryHref(deck);
+  const landingCopy = activeDeck.digital?.landing;
+  const heroImage = getDeckHeroImage(activeDeck);
+  const inquiryHref = getDeckInquiryHref(activeDeck);
 
   return (
     <main className="digital-shell">
@@ -82,7 +109,12 @@ export default function DigitalDeckDetail() {
           <Link to={{ pathname: '/', search: catalogSearch, hash: '#mazos' }}>
             {catalogFacet.collectionLabel}
           </Link>
-          <a href={inquiryHref}>Consultar</a>
+          <a
+            href={inquiryHref}
+            onClick={() => trackDeckInquiry('deck_detail_nav', 'deck_detail_nav')}
+          >
+            Consultar
+          </a>
         </div>
       </nav>
 
@@ -124,6 +156,7 @@ export default function DigitalDeckDetail() {
             <a
               href={inquiryHref}
               className="btn-primary"
+              onClick={() => trackDeckInquiry('deck_detail_hero', 'deck_detail_hero')}
             >
               Consultar por este mazo
             </a>
@@ -153,7 +186,7 @@ export default function DigitalDeckDetail() {
               card={card}
               deck={deck}
               face={flippedCards[card.id] ?? 'front'}
-              onFlip={() => toggleCard(card.id)}
+              onFlip={() => toggleCard(card)}
             />
           ))}
         </div>
@@ -171,6 +204,7 @@ export default function DigitalDeckDetail() {
         <a
           href={inquiryHref}
           className="btn-primary"
+          onClick={() => trackDeckInquiry('deck_detail_access_band', 'deck_detail_access_band')}
         >
           Consultar acceso
         </a>

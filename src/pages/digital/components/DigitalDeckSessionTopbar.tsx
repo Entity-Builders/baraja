@@ -3,15 +3,27 @@ import type { Card, CardFace, DeckSchema } from '@eb-packages/deck-engine';
 
 export function SessionTopbar({
   activeDeck,
+  face,
+  onOpenGallery,
   onToggleSessionTools,
   paused,
+  playedCount,
+  selectedIndex,
+  totalCardCount,
   toolsOpen,
 }: {
   activeDeck: DeckSchema;
+  face: CardFace;
+  onOpenGallery: () => void;
   onToggleSessionTools: () => void;
   paused: boolean;
+  playedCount: number;
+  selectedIndex: number;
+  totalCardCount: number;
   toolsOpen: boolean;
 }) {
+  const currentCardNumber = selectedIndex >= 0 ? selectedIndex + 1 : 0;
+
   return (
     <header className="baraja-game-topbar">
       <Link
@@ -23,9 +35,20 @@ export function SessionTopbar({
       </Link>
       <div className="baraja-game-titleblock">
         <strong>{activeDeck.name}</strong>
+        <span>
+          Carta {currentCardNumber}/{totalCardCount} · {playedCount} jugadas · {face === 'front' ? 'Frente' : 'Reverso'}
+        </span>
       </div>
       <button
-        className="baraja-game-plain-button"
+        className="baraja-game-plain-button baraja-game-gallery-button"
+        type="button"
+        onClick={onOpenGallery}
+        aria-label="Abrir galería de cartas"
+      >
+        ▦
+      </button>
+      <button
+        className="baraja-game-plain-button baraja-game-tools-button"
         type="button"
         onClick={onToggleSessionTools}
         aria-label={

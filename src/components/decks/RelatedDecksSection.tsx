@@ -6,6 +6,7 @@ import {
   getDeckHeroImage,
   getRelatedDigitalDecks,
 } from '../../lib/digitalDeckCatalog';
+import { trackBarajaEvent } from '../../services/analytics';
 
 interface RelatedDecksSectionProps {
   currentDeck: DeckSchema;
@@ -48,7 +49,21 @@ export function RelatedDecksSection({
           const catalogFacet = getDeckCatalogFacet(deck);
 
           return (
-            <Link className="related-deck-card" to={getDeckHref(deck)} key={deck.id}>
+            <Link
+              className="related-deck-card"
+              to={getDeckHref(deck)}
+              key={deck.id}
+              onClick={() => {
+                trackBarajaEvent('baraja_related_deck_clicked', {
+                  source: 'related_decks',
+                  source_deck_id: currentDeck.id,
+                  source_deck_slug: currentDeck.slug,
+                  surface: 'deck_detail',
+                  target_deck_id: deck.id,
+                  target_deck_slug: deck.slug,
+                });
+              }}
+            >
               <div className="related-deck-art">
                 {heroImage ? <img src={heroImage} alt="" /> : <strong>{deck.name}</strong>}
               </div>

@@ -6,6 +6,7 @@ import {
   getDeckAudienceBadges,
   hasVerifiedDigitalDeckAccess,
 } from '../../lib/digitalDeckCatalog';
+import { trackBarajaEvent } from '../../services/analytics';
 
 export default function DigitalAppDeckDetail() {
   const { slug } = useParams();
@@ -28,6 +29,17 @@ export default function DigitalAppDeckDetail() {
   const previewCards = getPreviewCards(deck, 4);
   const heroCard = previewCards[0] ?? deck.cards[0];
   const inquiryHref = getDeckInquiryHref(deck);
+  const trackInquiry = () => {
+    trackBarajaEvent('baraja_inquiry_started', {
+      cta_id: 'pwa_deck_detail_access',
+      cta_kind: 'mailto',
+      deck_id: deck.id,
+      deck_slug: deck.slug,
+      href_type: 'mailto',
+      source: 'pwa_deck_detail',
+      surface: 'pwa_deck_detail',
+    });
+  };
 
   return (
     <main className="baraja-mobile-app baraja-app-detail">
@@ -63,17 +75,37 @@ export default function DigitalAppDeckDetail() {
           ))}
         </section>
 
-        <section className="baraja-deck-includes">
-          <p className="baraja-mobile-section-label">Incluye</p>
+        <section className="baraja-deck-includes" aria-labelledby="baraja-deck-includes-title">
+          <h2 id="baraja-deck-includes-title" className="baraja-mobile-section-label">
+            Incluye
+          </h2>
           <ul>
-            <li>{deck.card_count} cartas digitales completas</li>
-            <li>Sesión interactiva con frente y reverso real</li>
-            <li>PDF imprimible descargable y guía para imprenta</li>
+            <li>
+              <span aria-hidden="true">✓</span>
+              <div>
+                <strong>{deck.card_count} cartas digitales</strong>
+                <small>Frente y reverso completos para jugar desde el teléfono.</small>
+              </div>
+            </li>
+            <li>
+              <span aria-hidden="true">✓</span>
+              <div>
+                <strong>Sesión interactiva</strong>
+                <small>Navegación carta por carta, galería rápida y guardadas.</small>
+              </div>
+            </li>
+            <li>
+              <span aria-hidden="true">✓</span>
+              <div>
+                <strong>PDF imprimible</strong>
+                <small>Descarga preparada con guía para llevarlo a imprenta.</small>
+              </div>
+            </li>
           </ul>
         </section>
 
         <div className="baraja-app-detail-actions">
-          <a href={inquiryHref}>Consultar acceso</a>
+          <a href={inquiryHref} onClick={trackInquiry}>Consultar acceso</a>
           <Link to={`/app/decks/${deck.slug}/session`}>Probar sesión gratuita</Link>
         </div>
       </section>

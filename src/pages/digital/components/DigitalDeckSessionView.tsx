@@ -1,6 +1,7 @@
 import type { DragEventHandler, PointerEventHandler } from 'react';
 import type { Card, CardFace, DeckSchema } from '@eb-packages/deck-engine';
 import { SessionControls } from './DigitalDeckSessionControls';
+import { SessionGallery } from './DigitalDeckSessionGallery';
 import { SessionStage } from './DigitalDeckSessionStage';
 import {
   SessionDesktopContext,
@@ -16,8 +17,11 @@ interface DigitalDeckSessionViewProps {
   onDrawNext: () => void;
   onDrawPrevious: () => void;
   onEndSession: () => void;
+  onGalleryClose: () => void;
+  onGalleryOpen: () => void;
   onPrimaryAction: () => void;
   onSaveSelectedCard: () => void;
+  onSelectGalleryCard: (card: Card) => void;
   onSessionDragStart: DragEventHandler<HTMLElement>;
   onSessionPointerCancel: PointerEventHandler<HTMLElement>;
   onSessionPointerDown: PointerEventHandler<HTMLElement>;
@@ -28,14 +32,20 @@ interface DigitalDeckSessionViewProps {
   onTogglePause: () => void;
   onToggleSessionTools: () => void;
   onVibrationEnabledChange: (enabled: boolean) => void;
+  orderedCards: Card[];
   paused: boolean;
+  playedCount: number;
+  playedCardIds: string[];
   primaryActionLabel: string;
   saved: boolean;
+  savedCardIds: string[];
   selectedCard: Card | null;
   selectedIndex: number;
   sessionMode: string;
   soundEnabled: boolean;
+  galleryOpen: boolean;
   toolsOpen: boolean;
+  totalCardCount: number;
   vibrationEnabled: boolean;
 }
 
@@ -48,8 +58,11 @@ export function DigitalDeckSessionView({
   onDrawNext,
   onDrawPrevious,
   onEndSession,
+  onGalleryClose,
+  onGalleryOpen,
   onPrimaryAction,
   onSaveSelectedCard,
+  onSelectGalleryCard,
   onSessionDragStart,
   onSessionPointerCancel,
   onSessionPointerDown,
@@ -60,14 +73,20 @@ export function DigitalDeckSessionView({
   onTogglePause,
   onToggleSessionTools,
   onVibrationEnabledChange,
+  orderedCards,
   paused,
+  playedCount,
+  playedCardIds,
   primaryActionLabel,
   saved,
+  savedCardIds,
   selectedCard,
   selectedIndex,
   sessionMode,
   soundEnabled,
+  galleryOpen,
   toolsOpen,
+  totalCardCount,
   vibrationEnabled,
 }: DigitalDeckSessionViewProps) {
   return (
@@ -75,7 +94,12 @@ export function DigitalDeckSessionView({
       <section className="baraja-game-phone" aria-label="Sesión de cartas">
         <SessionTopbar
           activeDeck={activeDeck}
+          face={face}
+          onOpenGallery={onGalleryOpen}
           paused={paused}
+          playedCount={playedCount}
+          selectedIndex={selectedIndex}
+          totalCardCount={totalCardCount}
           toolsOpen={toolsOpen}
           onToggleSessionTools={onToggleSessionTools}
         />
@@ -131,6 +155,17 @@ export function DigitalDeckSessionView({
             vibrationEnabled={vibrationEnabled}
           />
         </div>
+
+        <SessionGallery
+          activeDeck={activeDeck}
+          cards={orderedCards}
+          onClose={onGalleryClose}
+          onSelectCard={onSelectGalleryCard}
+          open={galleryOpen}
+          playedCardIds={playedCardIds}
+          savedCardIds={savedCardIds}
+          selectedCardId={selectedCard?.id ?? null}
+        />
       </section>
     </main>
   );

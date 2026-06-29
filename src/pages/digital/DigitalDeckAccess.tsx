@@ -34,6 +34,27 @@ export default function DigitalDeckAccess() {
   }
 
   const inquiryHref = getDeckInquiryHref(deck);
+  const trackInquiry = (source: string, ctaId: string) => {
+    trackBarajaEvent('baraja_inquiry_started', {
+      cta_id: ctaId,
+      cta_kind: 'mailto',
+      deck_id: deck.id,
+      deck_slug: deck.slug,
+      href_type: 'mailto',
+      source,
+      surface: 'access_page',
+    });
+  };
+  const trackPrintGuide = (source: string) => {
+    trackBarajaEvent('baraja_printable_pdf_interest', {
+      deck_id: deck.id,
+      deck_slug: deck.slug,
+      license_scope_count: printable?.license_scopes.length ?? 0,
+      printable_enabled: true,
+      source,
+      surface: 'access_page',
+    });
+  };
 
   return (
     <main className="digital-shell">
@@ -41,7 +62,12 @@ export default function DigitalDeckAccess() {
         <Link to={`/decks/${deck.slug}`} className="digital-brand">{deck.name}</Link>
         <div className="digital-nav-links">
           <Link to={`/decks/${deck.slug}/session`}>Abrir mazo</Link>
-          <Link to={`/decks/${deck.slug}/print-guide`}>Guía PDF</Link>
+          <Link
+            to={`/decks/${deck.slug}/print-guide`}
+            onClick={() => trackPrintGuide('access_nav_print_guide')}
+          >
+            Guía PDF
+          </Link>
         </div>
       </nav>
 
@@ -62,6 +88,7 @@ export default function DigitalDeckAccess() {
           <a
             className="btn-ghost"
             href={inquiryHref}
+            onClick={() => trackInquiry('access_page_cta', 'access_page_cta')}
           >
             Consultar acceso
           </a>

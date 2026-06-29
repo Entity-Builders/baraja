@@ -1,9 +1,25 @@
+import { useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { findDigitalDeck, getDeckPrintableLabel } from '../../lib/digitalDeckCatalog';
+import { trackBarajaEvent } from '../../services/analytics';
 
 export default function DigitalPrintGuide() {
   const { slug } = useParams();
   const deck = findDigitalDeck(slug);
+
+  useEffect(() => {
+    if (!deck) {
+      return;
+    }
+
+    trackBarajaEvent('baraja_printable_pdf_interest', {
+      deck_id: deck.id,
+      deck_slug: deck.slug,
+      printable_enabled: true,
+      source: 'print_guide_view',
+      surface: 'print_guide',
+    });
+  }, [deck]);
 
   if (!deck) {
     return (
