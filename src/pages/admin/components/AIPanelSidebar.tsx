@@ -8,6 +8,7 @@ import {
   type CardType,
 } from '@eb-packages/deck-engine';
 import { DECK_EDITIONS, getEditionBySlug } from '../../../lib/editions';
+import { coverCropToJpeg } from '../../../lib/PrintEngine';
 import { AIPanelFrameGallery } from './ai-panel/AIPanelFrameGallery';
 import { AIPanelHeader } from './ai-panel/AIPanelHeader';
 import { AIPanelPromptControls } from './ai-panel/AIPanelPromptControls';
@@ -15,6 +16,7 @@ import { AIPanelSmartBoxes } from './ai-panel/AIPanelSmartBoxes';
 import { inferCardType } from './ai-panel/aiPanelConfig';
 import { removeWhiteBackground } from './ai-panel/aiPanelImageUtils';
 import type { AssetGenerationResponse, FramesLibraryResponse, GenerateFrameResponse, LibraryFrame } from './ai-panel/aiPanelTypes';
+import type { PdfTypographyHints } from '../../../lib/pdfmeConfig';
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -35,12 +37,13 @@ export function AIPanelSidebar({
   widthMm?: number;
   heightMm?: number;
   hiddenFields?: Record<string, boolean>;
-  onBackgroundGenerated: (dataUrl: string, widthMm: number, heightMm: number, face: 'front' | 'back') => void;
+  onBackgroundGenerated: (dataUrl: string, widthMm: number, heightMm: number, face: 'front' | 'back', typography?: PdfTypographyHints | null) => void;
   onAssetGenerated: (content: string, type: 'svg' | 'image', face: 'front' | 'back', elementName?: string) => void;
   disabled?: boolean;
 }) {
   const face = activeFace;
   const [loading, setLoading] = useState(false);
+  const [frameApplying, setFrameApplying] = useState(false);
 
   // ── Resolve edition for this deck ──────────────────────────────────────────
   const edition = getEditionBySlug(deck.slug ?? deck.id) ?? DECK_EDITIONS.find(e => e.id === 'custom')!;
@@ -142,6 +145,7 @@ export function AIPanelSidebar({
             fields:      edition.fields,          // ← full field schema with descriptions
           },
           hiddenFields: hiddenFields ?? {},           // ← AI ignores disabled zones
+          contentProfile: visibleTextProfile,
           customVisualPrompt:  customPrompt.trim()     ? customPrompt     : undefined,
           customConstraints:   customConstraints.trim() ? customConstraints : undefined,
         }),
@@ -150,11 +154,23 @@ export function AIPanelSidebar({
       const data = await res.json() as GenerateFrameResponse;
       if (!data.success || !data.dataUrl) throw new Error(data.error || 'Generación falló.');
 
-      onBackgroundGenerated(data.dataUrl, dims.widthMm, dims.heightMm, face);
+      onBackgroundGenerated(data.dataUrl, dims.widthMm, dims.heightMm, face, data.typography ?? null);
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleSelectFrame(url: string, _frameWidthMm: number, _frameHeightMm: number, selectedFace: 'front' | 'back') {
+    setFrameApplying(true);
+    try {
+      const croppedFrame = await coverCropToJpeg(url, dims.widthMm, dims.heightMm);
+      await Promise.resolve(onBackgroundGenerated(croppedFrame, dims.widthMm, dims.heightMm, selectedFace));
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : String(err));
+    } finally {
+      setFrameApplying(false);
     }
   }
 
@@ -200,12 +216,15 @@ export function AIPanelSidebar({
   }
 
   const hiddenFieldCount = hiddenFields ? Object.values(hiddenFields).filter(Boolean).length : 0;
+  const visibleTextProfile = buildVisibleTextProfile(cardContent, hiddenFields);
+  const visibleCharacterCount = visibleTextProfile.reduce((sum, field) => sum + field.charCount, 0);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem', opacity: disabled ? 0.5 : 1, pointerEvents: disabled ? 'none' : 'auto' }}>
 
       <AIPanelHeader
         activeFieldCount={edition.fields.filter(f => !hiddenFields?.[f.key]).length}
+        characterCount={visibleCharacterCount}
         deckName={deck.name}
         editionLabel={edition.label}
         face={face}
@@ -213,6 +232,62 @@ export function AIPanelSidebar({
         hiddenFieldCount={hiddenFieldCount}
         widthMm={dims.widthMm}
       />
+
+      <div
+        style={{
+          border: '1px solid rgba(96,165,250,0.22)',
+          background: 'linear-gradient(135deg, rgba(96,165,250,0.12), rgba(212,175,100,0.08))',
+          borderRadius: '8px',
+          padding: '0.7rem 0.75rem',
+          display: 'grid',
+          gap: '0.35rem',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.7rem', alignItems: 'center' }}>
+          <span style={{ color: '#bfdbfe', fontSize: '0.68rem', fontWeight: 850, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            AI lee contenido visible
+          </span>
+          <span style={{ color: 'rgba(255,255,255,0.74)', fontSize: '0.68rem', fontWeight: 750 }}>
+            {visibleTextProfile.length} campos · {visibleCharacterCount} chars
+          </span>
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
+          {visibleTextProfile.slice(0, 5).map(field => (
+            <span
+              key={field.key}
+              style={{
+                border: '1px solid rgba(255,255,255,0.12)',
+                background: 'rgba(0,0,0,0.18)',
+                borderRadius: '999px',
+                color: 'rgba(255,255,255,0.68)',
+                fontSize: '0.64rem',
+                padding: '0.14rem 0.42rem',
+              }}
+            >
+              {field.key}: {field.density}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <button
+        onClick={handleGenerateBackground}
+        disabled={loading}
+        style={{
+          minHeight: '42px',
+          background: loading ? '#444' : 'var(--color-gold)',
+          color: '#111',
+          fontWeight: 850,
+          padding: '0.8rem',
+          borderRadius: '6px',
+          border: 'none',
+          cursor: loading ? 'wait' : 'pointer',
+          width: '100%',
+          fontSize: '0.9rem',
+        }}
+      >
+        {loading ? 'Generando fondo...' : `Generar fondo AI + auditar texto`}
+      </button>
 
       <AIPanelPromptControls
         builderMetadata={builderMetadata}
@@ -242,20 +317,6 @@ export function AIPanelSidebar({
         onThemeDescriptionChange={(themeDescription) => setBuilderMetadata(prev => ({ ...prev, themeDescription }))}
       />
 
-      {/* ── Generate button ───────────────────────────────────────────────── */}
-      <button
-        onClick={handleGenerateBackground}
-        disabled={loading}
-        style={{
-          background: loading ? '#444' : 'var(--color-gold)',
-          color: '#111', fontWeight: 'bold', padding: '0.8rem', borderRadius: '6px',
-          border: 'none', cursor: loading ? 'wait' : 'pointer', marginTop: '0.25rem',
-          width: '100%', fontSize: '0.9rem',
-        }}
-      >
-        {loading ? 'Generando fondo...' : `Aplicar fondo al ${face === 'front' ? 'frente' : 'dorso'} de todo el mazo`}
-      </button>
-
       <AIPanelSmartBoxes
         activeTextFields={activeTextFields}
         ornamentLoading={ornamentLoading}
@@ -267,11 +328,36 @@ export function AIPanelSidebar({
         face={face}
         frames={libraryFrames}
         heightMm={dims.heightMm}
-        loading={loadingLibrary}
+        loading={loadingLibrary || frameApplying}
         widthMm={dims.widthMm}
-        onSelectFrame={onBackgroundGenerated}
+        onSelectFrame={handleSelectFrame}
       />
 
     </div>
   );
+}
+
+type VisibleTextProfileField = {
+  key: string;
+  charCount: number;
+  density: 'corto' | 'medio' | 'largo';
+};
+
+function buildVisibleTextProfile(
+  cardContent: Record<string, string>,
+  hiddenFields: Record<string, boolean> | undefined,
+): VisibleTextProfileField[] {
+  return Object.entries(cardContent)
+    .filter(([key, value]) => {
+      if (hiddenFields?.[key] || (key === 'when_to_use' && hiddenFields?.whenToUse)) return false;
+      return typeof value === 'string' && value.trim().length > 0;
+    })
+    .map(([key, value]) => {
+      const charCount = value.trim().length;
+      return {
+        key,
+        charCount,
+        density: charCount > 150 ? 'largo' : charCount > 70 ? 'medio' : 'corto',
+      };
+    });
 }

@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,20 +8,41 @@ import { fileURLToPath } from 'node:url';
 // @ts-ignore
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const envTarget = process.env.BARAJA_DB_TARGET === 'production' ? 'production' : 'local';
 
-// Provide local URL and service role key (from npx supabase status)
-const SUPABASE_URL = 'http://127.0.0.1:54321';
-const SUPABASE_SERVICE_KEY = 'REDACTED_SUPABASE_SERVICE_KEY'; // Use service key to bypass RLS if needed
+dotenv.config({
+  path: path.resolve(__dirname, `../.env.${envTarget}`),
+  override: false,
+});
+
+// Provide a local URL by default, but require the service role key from env.
+const SUPABASE_URL =
+  process.env.BARAJA_SUPABASE_URL ??
+  process.env.SUPABASE_URL ??
+  process.env.VITE_SUPABASE_URL ??
+  'http://127.0.0.1:54321';
+const SUPABASE_SERVICE_KEY =
+  process.env.BARAJA_SUPABASE_SERVICE_KEY ??
+  process.env.SUPABASE_SERVICE_ROLE_KEY ??
+  process.env.SUPABASE_SERVICE_KEY;
+
+if (!SUPABASE_SERVICE_KEY) {
+  throw new Error(
+    `Missing Supabase service key for ${envTarget}. Set BARAJA_SUPABASE_SERVICE_KEY, SUPABASE_SERVICE_ROLE_KEY, or SUPABASE_SERVICE_KEY before running the Baraja seed script.`,
+  );
+}
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
   db: { schema: 'baraja' },
 });
 
 async function main() {
-  console.log('Starting seed...');
+  console.log(`Starting Baraja Supabase seed (${envTarget}) at ${SUPABASE_URL}...`);
 
   const contentDir = path.resolve(__dirname, '../../../packages/deck-engine/src/content');
-  const files = fs.readdirSync(contentDir).filter(f => f.endsWith('.json'));
+  const files = fs
+    .readdirSync(contentDir)
+    .filter(f => f.endsWith('.json') && !f.startsWith('failed_') && f !== 'frames_library.json');
 
   for (const file of files) {
     const rawContent = JSON.parse(fs.readFileSync(path.join(contentDir, file), 'utf-8'));

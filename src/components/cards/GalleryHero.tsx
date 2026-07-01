@@ -10,10 +10,8 @@ interface GalleryHeroProps {
   deck: DeckSchema;
   onEdit: (card: Card) => void;
   onGenerateArt: (cardId: string) => void;
-  onGenerateCardBack: (cardId: string) => void;
   onRestoreVersion: (cardId: string, url: string) => void;
   isGeneratingArt: boolean;
-  isGeneratingBack: boolean;
 }
 
 export function GalleryHero({ 
@@ -21,10 +19,8 @@ export function GalleryHero({
   deck, 
   onEdit, 
   onGenerateArt,
-  onGenerateCardBack,
   onRestoreVersion, 
   isGeneratingArt,
-  isGeneratingBack,
 }: GalleryHeroProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [flipped, setFlipped] = useState(false);
@@ -48,18 +44,9 @@ export function GalleryHero({
         <button 
           className={`${styles.btnAction} ${styles.btnPrimary}`} 
           onClick={() => onGenerateArt(card.id)}
-          disabled={isGeneratingArt || isGeneratingBack}
+          disabled={isGeneratingArt}
         >
           {isGeneratingArt ? '⏳ Generando arte...' : '🎨 Regenerar Arte'}
-        </button>
-        <button 
-          className={`${styles.btnAction}`}
-          style={{ borderColor: card.back.back_image_url ? '#a78bfa' : 'rgba(167,139,250,0.5)', color: '#a78bfa' }}
-          onClick={() => onGenerateCardBack(card.id)}
-          disabled={isGeneratingArt || isGeneratingBack}
-          title={card.back.back_image_url ? 'Regenerar diseño completo del reverso con IA' : 'Generar diseño completo del reverso con IA'}
-        >
-          {isGeneratingBack ? '⏳ Generando reverso...' : card.back.back_image_url ? '🎴 Regenerar Reverso IA' : '🎴 Generar Reverso IA'}
         </button>
         <button className={styles.btnAction} onClick={() => setFlipped(!flipped)}>
           🔄 Voltear Carta

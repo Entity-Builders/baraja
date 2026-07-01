@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { EbWhatsAppButton } from '@eb-packages/ui-web';
 import {
   getPreviewCards,
   type Card,
@@ -57,9 +58,13 @@ export function DeckCatalogFilterBar({
           );
         })}
       </div>
-      <a className="baraja-catalog-marketplace" href={inquiryUrl} onClick={onInquiryClick}>
+      <EbWhatsAppButton
+        className="baraja-catalog-marketplace"
+        href={inquiryUrl}
+        onClick={onInquiryClick}
+      >
         Consultar por una baraja
-      </a>
+      </EbWhatsAppButton>
     </div>
   );
 }
@@ -171,13 +176,13 @@ export function MarketplaceBand({ inquiryUrl, onInquiryClick }: MarketplaceBandP
         <p className="baraja-kicker">Consulta</p>
         <h3>¿Querés usar una baraja o pedir una edición?</h3>
       </div>
-      <a
+      <EbWhatsAppButton
         className="baraja-button baraja-button-outline"
         href={inquiryUrl}
         onClick={onInquiryClick}
       >
         Escribir a Baraja
-      </a>
+      </EbWhatsAppButton>
     </div>
   );
 }

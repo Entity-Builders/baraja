@@ -1,5 +1,6 @@
 interface AIPanelHeaderProps {
   activeFieldCount: number;
+  characterCount: number;
   deckName: string;
   editionLabel: string;
   face: 'front' | 'back';
@@ -10,6 +11,7 @@ interface AIPanelHeaderProps {
 
 export function AIPanelHeader({
   activeFieldCount,
+  characterCount,
   deckName,
   editionLabel,
   face,
@@ -38,6 +40,9 @@ export function AIPanelHeader({
         </div>
         <div style={{ marginTop: '0.35rem', opacity: 0.72 }}>
           {activeFieldCount} campos activos
+          <span style={{ marginLeft: '0.4rem' }}>
+            · {characterCount} caracteres visibles
+          </span>
           {hiddenFieldCount > 0 && (
             <span style={{ marginLeft: '0.4rem', color: '#f59e0b', fontSize: '0.65rem' }}>
               ({hiddenFieldCount} ocultos)

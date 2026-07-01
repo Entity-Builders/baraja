@@ -6,7 +6,10 @@ import {
 } from '@eb-packages/deck-engine';
 import { getFrameDataUri } from '../../../../lib/cardFrame';
 import { coverCropToJpeg } from '../../../../lib/PrintEngine';
-import { cardUsesFlujob } from '../../../../lib/pdfmeConfig';
+import {
+  getDeckReverseModel,
+  shouldUseLegacyFullBackTemplate,
+} from '../../../../lib/reverseModel';
 import { getTemplateDimensions } from './deckStudioTemplateUtils';
 
 interface BuildDeckStudioMockDataParams {
@@ -34,6 +37,8 @@ export async function buildDeckStudioMockData({
 
   const shouldIncludeQr = shouldRenderPrintableQr(deck);
   const { width, height } = getTemplateDimensions(template);
+  const reverseModel = getDeckReverseModel(deck, template);
+  const useLegacyFullBack = shouldUseLegacyFullBackTemplate(reverseModel);
   const mockData: Record<string, string> = {
     number: `#${String(card.front.number).padStart(2, '0')}`,
     title: card.front.title,
@@ -44,7 +49,7 @@ export async function buildDeckStudioMockData({
     mockData.art = dataUrlToBlobUrl(artData);
   }
 
-  if (cardUsesFlujob(card)) {
+  if (useLegacyFullBack && card.back?.back_image_url) {
     mockData.back_ai_image = dataUrlToBlobUrl(card.back?.back_image_url || '');
     mockData.qr_overlay = !shouldIncludeQr || overrideHiddenFields?.qr
       ? ''

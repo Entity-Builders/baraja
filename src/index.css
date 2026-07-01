@@ -4,6 +4,7 @@
    ============================================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500&family=Cousine:wght@400;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap');
+@import '@eb-packages/ui-web/styles.css';
 
 /* ── Reset ─────────────────────────────────────────────────── */
 *,
@@ -3479,6 +3480,27 @@ body::before {
   color: var(--baraja-rust);
 }
 
+.baraja-link-button {
+  min-height: auto;
+  padding: 0;
+  color: inherit;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+}
+
+.baraja-link-button:hover,
+.baraja-link-button:focus-visible {
+  color: var(--baraja-rust);
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+
 .baraja-nav-cta {
   min-height: 40px;
   padding: 0.65rem 1rem;
@@ -3502,12 +3524,16 @@ body::before {
 
 .baraja-hero-bloom {
   position: absolute;
-  inset: 0;
+  inset-block: 0;
+  inset-inline: calc((100vw - 100%) / -2);
   z-index: -1;
   background:
-    linear-gradient(115deg, rgba(42, 143, 133, 0.12), transparent 32%),
-    linear-gradient(245deg, rgba(184, 69, 52, 0.12), transparent 35%);
-  opacity: 0.9;
+    radial-gradient(ellipse 72% 82% at 16% 24%, rgba(111, 139, 115, 0.18) 0%, rgba(111, 139, 115, 0.08) 36%, transparent 68%),
+    radial-gradient(ellipse 78% 84% at 86% 14%, rgba(217, 164, 65, 0.2) 0%, rgba(217, 164, 65, 0.09) 38%, transparent 70%),
+    linear-gradient(180deg, rgba(255, 249, 236, 0.52), rgba(255, 249, 236, 0.18) 58%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 9%, #000 91%, transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 9%, #000 91%, transparent 100%);
+  opacity: 1;
   pointer-events: none;
 }
 
@@ -5364,6 +5390,7 @@ body::before {
 .baraja-final-cta {
   display: grid;
   justify-items: center;
+  gap: 1rem;
   margin-bottom: 3rem;
   padding: 4rem 1rem;
   border: 1px solid var(--baraja-line);
@@ -5374,12 +5401,38 @@ body::before {
     rgba(255, 253, 249, 0.78);
 }
 
+.baraja-final-cta h2 {
+  max-width: 760px;
+}
+
+.baraja-final-cta > p:not(.baraja-kicker) {
+  max-width: 680px;
+}
+
+.baraja-final-points {
+  display: flex;
+  max-width: 760px;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.65rem;
+}
+
+.baraja-final-points span {
+  padding: 0.55rem 0.72rem;
+  color: var(--baraja-muted);
+  border: 1px solid rgba(31, 25, 21, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 253, 249, 0.64);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
 .baraja-final-actions {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   gap: 0.75rem;
-  margin-top: 0.4rem;
+  margin-top: 0.2rem;
 }
 
 .baraja-footer {
@@ -6193,13 +6246,23 @@ body::before {
   }
 
   .baraja-final-cta h2 {
-    max-width: 10.5ch;
+    max-width: 13.5ch;
     font-size: clamp(2.05rem, 11vw, 2.8rem);
     overflow-wrap: anywhere;
   }
 
   .baraja-final-cta p {
-    max-width: 280px;
+    max-width: 320px;
+  }
+
+  .baraja-final-points {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .baraja-final-points span {
+    width: 100%;
   }
 
   .baraja-feature-cards,
@@ -8994,6 +9057,80 @@ body::before {
   background: rgba(255, 249, 236, 0.72);
 }
 
+.baraja-deck-includes {
+  gap: 0;
+  margin: 1.35rem 0 1.25rem;
+  padding: 1rem;
+  border: 1px solid rgba(91, 66, 30, 0.16);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 253, 249, 0.94), rgba(255, 249, 236, 0.86));
+  box-shadow: 0 16px 42px rgba(91, 66, 30, 0.1);
+}
+
+.baraja-deck-includes .baraja-mobile-section-label {
+  margin: 0 0 0.55rem;
+  color: var(--baraja-gold);
+  font-size: 0.76rem;
+  line-height: 1;
+}
+
+.baraja-deck-includes ul {
+  gap: 0;
+}
+
+.baraja-deck-includes li {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 0.7rem;
+  align-items: start;
+  padding: 0.85rem 0;
+  min-width: 0;
+  color: var(--baraja-text);
+}
+
+.baraja-deck-includes li + li {
+  border-top: 1px solid rgba(91, 66, 30, 0.12);
+}
+
+.baraja-deck-includes li::before {
+  content: none;
+}
+
+.baraja-deck-includes li > span[aria-hidden='true'] {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #fff;
+  background: var(--baraja-rust);
+  font-size: 0.84rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.baraja-deck-includes li > div {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.baraja-deck-includes strong {
+  color: var(--baraja-text);
+  font-size: 1rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.baraja-deck-includes small {
+  color: rgba(43, 35, 27, 0.68);
+  font-size: 0.86rem;
+  font-weight: 650;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .baraja-active-access {
   border-color: rgba(111, 139, 115, 0.42);
   background: rgba(111, 139, 115, 0.16);
@@ -9759,6 +9896,22 @@ body::before {
   }
 }
 
+@media (min-width: 681px) {
+  .baraja-landing .baraja-nav {
+    min-height: 76px;
+    padding-block: 0.9rem;
+    padding-inline: clamp(0.95rem, 1.5vw, 1.35rem);
+  }
+
+  .baraja-landing .baraja-nav-links {
+    gap: clamp(1.05rem, 1.65vw, 1.65rem);
+  }
+
+  .baraja-landing .baraja-nav-cta {
+    padding-inline: 1.15rem;
+  }
+}
+
 .baraja-hero-copy .baraja-hero-deck-tabs {
   display: flex;
   max-width: 100%;
@@ -10180,106 +10333,6 @@ body::before {
    The public Baraja surface promotes light brand tokens globally.
    Keep internal production tooling on the original dark console skin.
    ------------------------------------------------------------ */
-/* ── Admin login gate ───────────────────────────────────────── */
-.admin-login-shell {
-  min-height: 100svh;
-  display: grid;
-  place-items: center;
-  padding: clamp(1rem, 4vw, 2rem);
-  color: #f0ebe0;
-  background:
-    linear-gradient(145deg, #0c0b09 0%, #17120d 48%, #211914 100%);
-  font-family: var(--font-sans);
-}
-
-.admin-login-card {
-  width: min(420px, 100%);
-  display: grid;
-  gap: 1rem;
-  padding: clamp(1.25rem, 4vw, 2rem);
-  border: 1px solid rgba(212, 175, 100, 0.18);
-  border-radius: 8px;
-  background: rgba(20, 18, 16, 0.92);
-  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.32);
-}
-
-.admin-login-kicker {
-  margin: 0;
-  color: var(--color-gold);
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.admin-login-card h1 {
-  margin: 0;
-  color: var(--color-text);
-  font-size: clamp(2rem, 8vw, 3rem);
-  line-height: 1;
-}
-
-.admin-login-card label {
-  display: grid;
-  gap: 0.42rem;
-  color: rgba(240, 235, 224, 0.72);
-  font-size: 0.82rem;
-  font-weight: 700;
-}
-
-.admin-login-card input {
-  width: 100%;
-  min-height: 46px;
-  padding: 0 0.82rem;
-  color: var(--color-text);
-  border: 1px solid rgba(240, 235, 224, 0.14);
-  border-radius: 6px;
-  background: rgba(12, 11, 9, 0.88);
-  font: inherit;
-  outline: none;
-}
-
-.admin-login-card input:focus {
-  border-color: var(--color-gold);
-  box-shadow: 0 0 0 3px rgba(212, 175, 100, 0.14);
-}
-
-.admin-login-error {
-  margin: 0;
-  color: #ffd2bf;
-  font-size: 0.86rem;
-}
-
-.admin-logout-button {
-  position: fixed;
-  z-index: 50;
-  top: calc(0.85rem + env(safe-area-inset-top));
-  right: 0.85rem;
-  min-height: 38px;
-  padding: 0 0.8rem;
-  color: rgba(240, 235, 224, 0.82);
-  border: 1px solid rgba(240, 235, 224, 0.14);
-  border-radius: 999px;
-  background: rgba(12, 11, 9, 0.76);
-  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.24);
-  font: inherit;
-  font-size: 0.78rem;
-  font-weight: 800;
-  cursor: pointer;
-  backdrop-filter: blur(12px);
-}
-
-.admin-logout-button:hover {
-  color: #0c0b09;
-  border-color: var(--color-gold);
-  background: var(--color-gold);
-}
-
-.admin-logout-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.56;
-}
-
 .admin-shell {
   --color-bg: #0c0b09;
   --color-surface: #141210;
@@ -10460,4 +10513,714 @@ body::before {
     align-items: stretch;
     flex-direction: column;
   }
+}
+
+/* ── Baraja active session polish ───────────────────────────── */
+.baraja-game-shell {
+  min-height: 100svh;
+  display: block;
+  padding: 0;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(36, 64, 51, 0.96) 0%, rgba(86, 117, 91, 0.98) 52%, rgba(67, 58, 43, 0.98) 100%);
+}
+
+.baraja-game-phone {
+  width: 100%;
+  max-width: none;
+  height: 100svh;
+  min-height: 0;
+  margin: 0;
+  background: transparent;
+}
+
+.baraja-game-topbar {
+  width: min(1180px, 100%);
+  min-height: 64px;
+  grid-template-columns: 44px minmax(0, 1fr) 44px 44px;
+  margin: 0 auto;
+  padding: calc(0.52rem + env(safe-area-inset-top)) clamp(1rem, 3vw, 1.35rem) 0.52rem;
+  border-bottom: 1px solid rgba(43, 35, 27, 0.12);
+  background: rgba(255, 249, 236, 0.96);
+  box-shadow: 0 12px 28px rgba(43, 35, 27, 0.1);
+  backdrop-filter: blur(14px);
+}
+
+.baraja-game-titleblock {
+  min-width: 0;
+}
+
+.baraja-game-titleblock strong {
+  color: var(--baraja-text);
+  font-size: clamp(1.15rem, 3vw, 1.65rem);
+  line-height: 1;
+}
+
+.baraja-game-titleblock span {
+  display: block;
+  max-width: 100%;
+  margin-top: 0.22rem;
+  overflow: hidden;
+  color: rgba(43, 35, 27, 0.62);
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.baraja-game-back,
+.baraja-game-plain-button {
+  color: var(--baraja-muted);
+  transition: background 170ms ease, color 170ms ease, transform 170ms ease;
+}
+
+.baraja-game-back:hover,
+.baraja-game-plain-button:hover {
+  color: var(--baraja-text);
+  background: rgba(43, 35, 27, 0.07);
+}
+
+.baraja-game-back:active,
+.baraja-game-plain-button:active {
+  transform: scale(0.96);
+}
+
+.baraja-game-back span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.baraja-game-back::before {
+  margin: 0;
+  color: var(--baraja-gold);
+  font-size: 2.2rem;
+  line-height: 0.72;
+}
+
+.baraja-game-plain-button {
+  font-size: 1rem;
+  letter-spacing: 0.08em;
+}
+
+.baraja-game-content {
+  width: min(1180px, 100%);
+  height: calc(100svh - 64px);
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: minmax(0, 1fr) auto;
+  justify-items: center;
+  align-items: center;
+  gap: 0.86rem;
+  margin: 0 auto;
+  padding: clamp(0.75rem, 2vh, 1.25rem) clamp(1rem, 3vw, 2rem) calc(0.8rem + env(safe-area-inset-bottom));
+  overflow: hidden;
+}
+
+.baraja-session-desktop-context,
+.baraja-session-desktop-control-copy {
+  display: none;
+}
+
+.baraja-game-phone .baraja-session-stage {
+  width: 100%;
+  min-height: 0;
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+.baraja-game-phone .baraja-session-card {
+  width: min(calc(100vw - 2rem), calc((100svh - 178px) * 0.583333), 420px);
+  height: auto;
+  max-width: 100%;
+  max-height: none;
+  aspect-ratio: 70 / 120;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  filter: drop-shadow(0 30px 42px rgba(24, 18, 14, 0.34));
+}
+
+.baraja-session-card-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.baraja-session-card-canvas > div {
+  width: 100%;
+  border-radius: 8px;
+}
+
+.baraja-session-card-canvas [class*='cardContainer'] {
+  border-radius: 8px;
+  box-shadow:
+    0 24px 54px rgba(24, 18, 14, 0.32),
+    0 0 0 1px rgba(255, 249, 236, 0.2);
+}
+
+.baraja-game-phone .baraja-session-controls {
+  width: min(420px, 100%);
+  justify-self: center;
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.58rem;
+  border: 1px solid rgba(43, 35, 27, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 249, 236, 0.95);
+  box-shadow: 0 16px 36px rgba(24, 18, 14, 0.16);
+  backdrop-filter: blur(12px);
+}
+
+.baraja-session-draw-row {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) 52px;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.baraja-game-phone .baraja-app-primary-action {
+  min-width: 0;
+  min-height: 54px;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid rgba(117, 79, 20, 0.18);
+  border-radius: 8px;
+  color: #2b231b;
+  background: linear-gradient(180deg, #edc462 0%, var(--baraja-gold) 100%);
+  box-shadow: 0 10px 22px rgba(91, 66, 30, 0.16);
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1.1;
+  white-space: normal;
+}
+
+.baraja-game-phone .baraja-app-primary-action:hover {
+  background: linear-gradient(180deg, #f1cc78 0%, #dca946 100%);
+}
+
+.baraja-session-round-button {
+  width: 52px;
+  height: 52px;
+  min-height: 52px;
+  border: 1px solid rgba(43, 35, 27, 0.14);
+  border-radius: 999px;
+  color: var(--baraja-text);
+  background: rgba(255, 253, 249, 0.92);
+  box-shadow: 0 8px 18px rgba(43, 35, 27, 0.1);
+  font-size: 2rem;
+  transition: transform 150ms ease, background 150ms ease, border-color 150ms ease;
+}
+
+.baraja-session-round-button:hover {
+  border-color: rgba(217, 164, 65, 0.58);
+  background: #fffaf0;
+}
+
+.baraja-session-round-button:disabled {
+  opacity: 0.38;
+}
+
+.baraja-session-options-panel {
+  max-height: min(42svh, 320px);
+  overflow: auto;
+  border-color: rgba(43, 35, 27, 0.12);
+  background: rgba(255, 253, 249, 0.92);
+  box-shadow: none;
+}
+
+.baraja-session-icon-actions button,
+.baraja-session-settings-inline label,
+.baraja-session-settings-inline button {
+  border-radius: 8px;
+  color: var(--baraja-text);
+  background: rgba(255, 249, 236, 0.9);
+}
+
+.baraja-session-paused {
+  color: var(--baraja-text);
+  border-radius: 8px;
+  background: rgba(255, 249, 236, 0.96);
+}
+
+@media (min-width: 900px) {
+  .baraja-game-shell {
+    display: block;
+    place-items: initial;
+    padding: 0;
+  }
+
+  .baraja-game-phone {
+    width: 100%;
+    height: 100svh;
+    min-height: 0;
+    max-height: none;
+  }
+
+  .baraja-game-topbar {
+    grid-template-columns: 44px minmax(0, 1fr) 44px 44px;
+    min-height: 68px;
+    padding: 0.58rem clamp(1rem, 3vw, 1.35rem);
+    background: rgba(255, 249, 236, 0.96);
+  }
+
+  .baraja-game-back {
+    width: 44px;
+    min-width: 44px;
+    padding: 0;
+  }
+
+  .baraja-game-content {
+    height: calc(100svh - 68px);
+    grid-template-columns: 1fr;
+    grid-template-areas: none;
+    grid-template-rows: minmax(0, 1fr) auto;
+    justify-content: center;
+    align-items: center;
+    gap: clamp(0.8rem, 2vh, 1.1rem);
+    padding: clamp(0.85rem, 2vh, 1.35rem) 2rem calc(1rem + env(safe-area-inset-bottom));
+  }
+
+  .baraja-game-phone .baraja-session-stage,
+  .baraja-game-phone .baraja-session-controls {
+    grid-area: auto;
+  }
+
+  .baraja-game-phone .baraja-session-card {
+    width: min(calc((100svh - 190px) * 0.583333), 420px, calc(100vw - 2rem));
+  }
+
+  .baraja-game-phone .baraja-session-controls {
+    max-width: 420px;
+    align-self: start;
+    justify-self: center;
+  }
+
+  .baraja-session-draw-row {
+    grid-template-columns: 52px minmax(0, 1fr) 52px;
+  }
+
+  .baraja-game-phone .baraja-app-primary-action {
+    grid-column: auto;
+    order: initial;
+  }
+
+  .baraja-session-round-button {
+    width: 52px;
+    height: 52px;
+    border-radius: 999px;
+  }
+}
+
+@media (max-width: 480px) {
+  .baraja-game-titleblock strong {
+    font-size: clamp(1rem, 6vw, 1.25rem);
+  }
+
+  .baraja-game-titleblock span {
+    font-size: 0.6rem;
+  }
+
+  .baraja-game-content {
+    gap: 0.7rem;
+    padding-inline: 0.7rem;
+  }
+
+  .baraja-game-phone .baraja-session-card {
+    width: min(calc(100vw - 2rem), calc((100svh - 166px) * 0.583333), 360px);
+    max-width: calc(100vw - 2rem);
+  }
+
+  .baraja-game-phone .baraja-session-controls {
+    width: min(calc(100vw - 2rem), 100%, 360px);
+    max-width: calc(100vw - 2rem);
+    padding: 0.5rem;
+  }
+
+  .baraja-session-draw-row {
+    grid-template-columns: 48px minmax(0, 1fr) 48px;
+    gap: 0.52rem;
+  }
+
+  .baraja-session-round-button {
+    width: 48px;
+    height: 48px;
+    min-height: 48px;
+  }
+
+  .baraja-game-phone .baraja-app-primary-action {
+    min-height: 50px;
+    font-size: 0.94rem;
+  }
+}
+
+@media (max-height: 720px) {
+  .baraja-game-topbar {
+    min-height: 58px;
+    padding-top: calc(0.38rem + env(safe-area-inset-top));
+    padding-bottom: 0.38rem;
+  }
+
+  .baraja-game-titleblock span {
+    display: none;
+  }
+
+  .baraja-game-content {
+    height: calc(100svh - 58px);
+    gap: 0.52rem;
+    padding-top: 0.5rem;
+    padding-bottom: calc(0.55rem + env(safe-area-inset-bottom));
+  }
+
+  .baraja-game-phone .baraja-session-card {
+    width: min(calc(100vw - 2rem), calc((100svh - 148px) * 0.583333), 360px);
+    max-width: calc(100vw - 2rem);
+  }
+
+  .baraja-game-phone .baraja-app-primary-action {
+    min-height: 48px;
+  }
+}
+
+/* ── Admin login gate ───────────────────────────────────────── */
+.admin-login-shell {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: clamp(1rem, 4vw, 2rem);
+  color: #f0ebe0;
+  background:
+    linear-gradient(145deg, #0c0b09 0%, #17120d 48%, #211914 100%);
+  font-family: var(--font-sans);
+}
+
+.admin-login-card {
+  width: min(420px, 100%);
+  display: grid;
+  gap: 1rem;
+  padding: clamp(1.25rem, 4vw, 2rem);
+  border: 1px solid rgba(212, 175, 100, 0.18);
+  border-radius: 8px;
+  background: rgba(20, 18, 16, 0.92);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.32);
+}
+
+.admin-login-kicker {
+  margin: 0;
+  color: var(--color-gold);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.admin-login-card h1 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: clamp(2rem, 8vw, 3rem);
+  line-height: 1;
+}
+
+.admin-login-card label {
+  display: grid;
+  gap: 0.42rem;
+  color: rgba(240, 235, 224, 0.72);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.admin-login-card input {
+  width: 100%;
+  min-height: 46px;
+  padding: 0 0.82rem;
+  color: var(--color-text);
+  border: 1px solid rgba(240, 235, 224, 0.14);
+  border-radius: 6px;
+  background: rgba(12, 11, 9, 0.88);
+  font: inherit;
+  outline: none;
+}
+
+.admin-login-card input:focus {
+  border-color: var(--color-gold);
+  box-shadow: 0 0 0 3px rgba(212, 175, 100, 0.14);
+}
+
+.admin-login-error {
+  margin: 0;
+  color: #ffd2bf;
+  font-size: 0.86rem;
+}
+
+.admin-logout-button {
+  position: fixed;
+  z-index: 50;
+  top: calc(0.85rem + env(safe-area-inset-top));
+  right: 0.85rem;
+  min-height: 38px;
+  padding: 0 0.8rem;
+  color: rgba(240, 235, 224, 0.82);
+  border: 1px solid rgba(240, 235, 224, 0.14);
+  border-radius: 999px;
+  background: rgba(12, 11, 9, 0.76);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.24);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+}
+
+.admin-logout-button:hover {
+  color: #0c0b09;
+  border-color: var(--color-gold);
+  background: var(--color-gold);
+}
+
+.admin-logout-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
+/* ── Session card gallery ───────────────────────────────────── */
+.baraja-session-gallery {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: end center;
+  padding: clamp(0.7rem, 2vw, 1.2rem);
+}
+
+.baraja-session-gallery-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(18, 14, 11, 0.52);
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+}
+
+.baraja-session-gallery-panel {
+  position: relative;
+  width: min(880px, 100%);
+  max-height: min(78svh, 720px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  color: var(--baraja-text);
+  border: 1px solid rgba(43, 35, 27, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 249, 236, 0.97);
+  box-shadow: 0 32px 90px rgba(18, 14, 11, 0.34);
+}
+
+.baraja-session-gallery-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border-bottom: 1px solid rgba(43, 35, 27, 0.1);
+}
+
+.baraja-session-gallery-header p {
+  margin: 0;
+  color: var(--baraja-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.baraja-session-gallery-header h2 {
+  margin: 0.12rem 0 0;
+  color: var(--baraja-text);
+  font-family: var(--baraja-display);
+  font-size: clamp(1.8rem, 4vw, 2.55rem);
+  line-height: 1;
+}
+
+.baraja-session-gallery-header button {
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(43, 35, 27, 0.12);
+  border-radius: 999px;
+  color: var(--baraja-text);
+  background: rgba(255, 253, 249, 0.76);
+  font: inherit;
+  font-size: 1.45rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.baraja-session-gallery-grid {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 0.72rem;
+  padding: 1rem;
+  overflow: auto;
+}
+
+.baraja-session-gallery-card {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  gap: 0.55rem;
+  align-content: start;
+  padding: 0.55rem;
+  border: 1px solid rgba(43, 35, 27, 0.12);
+  border-radius: 8px;
+  color: var(--baraja-text);
+  background: rgba(255, 253, 249, 0.82);
+  box-shadow: 0 10px 22px rgba(43, 35, 27, 0.08);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.baraja-session-gallery-card:hover,
+.baraja-session-gallery-card:focus-visible {
+  border-color: rgba(217, 164, 65, 0.64);
+  box-shadow: 0 16px 32px rgba(43, 35, 27, 0.12);
+  transform: translateY(-1px);
+}
+
+.baraja-session-gallery-card.is-current {
+  border-color: var(--baraja-gold);
+  background:
+    linear-gradient(180deg, rgba(217, 164, 65, 0.16), rgba(255, 253, 249, 0.88));
+}
+
+.baraja-session-gallery-thumb {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 70 / 120;
+  overflow: hidden;
+  border-radius: 7px;
+  background:
+    linear-gradient(145deg, rgba(43, 35, 27, 0.12), rgba(43, 35, 27, 0.32)),
+    var(--baraja-text);
+}
+
+.baraja-session-gallery-thumb img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.baraja-session-gallery-thumb > span {
+  color: rgba(255, 249, 236, 0.86);
+  font-family: var(--baraja-display);
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.baraja-session-gallery-copy {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.baraja-session-gallery-copy strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--baraja-text);
+  font-size: 0.86rem;
+  line-height: 1.18;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.baraja-session-gallery-copy small {
+  color: var(--baraja-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.baraja-session-gallery-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.baraja-session-gallery-badges span {
+  padding: 0.18rem 0.36rem;
+  color: var(--baraja-text);
+  border: 1px solid rgba(43, 35, 27, 0.1);
+  border-radius: 999px;
+  background: rgba(217, 164, 65, 0.18);
+  font-size: 0.58rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+@media (min-width: 760px) {
+  .baraja-session-gallery {
+    place-items: center;
+  }
+
+  .baraja-session-gallery-panel {
+    max-height: min(82svh, 760px);
+  }
+}
+
+@media (max-width: 520px) {
+  .baraja-session-gallery {
+    padding: 0.55rem;
+  }
+
+  .baraja-session-gallery-panel {
+    max-height: 82svh;
+  }
+
+  .baraja-session-gallery-header {
+    padding: 0.85rem;
+  }
+
+  .baraja-session-gallery-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.58rem;
+    padding: 0.75rem;
+  }
+
+  .baraja-session-gallery-card {
+    padding: 0.45rem;
+  }
+
+  .baraja-session-gallery-copy strong {
+    font-size: 0.78rem;
+  }
+}
+
+[data-eb-whatsapp-button]:not(.baraja-link-button) {
+  color: #073b1c;
+  border-color: #1ebe5d;
+  border-radius: 999px;
+  background: #25d366;
+  box-shadow:
+    0 14px 30px rgba(37, 211, 102, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.34);
+}
+
+[data-eb-whatsapp-button]:not(.baraja-link-button):hover,
+[data-eb-whatsapp-button]:not(.baraja-link-button):focus-visible {
+  color: #052f16;
+  border-color: #19b656;
+  background: #1ebe5d;
+  box-shadow:
+    0 18px 36px rgba(37, 211, 102, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.38);
 }

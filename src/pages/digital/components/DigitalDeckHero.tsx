@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { EbWhatsAppButton } from '@eb-packages/ui-web';
 import {
   getPreviewCards,
   type Card,
@@ -150,13 +151,13 @@ export function DigitalDeckHero({
         </p>
         <div className="baraja-actions baraja-hero-actions">
           <a href="#mazos" className="baraja-button baraja-button-primary">Ver barajas</a>
-          <a
+          <EbWhatsAppButton
             href={inquiryUrl}
             className="baraja-button baraja-button-outline"
             onClick={onInquiryClick}
           >
             Consultar
-          </a>
+          </EbWhatsAppButton>
         </div>
       </div>
 

@@ -1,7 +1,10 @@
 import type { CSSProperties } from 'react';
 import type { Schema, Template } from '@pdfme/common';
 import type { DeckSchema } from '@eb-packages/deck-engine';
+import { getTemplateForDeck } from '../../lib/pdfmeConfig';
 import {
+  applyFieldPlacementsToTemplate,
+  normalizeFieldPlacements,
   normalizeTemplateFieldAliases,
   type CardFieldDefinition,
 } from '../../lib/cardFieldPlacements';
@@ -57,10 +60,24 @@ export function getPdfmeLayoutConfig(deck: DeckSchema): Template | null {
   const config = deck.design?.layout_config;
 
   if (typeof config === 'object' && config !== null && 'basePdf' in config && 'schemas' in config) {
-    return normalizeTemplateFieldAliases(config as Template);
+    const template = normalizeTemplateFieldAliases(getTemplateForDeck(deck));
+    const placements = normalizeFieldPlacements(deck.design);
+    const size = getTemplateSize(template);
+    return applyFieldPlacementsToTemplate(template, placements, size.width, size.height);
   }
 
   return null;
+}
+
+function getTemplateSize(template: Template): { width: number; height: number } {
+  if (typeof template.basePdf === 'object' && 'width' in template.basePdf && 'height' in template.basePdf) {
+    return {
+      width: template.basePdf.width,
+      height: template.basePdf.height,
+    };
+  }
+
+  return { width: 70, height: 120 };
 }
 
 export function buildFallbackBackSchemas(theme: 'light' | 'dark', typo: TypographyHints | null): Schema[] {

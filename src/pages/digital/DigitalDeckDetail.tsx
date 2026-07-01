@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { EbWhatsAppButton } from '@eb-packages/ui-web';
 import {
   flipCardFace,
   getPreviewCards,
@@ -65,10 +66,10 @@ export default function DigitalDeckDetail() {
   function trackDeckInquiry(source: string, ctaId: string) {
     trackBarajaEvent('baraja_inquiry_started', {
       cta_id: ctaId,
-      cta_kind: 'mailto',
+      cta_kind: 'whatsapp',
       deck_id: activeDeck.id,
       deck_slug: activeDeck.slug,
-      href_type: 'mailto',
+      href_type: 'wa_me',
       source,
       surface: 'deck_detail',
     });
@@ -109,12 +110,14 @@ export default function DigitalDeckDetail() {
           <Link to={{ pathname: '/', search: catalogSearch, hash: '#mazos' }}>
             {catalogFacet.collectionLabel}
           </Link>
-          <a
+          <EbWhatsAppButton
+            className="baraja-link-button"
             href={inquiryHref}
+            showIcon={false}
             onClick={() => trackDeckInquiry('deck_detail_nav', 'deck_detail_nav')}
           >
             Consultar
-          </a>
+          </EbWhatsAppButton>
         </div>
       </nav>
 
@@ -153,13 +156,13 @@ export default function DigitalDeckDetail() {
             {landingCopy?.hero_supporting_copy ?? catalogFacet.summary}
           </p>
           <div className="digital-actions">
-            <a
+            <EbWhatsAppButton
               href={inquiryHref}
               className="btn-primary"
               onClick={() => trackDeckInquiry('deck_detail_hero', 'deck_detail_hero')}
             >
               Consultar por este mazo
-            </a>
+            </EbWhatsAppButton>
             <Link to={`/decks/${deck.slug}/access`} className="btn-ghost">
               Ver acceso
             </Link>
@@ -201,13 +204,13 @@ export default function DigitalDeckDetail() {
               'El mazo completo suma sesión guiada, favoritos locales y el paquete imprimible cuando la edición lo incluye.'}
           </p>
         </div>
-        <a
+        <EbWhatsAppButton
           href={inquiryHref}
           className="btn-primary"
           onClick={() => trackDeckInquiry('deck_detail_access_band', 'deck_detail_access_band')}
         >
           Consultar acceso
-        </a>
+        </EbWhatsAppButton>
       </section>
 
       <RelatedDecksSection currentDeck={deck} />

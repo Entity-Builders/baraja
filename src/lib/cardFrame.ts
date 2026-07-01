@@ -41,6 +41,14 @@ export function setActiveDeckId(deckId: string | null): void {
   } catch { /* ignore */ }
 }
 
+export function invalidateFrameCache(deckId?: string | null): void {
+  if (deckId) {
+    _frameCache.delete(deckId);
+    return;
+  }
+  _frameCache.clear();
+}
+
 /** Read persisted active deck ID */
 export function getActiveDeckId(): string | null {
   try {

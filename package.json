@@ -8,17 +8,22 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test:design-pipeline": "tsx scripts/deckDesignPipeline.test.ts",
     "preview": "npm run build && wrangler dev",
     "deploy:prod": "npm run build && wrangler deploy --env production",
     "db:migrate": "wrangler d1 execute baraja-db --file=migrations/0001_initial.sql",
     "db:migrate:remote": "wrangler d1 execute baraja-db --remote --file=migrations/0001_initial.sql",
     "db:migrate:catalog": "wrangler d1 execute baraja-db --file=migrations/0002_deck_catalog.sql",
     "db:migrate:catalog:remote": "wrangler d1 execute baraja-db --remote --file=migrations/0002_deck_catalog.sql",
-    "db:seed:decks:sql": "tsx scripts/generate_d1_deck_seed.ts"
+    "db:seed:decks:sql": "tsx scripts/generate_d1_deck_seed.ts",
+    "db:seed:supabase": "tsx scripts/seed_decks.ts",
+    "db:seed:supabase:prod": "BARAJA_DB_TARGET=production tsx scripts/seed_decks.ts"
   },
   "dependencies": {
     "@eb-packages/analytics": "*",
+    "@eb-packages/app-registry": "workspace:*",
     "@eb-packages/deck-engine": "*",
+    "@eb-packages/ui-web": "workspace:*",
     "@pdfme/common": "^6.0.6",
     "@pdfme/generator": "^6.0.6",
     "@pdfme/schemas": "^6.0.6",

@@ -1,5 +1,9 @@
-import React, { useState } from 'react';
+import { EbWhatsAppButton } from '@eb-packages/ui-web';
 import { useAllDecks } from '../hooks/useAllDecks';
+import {
+  getBarajaGeneralInquiryMessage,
+  getBarajaInquiryHref,
+} from '../lib/digitalDeckCatalog';
 
 // ── Static Data (not from DB) ───────────────────────────────
 
@@ -62,7 +66,7 @@ function Navbar() {
       <ul className="navbar-links">
         <li><a href="#ediciones">Ediciones</a></li>
         <li><a href="#como-funciona">Cómo funciona</a></li>
-        <li><a href="#notificarme">Notificarme</a></li>
+        <li><a href="#contacto">Contacto</a></li>
       </ul>
     </nav>
   );
@@ -195,62 +199,30 @@ function HowItWorks() {
   );
 }
 
-function LeadCapture() {
-  const [email, setEmail] = useState('');
-  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!email) return;
-    setStatus('loading');
-    try {
-      const res = await fetch('/api/leads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, edition: 'baraja' }),
-      });
-      setStatus(res.ok ? 'done' : 'error');
-    } catch {
-      setStatus('error');
-    }
-  }
+function ContactCTA() {
+  const message = getBarajaGeneralInquiryMessage();
 
   return (
-    <section className="section lead-capture" id="notificarme">
+    <section className="section lead-capture" id="contacto">
       <div className="container">
         <div className="section-header">
-          <p className="section-eyebrow">Lanzamiento</p>
-          <h2 className="section-title">Consultá por el lanzamiento</h2>
+          <p className="section-eyebrow">Contacto</p>
+          <h2 className="section-title">Consultá por WhatsApp</h2>
           <div className="divider" />
           <p className="section-subtitle">
-            Cable a Tierra ya está casi lista. Dejá tu email y te contamos cómo acceder cuando esté disponible.
+            Escribinos y vemos qué mazo encaja mejor con tu contexto.
           </p>
         </div>
-        {status === 'done' ? (
-          <p style={{ textAlign: 'center', color: 'var(--color-gold)', fontFamily: 'var(--font-serif)', fontSize: '1.2rem' }}>
-            ¡Perfecto! Te avisamos cuando esté lista. 🎴
-          </p>
-        ) : (
-          <form className="lead-form" onSubmit={handleSubmit}>
-            <input
-              id="lead-email-main"
-              className="lead-input"
-              type="email"
-              placeholder="tu@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-            <button className="btn-primary" type="submit" disabled={status === 'loading'}>
-              {status === 'loading' ? '...' : 'Notificarme'}
-            </button>
-          </form>
-        )}
-        {status === 'error' && (
-          <p style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: '0.8rem', marginTop: '0.75rem' }}>
-            Algo salió mal. Intentá de nuevo.
-          </p>
-        )}
+        <div className="lead-form">
+          <EbWhatsAppButton
+            aria-label="Hablar por WhatsApp sobre Baraja"
+            className="btn-primary"
+            fullWidth
+            href={getBarajaInquiryHref(message)}
+          >
+            Hablar por WhatsApp
+          </EbWhatsAppButton>
+        </div>
       </div>
     </section>
   );
@@ -277,7 +249,7 @@ export default function BarajaLanding() {
       <Hero />
       <Editions />
       <HowItWorks />
-      <LeadCapture />
+      <ContactCTA />
       <Footer />
     </>
   );

@@ -12,6 +12,9 @@ interface Env {
   BARAJA_ADMIN_EMAIL?: string;
   BARAJA_ADMIN_PASSWORD?: string;
   BARAJA_ADMIN_SESSION_SECRET?: string;
+  BARAJA_SUPABASE_SERVICE_KEY?: string;
+  SUPABASE_SERVICE_ROLE_KEY?: string;
+  SUPABASE_URL?: string;
   STRIPE_WEBHOOK_SECRET?: string;
   VITE_SUPABASE_URL?: string;
   VITE_SUPABASE_ANON_KEY?: string;
@@ -71,27 +74,14 @@ function getEditionSlugFromUrl(url: URL): string | null {
 
 // ── SEO Injection & Context ───────────────────────────────────
 
-type BarajaCfProperties = Request['cf'];
-
-interface SeoEditionRow {
-  name?: string;
-  description?: string;
-  landing_config?: {
-    hero?: {
-      titleHtml?: string;
-      subtitle?: string;
-    };
-  };
-}
-
-function getVibeContext(cf: BarajaCfProperties) {
+function getVibeContext(cf: unknown) {
   let timeOfDay = 'day';
   let season = 'spring';
+  const cfRecord = isRecord(cf) ? cf : {};
 
   try {
-    const tz = typeof cf?.timezone === 'string'
-      ? cf.timezone
-      : 'America/Argentina/Buenos_Aires';
+    const timezone = cfRecord.timezone;
+    const tz = typeof timezone === 'string' ? timezone : 'America/Argentina/Buenos_Aires';
     const formatter = new Intl.DateTimeFormat('en-US', {
       timeZone: tz,
       hour: 'numeric',
@@ -105,10 +95,13 @@ function getVibeContext(cf: BarajaCfProperties) {
     else timeOfDay = 'night';
 
     const month = new Date().getMonth(); // 0-11
-    const latitude = typeof cf?.latitude === 'number'
-      ? cf.latitude
-      : Number.parseFloat(String(cf?.latitude ?? -34));
-    const isNorth = Number.isFinite(latitude) ? latitude >= 0 : false;
+    const rawLatitude = cfRecord.latitude;
+    const latitude = typeof rawLatitude === 'number'
+      ? rawLatitude
+      : typeof rawLatitude === 'string'
+        ? Number(rawLatitude)
+        : -34;
+    const isNorth = latitude >= 0;
     
     if (month >= 2 && month <= 4) {
       season = isNorth ? 'spring' : 'autumn';
@@ -126,13 +119,13 @@ function getVibeContext(cf: BarajaCfProperties) {
   return {
     timeOfDay,
     season,
-    city: typeof cf?.city === 'string' ? cf.city : 'Unknown',
+    city: typeof cfRecord.city === 'string' ? cfRecord.city : 'Unknown',
   };
 }
 
 async function rewriteHtmlForSeo(request: Request, response: Response, slug: string, env: Env): Promise<Response> {
-  const supabaseUrl = env.VITE_SUPABASE_URL || 'http://127.0.0.1:54321';
-  const supabaseKey = env.VITE_SUPABASE_ANON_KEY || '';
+  const supabaseUrl = env.SUPABASE_URL || env.VITE_SUPABASE_URL || 'http://127.0.0.1:54321';
+  const supabaseKey = env.VITE_SUPABASE_ANON_KEY || env.BARAJA_SUPABASE_SERVICE_KEY || env.SUPABASE_SERVICE_ROLE_KEY || '';
 
   if (!supabaseKey) return response;
 
@@ -146,16 +139,22 @@ async function rewriteHtmlForSeo(request: Request, response: Response, slug: str
     });
 
     if (!res.ok) return response;
-    const data = await res.json() as SeoEditionRow[];
-    if (!data || data.length === 0) return response;
+    const data = await res.json() as unknown;
+    if (!Array.isArray(data) || !isRecord(data[0])) return response;
 
     const edition = data[0];
-    const config = edition.landing_config || {};
+    const config = isRecord(edition.landing_config) ? edition.landing_config : {};
+    const hero = isRecord(config.hero) ? config.hero : {};
+    const editionName = typeof edition.name === 'string' ? edition.name : slug;
     
-    const title = config.hero?.titleHtml
-      ? config.hero.titleHtml.replace(/<[^>]+>/g, ' ')
-      : edition.name || 'Baraja';
-    const description = config.hero?.subtitle || edition.description || '';
+    const title = typeof hero.titleHtml === 'string'
+      ? hero.titleHtml.replace(/<[^>]+>/g, ' ')
+      : editionName;
+    const description = typeof hero.subtitle === 'string'
+      ? hero.subtitle
+      : typeof edition.description === 'string'
+        ? edition.description
+        : '';
 
     const vibeContext = getVibeContext(request.cf);
 
@@ -220,8 +219,32 @@ interface AdminLoginPayload {
   password?: unknown;
 }
 
+interface SupabaseAdminConfig {
+  serviceKey: string;
+  url: string;
+}
+
 const ADMIN_SESSION_COOKIE = 'baraja_admin_session';
 const ADMIN_SESSION_MAX_AGE_SECONDS = 60 * 60 * 10;
+const BARAJA_SUPABASE_SCHEMA = 'baraja';
+const EDITION_UPDATE_COLUMNS = new Set([
+  'name',
+  'description',
+  'print_spec_id',
+  'design_template_id',
+  'print_specs_overrides',
+  'design_template_overrides',
+  'landing_config',
+  'metadata',
+  'pricing',
+  'digital',
+]);
+const CARD_UPDATE_COLUMNS = new Set([
+  'front',
+  'back',
+  'tags',
+  'number',
+]);
 
 async function handleAdminApi(request: Request, url: URL, env: Env): Promise<Response> {
   if (url.pathname === '/api/admin/session' && request.method === 'GET') {
@@ -249,7 +272,221 @@ async function handleAdminApi(request: Request, url: URL, env: Env): Promise<Res
     return jsonResponse({ error: 'Admin session required' }, 401);
   }
 
+  const adminDbResponse = await handleAdminDatabaseApi(request, url, env);
+  if (adminDbResponse) {
+    return adminDbResponse;
+  }
+
   return jsonResponse({ error: 'Not found' }, 404);
+}
+
+async function handleAdminDatabaseApi(request: Request, url: URL, env: Env): Promise<Response | null> {
+  const editionMatch = url.pathname.match(/^\/api\/admin\/editions\/([^/]+)$/);
+  if (editionMatch) {
+    if (request.method !== 'PATCH') {
+      return jsonResponse({ error: 'Method not allowed' }, 405);
+    }
+
+    return updateAdminEdition(request, decodeURIComponent(editionMatch[1]), env);
+  }
+
+  const cardMatch = url.pathname.match(/^\/api\/admin\/editions\/([^/]+)\/cards\/([^/]+)$/);
+  if (cardMatch) {
+    if (request.method !== 'PATCH') {
+      return jsonResponse({ error: 'Method not allowed' }, 405);
+    }
+
+    return updateAdminCard(
+      request,
+      decodeURIComponent(cardMatch[1]),
+      decodeURIComponent(cardMatch[2]),
+      env,
+    );
+  }
+
+  return null;
+}
+
+async function updateAdminEdition(request: Request, editionSlug: string, env: Env): Promise<Response> {
+  const config = getSupabaseAdminConfig(env);
+  if (!config) {
+    return jsonResponse({ error: 'Supabase admin writes are not configured.' }, 503);
+  }
+
+  const payload = await readJsonRecord(request);
+  const updates = pickAllowedUpdates(getUpdatesRecord(payload), EDITION_UPDATE_COLUMNS);
+  if (!updates) {
+    return jsonResponse({ error: 'No editable edition fields were provided.' }, 400);
+  }
+
+  const response = await supabaseAdminRequest(
+    config,
+    `editions?slug=eq.${encodePostgrestFilterValue(editionSlug)}`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Prefer': 'return=representation',
+      },
+      body: JSON.stringify(updates),
+    },
+  );
+
+  return supabaseMutationResponse(response, 'Edition was not found.');
+}
+
+async function updateAdminCard(
+  request: Request,
+  editionSlug: string,
+  cardId: string,
+  env: Env,
+): Promise<Response> {
+  const config = getSupabaseAdminConfig(env);
+  if (!config) {
+    return jsonResponse({ error: 'Supabase admin writes are not configured.' }, 503);
+  }
+
+  const payload = await readJsonRecord(request);
+  const updates = pickAllowedUpdates(getUpdatesRecord(payload), CARD_UPDATE_COLUMNS);
+  if (!updates) {
+    return jsonResponse({ error: 'No editable card fields were provided.' }, 400);
+  }
+
+  updates.edition_slug = editionSlug;
+  const front = updates.front;
+  if (isRecord(front) && typeof front.number === 'number') {
+    updates.number = front.number;
+  }
+
+  const response = await supabaseAdminRequest(
+    config,
+    `cards?id=eq.${encodePostgrestFilterValue(cardId)}&edition_slug=eq.${encodePostgrestFilterValue(editionSlug)}`,
+    {
+      method: 'PATCH',
+      headers: {
+        'Prefer': 'return=representation',
+      },
+      body: JSON.stringify(updates),
+    },
+  );
+
+  return supabaseMutationResponse(response, 'Card was not found.');
+}
+
+function getSupabaseAdminConfig(env: Env): SupabaseAdminConfig | null {
+  const url = (env.SUPABASE_URL || env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
+  const serviceKey = env.BARAJA_SUPABASE_SERVICE_KEY || env.SUPABASE_SERVICE_ROLE_KEY || '';
+
+  if (!url || !serviceKey) {
+    return null;
+  }
+
+  return { serviceKey, url };
+}
+
+async function supabaseAdminRequest(
+  config: SupabaseAdminConfig,
+  pathAndQuery: string,
+  init: RequestInit,
+): Promise<Response> {
+  const headers = new Headers(init.headers);
+  headers.set('apikey', config.serviceKey);
+  headers.set('Authorization', `Bearer ${config.serviceKey}`);
+  headers.set('Accept-Profile', BARAJA_SUPABASE_SCHEMA);
+  headers.set('Content-Profile', BARAJA_SUPABASE_SCHEMA);
+  headers.set('Content-Type', 'application/json');
+
+  return fetch(`${config.url}/rest/v1/${pathAndQuery}`, {
+    ...init,
+    headers,
+  });
+}
+
+async function supabaseMutationResponse(response: Response, notFoundMessage: string): Promise<Response> {
+  const body = await readResponseJson(response);
+  if (!response.ok) {
+    return jsonResponse({
+      error: getSupabaseErrorMessage(body) || 'Supabase mutation failed.',
+    }, response.status);
+  }
+
+  if (Array.isArray(body) && body.length === 0) {
+    return jsonResponse({ error: notFoundMessage }, 404);
+  }
+
+  return jsonResponse({ success: true, data: body ?? null });
+}
+
+async function readJsonRecord(request: Request): Promise<Record<string, unknown> | null> {
+  try {
+    const payload = await request.json();
+    return isRecord(payload) ? payload : null;
+  } catch {
+    return null;
+  }
+}
+
+function getUpdatesRecord(payload: Record<string, unknown> | null): Record<string, unknown> | null {
+  if (!payload) {
+    return null;
+  }
+
+  return isRecord(payload.updates) ? payload.updates : payload;
+}
+
+function pickAllowedUpdates(
+  source: Record<string, unknown> | null,
+  allowedColumns: Set<string>,
+): Record<string, unknown> | null {
+  if (!source) {
+    return null;
+  }
+
+  const updates: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(source)) {
+    if (allowedColumns.has(key)) {
+      updates[key] = value;
+    }
+  }
+
+  return Object.keys(updates).length > 0 ? updates : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function encodePostgrestFilterValue(value: string): string {
+  return encodeURIComponent(value);
+}
+
+async function readResponseJson(response: Response): Promise<unknown> {
+  const text = await response.text();
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { message: text };
+  }
+}
+
+function getSupabaseErrorMessage(body: unknown): string | null {
+  if (!isRecord(body)) {
+    return null;
+  }
+
+  const message = body.message;
+  const details = body.details;
+  if (typeof message === 'string' && typeof details === 'string') {
+    return `${message}: ${details}`;
+  }
+  if (typeof message === 'string') {
+    return message;
+  }
+
+  return null;
 }
 
 async function handleAdminLogin(request: Request, url: URL, env: Env): Promise<Response> {

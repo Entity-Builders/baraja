@@ -123,9 +123,9 @@ export function AdminTemplatesHeader({
               cursor: savingConfig ? 'not-allowed' : 'pointer', fontWeight: 'bold',
               opacity: savingConfig ? 0.6 : 1,
             }}
-            title="Guarda la versión completa de diseño. El botón Guardar Layout del canvas aplica el layout actual a todo el mazo."
+            title="Crea una copia reusable en el historial. Para aplicar lo que ves al mazo usá Guardar layout en el canvas."
           >
-            {savingConfig ? 'Guardando...' : 'Guardar versión'}
+            {savingConfig ? 'Guardando...' : 'Guardar copia'}
           </button>
         )}
 

@@ -14,6 +14,7 @@ type PreviewSchema = Schema & {
   alignment?: 'left' | 'center' | 'right';
   verticalAlignment?: 'top' | 'middle' | 'bottom';
   fontName?: string;
+  fontWeight?: string | number;
   letterSpacing?: number;
   lineHeight?: number;
   barColor?: string;
@@ -61,6 +62,7 @@ interface PdfmeTemplatePreviewProps {
   fallbackWidth: number;
   fallbackHeight: number;
   variant?: 'stage' | 'card';
+  respectExplicitColors?: boolean;
 }
 
 export function PdfmeTemplatePreview({
@@ -70,6 +72,7 @@ export function PdfmeTemplatePreview({
   fallbackWidth,
   fallbackHeight,
   variant = 'stage',
+  respectExplicitColors = true,
 }: PdfmeTemplatePreviewProps) {
   const previewRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
@@ -104,7 +107,7 @@ export function PdfmeTemplatePreview({
   useEffect(() => {
     let cancelled = false;
 
-    void resolveReadableSchemaColorOverrides(schemas, mockData).then(overrides => {
+    void resolveReadableSchemaColorOverrides(schemas, mockData, { respectExplicitColors }).then(overrides => {
       if (cancelled) return;
       setColorOverrides(overrides);
     });
@@ -112,7 +115,7 @@ export function PdfmeTemplatePreview({
     return () => {
       cancelled = true;
     };
-  }, [mockData, schemas]);
+  }, [mockData, respectExplicitColors, schemas]);
 
   const availableWidth = Math.max(0, viewport.width - gutter);
   const availableHeight = Math.max(0, viewport.height - gutter);
@@ -226,6 +229,7 @@ export function PdfmeTemplatePreview({
                 background: schema.backgroundColor || 'transparent',
                 fontSize: fontPx,
                 fontFamily: schema.fontName ? `"${schema.fontName}", Inter, system-ui, sans-serif` : 'Inter, system-ui, sans-serif',
+                fontWeight: schema.fontWeight ?? 500,
                 lineHeight,
                 letterSpacing: schema.letterSpacing ? `${schema.letterSpacing * PT_TO_MM * scale}px` : undefined,
                 display: 'flex',

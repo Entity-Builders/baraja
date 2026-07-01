@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { EbWhatsAppButton } from '@eb-packages/ui-web';
 import { getPrintableAccess } from '@eb-packages/deck-engine';
 import { findDigitalDeck, getDeckInquiryHref } from '../../lib/digitalDeckCatalog';
 import { trackBarajaEvent } from '../../services/analytics';
@@ -37,10 +38,10 @@ export default function DigitalDeckAccess() {
   const trackInquiry = (source: string, ctaId: string) => {
     trackBarajaEvent('baraja_inquiry_started', {
       cta_id: ctaId,
-      cta_kind: 'mailto',
+      cta_kind: 'whatsapp',
       deck_id: deck.id,
       deck_slug: deck.slug,
-      href_type: 'mailto',
+      href_type: 'wa_me',
       source,
       surface: 'access_page',
     });
@@ -85,13 +86,13 @@ export default function DigitalDeckAccess() {
           >
             Probar sesión
           </Link>
-          <a
+          <EbWhatsAppButton
             className="btn-ghost"
             href={inquiryHref}
             onClick={() => trackInquiry('access_page_cta', 'access_page_cta')}
           >
             Consultar acceso
-          </a>
+          </EbWhatsAppButton>
         </div>
       </section>
 

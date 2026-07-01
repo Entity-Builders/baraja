@@ -17,15 +17,11 @@ interface AdminDeckGalleryProps {
   cards: Card[];
   activeCardId: string | null;
   generatingArt: Record<string, boolean>;
-  generatingBack: Record<string, boolean>;
   batchGenerating: boolean;
-  batchGeneratingBacks: boolean;
   onSelectCard: (cardId: string) => void;
   onEditCard: (card: Card) => void;
   onGenerateArt: (cardId: string) => void;
-  onGenerateCardBack: (cardId: string) => void;
   onBatchGenerateArt: () => void;
-  onBatchGenerateBacks: () => void;
 }
 
 const FILTERS: Array<{ id: GalleryFilter; label: string }> = [
@@ -57,15 +53,11 @@ export function AdminDeckGallery({
   cards,
   activeCardId,
   generatingArt,
-  generatingBack,
   batchGenerating,
-  batchGeneratingBacks,
   onSelectCard,
   onEditCard,
   onGenerateArt,
-  onGenerateCardBack,
   onBatchGenerateArt,
-  onBatchGenerateBacks,
 }: AdminDeckGalleryProps) {
   const [filter, setFilter] = useState<GalleryFilter>('all');
   const [previewFace, setPreviewFace] = useState<PreviewFace>('front');
@@ -157,17 +149,9 @@ export function AdminDeckGallery({
             type="button"
             className={styles.productionButton}
             onClick={onBatchGenerateArt}
-            disabled={batchGenerating || batchGeneratingBacks || readiness.missingFrontArtCount === 0}
+            disabled={batchGenerating || readiness.missingFrontArtCount === 0}
           >
             {batchGenerating ? 'Generando arte...' : 'Generar arte faltante'}
-          </button>
-          <button
-            type="button"
-            className={`${styles.productionButton} ${styles.productionButtonPurple}`}
-            onClick={onBatchGenerateBacks}
-            disabled={batchGenerating || batchGeneratingBacks || readiness.missingBackImageCount === 0}
-          >
-            {batchGeneratingBacks ? 'Generando imágenes...' : 'Generar imágenes IA de reverso'}
           </button>
         </div>
       </header>
@@ -178,7 +162,6 @@ export function AdminDeckGallery({
             const cardReadiness = getCardPublicationReadiness(deck, card);
             const selected = selectedCard?.id === card.id;
             const cardGeneratingArt = Boolean(generatingArt[card.id]);
-            const cardGeneratingBack = Boolean(generatingBack[card.id]);
             const contentDetail = cardReadiness.missingRequiredFields.length > 0
               ? getMissingRequiredFieldLabels(cardReadiness.missingRequiredFields)
               : 'Contenido listo';
@@ -249,7 +232,7 @@ export function AdminDeckGallery({
                         event.stopPropagation();
                         onGenerateArt(card.id);
                       }}
-                      disabled={cardGeneratingArt || cardGeneratingBack}
+                      disabled={cardGeneratingArt}
                     >
                       {cardGeneratingArt ? '...' : 'Arte'}
                     </button>
@@ -334,16 +317,9 @@ export function AdminDeckGallery({
                 <button
                   type="button"
                   onClick={() => onGenerateArt(selectedCard.id)}
-                  disabled={Boolean(generatingArt[selectedCard.id]) || Boolean(generatingBack[selectedCard.id])}
+                  disabled={Boolean(generatingArt[selectedCard.id])}
                 >
                   {generatingArt[selectedCard.id] ? 'Generando...' : 'Generar arte'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onGenerateCardBack(selectedCard.id)}
-                  disabled={Boolean(generatingArt[selectedCard.id]) || Boolean(generatingBack[selectedCard.id])}
-                >
-                  {generatingBack[selectedCard.id] ? 'Generando...' : 'Generar imagen IA'}
                 </button>
               </div>
 

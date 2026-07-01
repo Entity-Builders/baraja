@@ -1,3 +1,5 @@
+import type { PdfTypographyHints } from '../../../../lib/pdfmeConfig';
+
 export interface LibraryFrame {
   id?: string;
   url: string;
@@ -18,6 +20,7 @@ export interface FramesLibraryResponse {
 export interface GenerateFrameResponse {
   success: boolean;
   dataUrl?: string;
+  typography?: PdfTypographyHints | null;
   error?: string;
 }
 

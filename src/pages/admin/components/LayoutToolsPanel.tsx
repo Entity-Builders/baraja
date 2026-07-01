@@ -3,6 +3,7 @@ import { FieldVisibilityMenu } from '../features/deck-studio/FieldVisibilityMenu
 interface LayoutToolsPanelProps {
   hiddenFields: Record<string, boolean>;
   analyzing: boolean;
+  autoLayoutUnavailableReason?: string;
   onFieldChange: (newFields: Record<string, boolean>) => void;
   onAutoLayout: () => void;
 }
@@ -10,9 +11,12 @@ interface LayoutToolsPanelProps {
 export function LayoutToolsPanel({
   hiddenFields,
   analyzing,
+  autoLayoutUnavailableReason,
   onFieldChange,
   onAutoLayout,
 }: LayoutToolsPanelProps) {
+  const autoLayoutDisabled = analyzing || Boolean(autoLayoutUnavailableReason);
+
   return (
     <section
       style={{
@@ -42,13 +46,14 @@ export function LayoutToolsPanel({
 
         <button
           onClick={onAutoLayout}
-          disabled={analyzing}
+          disabled={autoLayoutDisabled}
+          title={autoLayoutUnavailableReason}
           style={{
             width: '100%',
-            background: analyzing ? '#444' : 'linear-gradient(135deg, #2a2a2a, #111)',
+            background: autoLayoutDisabled ? '#333' : 'linear-gradient(135deg, #2a2a2a, #111)',
             border: '1px solid rgba(255,255,255,0.18)',
-            cursor: analyzing ? 'not-allowed' : 'pointer',
-            color: 'white',
+            cursor: autoLayoutDisabled ? 'not-allowed' : 'pointer',
+            color: autoLayoutDisabled ? 'rgba(255,255,255,0.52)' : 'white',
             padding: '0.55rem 0.75rem',
             borderRadius: '6px',
             fontSize: '0.82rem',
@@ -57,6 +62,11 @@ export function LayoutToolsPanel({
         >
           {analyzing ? 'Analizando layout...' : 'Sugerir auto-layout'}
         </button>
+        {autoLayoutUnavailableReason ? (
+          <p style={{ margin: 0, color: 'rgba(255,255,255,0.44)', fontSize: '0.68rem', lineHeight: 1.35 }}>
+            {autoLayoutUnavailableReason}
+          </p>
+        ) : null}
       </div>
     </section>
   );

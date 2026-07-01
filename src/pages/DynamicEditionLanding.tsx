@@ -1,56 +1,27 @@
-import React, { useState } from 'react';
+import { EbWhatsAppButton } from '@eb-packages/ui-web';
+import type { CSSProperties } from 'react';
 import { PublicShowcase } from '../components/cards/PublicShowcase';
 import { RelatedDecksSection } from '../components/decks/RelatedDecksSection';
 import { useDeck } from '../hooks/useDeck';
+import {
+  getBarajaInquiryHref,
+  getDeckInquiryMessage,
+} from '../lib/digitalDeckCatalog';
 
-// ── Email capture ─────────────────────────────────────────────
+// ── WhatsApp inquiry ──────────────────────────────────────────
 
-function EmailCapture({ id, slug }: { id: string; slug: string }) {
-  const [email, setEmail] = useState('');
-  const [status, setStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!email) return;
-    setStatus('loading');
-    try {
-      const res = await fetch('/api/leads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, edition: slug }),
-      });
-      setStatus(res.ok ? 'done' : 'error');
-    } catch {
-      setStatus('error');
-    }
-  }
-
-  if (status === 'done') {
-    return (
-      <p className="cat-thanks">
-        Anotado. 🧲 Te escribimos el día del lanzamiento.
-      </p>
-    );
-  }
-
+function WhatsAppInquiry({ id, message }: { id: string; message: string }) {
   return (
-    <form className="lead-form" onSubmit={handleSubmit} id={id}>
-      <input
-        className="lead-input"
-        type="email"
-        placeholder="tu@email.com"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        required
-        aria-label="Tu email"
-      />
-      <button className="btn-primary" type="submit" disabled={status === 'loading'}>
-        {status === 'loading' ? '...' : 'Consultar por mi mazo'}
-      </button>
-      {status === 'error' && (
-        <p className="cat-error">Algo salió mal. Intentá de nuevo.</p>
-      )}
-    </form>
+    <div className="lead-form" id={id}>
+      <EbWhatsAppButton
+        aria-label="Consultar este mazo por WhatsApp"
+        className="btn-primary"
+        fullWidth
+        href={getBarajaInquiryHref(message)}
+      >
+        Consultar por WhatsApp
+      </EbWhatsAppButton>
+    </div>
   );
 }
 
@@ -58,8 +29,12 @@ function hasPurchaseLanguage(value: unknown): value is string {
   return typeof value === 'string' && /compr|precio|pago|checkout|tienda/i.test(value);
 }
 
+function hasEmailLeadLanguage(value: unknown): value is string {
+  return typeof value === 'string' && /mail|email|correo|notific/i.test(value);
+}
+
 function inquiryCopy(value: unknown, fallback: string): string {
-  if (hasPurchaseLanguage(value)) {
+  if (hasPurchaseLanguage(value) || hasEmailLeadLanguage(value)) {
     return fallback;
   }
 
@@ -101,7 +76,7 @@ export default function DynamicEditionLanding({ slug }: DynamicEditionLandingPro
     '--color-gold': deck.design.accent_color || 'var(--color-gold)',
     '--color-gold-light': deck.design.accent_color || 'var(--color-gold-light)',
     '--color-border': 'rgba(255, 255, 255, 0.1)',
-  } as React.CSSProperties;
+  } as CSSProperties;
 
   // Defaults for missing configs
   const heroEyebrow = config.hero?.eyebrow || 'Edición Especial';
@@ -119,8 +94,9 @@ export default function DynamicEditionLanding({ slug }: DynamicEditionLandingPro
   const leadTitle = inquiryCopy(config.leadCapture?.title, `Consultar ${deck.name}`);
   const leadSubtitle = inquiryCopy(
     config.leadCapture?.subtitle,
-    'Dejá tu mail y te contamos cómo acceder cuando esté listo.'
+    'Escribinos por WhatsApp y vemos cómo acceder a esta edición.'
   );
+  const inquiryMessage = getDeckInquiryMessage(deck);
 
   // Resolve Vibe Background
   // Fallbacks: If the generated vibe image doesn't exist, it will fallback to CSS gradient
@@ -220,7 +196,7 @@ export default function DynamicEditionLanding({ slug }: DynamicEditionLandingPro
               {leadSubtitle}
             </p>
           </div>
-          <EmailCapture id="lead-main" slug={deck.slug} />
+          <WhatsAppInquiry id="lead-main" message={inquiryMessage} />
         </div>
       </section>
 

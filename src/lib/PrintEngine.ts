@@ -2,10 +2,11 @@ import { generate } from '@pdfme/generator';
 import type { Template, Schema } from '@pdfme/common';
 import type { DeckSchema } from '@eb-packages/deck-engine';
 import { getCardQrUrl, shouldRenderPrintableQr } from '@eb-packages/deck-engine';
-import { getTemplateForDeck, createFlujoBTemplate, cardUsesFlujob, buildPdfmeFonts, pdfmePlugins } from './pdfmeConfig';
+import { getTemplateForDeck, createFlujoBTemplate, buildPdfmeFonts, pdfmePlugins } from './pdfmeConfig';
 import type { PdfTypographyHints } from './pdfmeConfig';
 import { getFrameDataUri, getFrameTypography } from './cardFrame';
 import { applyReadableSchemaColors } from './cardReadability';
+import { getDeckReverseModel, shouldUseLegacyFullBackTemplate } from './reverseModel';
 
 // Adaptive phrase size utility removed. Handled natively via pdfme dynamicFontSize injection.
 
@@ -88,12 +89,12 @@ async function buildImpositionTemplateAndInputs(
   sheetSize: 'A3' | 'A4'
 ): Promise<{ template: Template; inputs: Record<string, string>[] }> {
   // 1. Get the base single-card template
-  // Flujo B: use AI-back template if any card has back_image_url
-  const hasFlujobCards = deck.cards.some(c => cardUsesFlujob(c));
+  const reverseModel = getDeckReverseModel(deck);
+  const useLegacyFullBackTemplate = shouldUseLegacyFullBackTemplate(reverseModel);
   const shouldIncludeQr = shouldRenderPrintableQr(deck);
   const cardWidth = deck.print_specs?.dimensions?.width || 70;
   const cardHeight = deck.print_specs?.dimensions?.height || 120;
-  const cardTemplate = hasFlujobCards
+  const cardTemplate = useLegacyFullBackTemplate
     ? createFlujoBTemplate(cardWidth, cardHeight)
     : getTemplateForDeck(deck);
   const cardSchemas = cardTemplate.schemas; // [0] = front, [1] = back
@@ -121,7 +122,7 @@ async function buildImpositionTemplateAndInputs(
   console.log('[PrintEngine] Grid:', { cols, rows, cardsPerSheet, sheet: `${sheet.width}×${sheet.height}` });
   console.log('[PrintEngine] basePdf source:', cardTemplate.basePdf);
   console.log('[PrintEngine] print_specs.dimensions:', deck.print_specs?.dimensions);
-  console.log('[PrintEngine] hasFlujobCards:', hasFlujobCards);
+  console.log('[PrintEngine] reverseModel:', reverseModel.model);
 
   // Center the grid on the page
   const gridW = cols * totalW;
@@ -307,11 +308,7 @@ async function buildImpositionTemplateAndInputs(
   };
 
   // ── Detect deck rendering mode ─────────────────────────────────────────
-  // Flujo B: all cards in the deck have AI-generated back images.
-  // Mixed decks (some with, some without) use Flujo B when available, fallback otherwise.
-  const allFlujob = deck.cards.every(c => cardUsesFlujob(c));
-  const anyFlujob = deck.cards.some(c => cardUsesFlujob(c));
-  console.log(`[PrintEngine] Mode: ${allFlujob ? 'Flujo B (all AI backs)' : anyFlujob ? 'Mixed' : 'Standard frame+text'}`);
+  console.log(`[PrintEngine] Mode: ${useLegacyFullBackTemplate ? `Full-back image (${reverseModel.model})` : 'Editable frame+text'}`);
 
   // ── PRE-FETCH PHASE ────────────────────────────────────────────────────
   // Front art images: cover-crop to the card's aspect ratio so pdfme fills edge-to-edge.
@@ -320,7 +317,7 @@ async function buildImpositionTemplateAndInputs(
   const backUrls = new Set<string>();
   deck.cards.forEach(c => {
     if (c.front.art_url) frontUrls.add(c.front.art_url);
-    if (c.back.back_image_url) backUrls.add(c.back.back_image_url);
+    if (useLegacyFullBackTemplate && c.back.back_image_url) backUrls.add(c.back.back_image_url);
   });
   
   const urlToDataUrl: Record<string, string> = {};
@@ -336,7 +333,7 @@ async function buildImpositionTemplateAndInputs(
   ];
   
   // Only fetch the frame if we have cards that still need it (non-Flujo B)
-  const needsFrame = deck.cards.some(c => !cardUsesFlujob(c));
+  const needsFrame = !useLegacyFullBackTemplate;
   // Cover-crop the frame to the exact cell aspect ratio (including bleed) so it fills edge-to-edge in the PDF.
   const framePromise = needsFrame
     ? getFrameDataUri(deck.slug).then(uri => coverCropToJpeg(uri, totalW, totalH))
@@ -368,7 +365,7 @@ async function buildImpositionTemplateAndInputs(
           pageInputs[`number_${suffix}`] = `#${String(card.front.number).padStart(2, '0')}`;
           pageInputs[`title_${suffix}`] = card.front.title;
 
-          if (cardUsesFlujob(card)) {
+          if (useLegacyFullBackTemplate) {
             // ── FLUJO B: AI-generated full card back + QR overlay ──
             pageInputs[`back_ai_image_${suffix}`] = card.back.back_image_url
               ? (urlToDataUrl[card.back.back_image_url] || card.back.back_image_url)

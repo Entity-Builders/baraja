@@ -29,6 +29,15 @@ export function CardFieldInventoryPanel({
 }) {
   const frontCounts = getFieldCounts(frontFields);
   const backCounts = getFieldCounts(backFields);
+  const faceGroups = activeFace === 'back'
+    ? [
+        { key: 'back', label: 'Dorso', fields: backFields, counts: backCounts },
+        { key: 'front', label: 'Frente', fields: frontFields, counts: frontCounts },
+      ]
+    : [
+        { key: 'front', label: 'Frente', fields: frontFields, counts: frontCounts },
+        { key: 'back', label: 'Dorso', fields: backFields, counts: backCounts },
+      ];
 
   return (
     <div>
@@ -36,18 +45,15 @@ export function CardFieldInventoryPanel({
         Campos de la carta actual
       </div>
       <div style={{ display: 'grid', gap: '0.55rem' }}>
-        <CardFaceFieldGroup
-          label="Frente"
-          active={activeFace === 'front'}
-          fields={frontFields}
-          counts={frontCounts}
-        />
-        <CardFaceFieldGroup
-          label="Dorso"
-          active={activeFace === 'back'}
-          fields={backFields}
-          counts={backCounts}
-        />
+        {faceGroups.map(group => (
+          <CardFaceFieldGroup
+            key={group.key}
+            label={group.label}
+            active={activeFace === group.key}
+            fields={group.fields}
+            counts={group.counts}
+          />
+        ))}
       </div>
     </div>
   );

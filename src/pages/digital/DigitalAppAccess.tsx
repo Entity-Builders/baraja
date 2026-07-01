@@ -1,4 +1,5 @@
 import { Link, useParams } from 'react-router-dom';
+import { EbWhatsAppButton } from '@eb-packages/ui-web';
 import {
   FEATURED_DIGITAL_DECK,
   findDigitalDeck,
@@ -23,10 +24,10 @@ export default function DigitalAppAccess() {
   const trackInquiry = (source: string, ctaId: string) => {
     trackBarajaEvent('baraja_inquiry_started', {
       cta_id: ctaId,
-      cta_kind: 'mailto',
+      cta_kind: 'whatsapp',
       deck_id: deck.id,
       deck_slug: deck.slug,
-      href_type: 'mailto',
+      href_type: 'wa_me',
       source,
       surface: 'pwa_access',
     });
@@ -67,7 +68,7 @@ export default function DigitalAppAccess() {
             <span>Carta</span>
             <span>Tarjeta</span>
           </div>
-          <a
+          <EbWhatsAppButton
             href={inquiryHref}
             onClick={() => {
               trackPrintableInterest('pwa_access_pdf_cta');
@@ -75,7 +76,7 @@ export default function DigitalAppAccess() {
             }}
           >
             Consultar PDF imprimible
-          </a>
+          </EbWhatsAppButton>
         </article>
 
         <article className="baraja-print-rights">

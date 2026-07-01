@@ -7,8 +7,12 @@ interface DeckDesignerToolbarProps {
   hideGuides: boolean;
   saving: boolean;
   showTechnicalEditor: boolean;
+  analyzing?: boolean;
+  autoLayoutUnavailableReason?: string;
   onCardSizeChange: (width: number, height: number) => void;
   onFaceChange: (face: CardFace) => void;
+  onAutoLayout?: () => void;
+  onFocusBackgroundTools?: () => void;
   onSave: () => void;
   onToggleGuides: () => void;
   onToggleTechnicalEditor: () => void;
@@ -32,17 +36,22 @@ export function DeckDesignerToolbar({
   hideGuides,
   saving,
   showTechnicalEditor,
+  analyzing,
+  autoLayoutUnavailableReason,
   onCardSizeChange,
   onFaceChange,
+  onAutoLayout,
+  onFocusBackgroundTools,
   onSave,
   onToggleGuides,
   onToggleTechnicalEditor,
 }: DeckDesignerToolbarProps) {
   const matchedPreset = CARD_SIZE_PRESETS.find(preset => preset.w === cardWidth && preset.h === cardHeight);
   const selectValue = matchedPreset ? `${matchedPreset.w}x${matchedPreset.h}` : 'custom';
+  const autoLayoutDisabled = analyzing || Boolean(autoLayoutUnavailableReason) || !onAutoLayout;
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: '#131313', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', padding: '0.75rem 1rem', background: '#131313', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
       <div style={{ display: 'flex', gap: '0.5rem', background: '#000', padding: '4px', borderRadius: '6px' }}>
         {(['front', 'back'] as const).map(face => (
           <button
@@ -115,7 +124,71 @@ export function DeckDesignerToolbar({
 
       <div style={{ width: '1px', height: '20px', background: 'rgba(255,255,255,0.1)' }} />
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.35rem',
+            padding: '0.28rem',
+            borderRadius: '8px',
+            border: '1px solid rgba(96,165,250,0.28)',
+            background: 'linear-gradient(135deg, rgba(96,165,250,0.12), rgba(212,175,100,0.1))',
+          }}
+        >
+          <span
+            style={{
+              alignSelf: 'stretch',
+              display: 'grid',
+              placeItems: 'center',
+              minWidth: '32px',
+              padding: '0 0.35rem',
+              borderRadius: '6px',
+              background: 'rgba(255,255,255,0.08)',
+              color: '#bfdbfe',
+              fontSize: '0.68rem',
+              fontWeight: 900,
+              letterSpacing: '0.08em',
+            }}
+          >
+            AI
+          </span>
+          <button
+            onClick={onFocusBackgroundTools}
+            disabled={!onFocusBackgroundTools}
+            style={{
+              background: onFocusBackgroundTools ? 'rgba(212,175,100,0.22)' : 'rgba(255,255,255,0.045)',
+              border: `1px solid ${onFocusBackgroundTools ? 'rgba(212,175,100,0.46)' : 'rgba(255,255,255,0.13)'}`,
+              color: onFocusBackgroundTools ? '#ffe2a0' : 'rgba(255,255,255,0.5)',
+              padding: '0.52rem 0.78rem',
+              borderRadius: '6px',
+              cursor: onFocusBackgroundTools ? 'pointer' : 'not-allowed',
+              fontSize: '0.76rem',
+              fontWeight: 850,
+              opacity: onFocusBackgroundTools ? 1 : 0.45,
+            }}
+          >
+            Fondo contextual
+          </button>
+          <button
+            onClick={onAutoLayout}
+            disabled={autoLayoutDisabled}
+            title={autoLayoutUnavailableReason || 'Recalcular posiciones, tamanos y legibilidad con AI'}
+            style={{
+              background: autoLayoutDisabled ? 'rgba(255,255,255,0.045)' : 'rgba(96,165,250,0.2)',
+              border: `1px solid ${autoLayoutDisabled ? 'rgba(255,255,255,0.13)' : 'rgba(96,165,250,0.48)'}`,
+              color: autoLayoutDisabled ? 'rgba(255,255,255,0.5)' : '#dbeafe',
+              padding: '0.52rem 0.78rem',
+              borderRadius: '6px',
+              cursor: autoLayoutDisabled ? 'not-allowed' : 'pointer',
+              fontSize: '0.76rem',
+              fontWeight: 850,
+              opacity: autoLayoutDisabled ? 0.62 : 1,
+            }}
+          >
+            {analyzing ? 'Analizando...' : 'Texto + contraste'}
+          </button>
+        </div>
         <button
           onClick={onToggleTechnicalEditor}
           style={{ background: showTechnicalEditor ? 'rgba(212,175,100,0.14)' : 'transparent', border: `1px solid ${showTechnicalEditor ? 'var(--color-gold)' : '#444'}`, color: showTechnicalEditor ? 'var(--color-gold)' : '#ccc', padding: '0.4rem 0.8rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 650 }}
@@ -125,7 +198,17 @@ export function DeckDesignerToolbar({
         <button
           onClick={onToggleGuides}
           disabled={!showTechnicalEditor}
-          style={{ background: 'transparent', border: '1px solid #444', color: '#ccc', padding: '0.4rem 0.8rem', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem' }}
+          title={showTechnicalEditor ? undefined : 'Las guías solo aparecen en Editar posiciones'}
+          style={{
+            background: hideGuides ? 'rgba(255,255,255,0.08)' : 'transparent',
+            border: `1px solid ${hideGuides ? 'rgba(255,255,255,0.22)' : '#444'}`,
+            color: showTechnicalEditor ? '#ccc' : 'rgba(255,255,255,0.4)',
+            padding: '0.4rem 0.8rem',
+            borderRadius: '4px',
+            cursor: showTechnicalEditor ? 'pointer' : 'not-allowed',
+            fontSize: '0.75rem',
+            opacity: showTechnicalEditor ? 1 : 0.58,
+          }}
         >
           {hideGuides ? 'Mostrar guías' : 'Ocultar guías'}
         </button>

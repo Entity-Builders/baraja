@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { DECKS, RAW_DECKS } from '@eb-packages/deck-engine';
 import type {
+  Card,
   DeckMetadata,
   DeckPricing,
   DeckSchema,
@@ -82,6 +83,37 @@ function buildEditionPayloadFromDeck(deck: RawDeckContent): Record<string, unkno
   };
 }
 
+function getDeckSlug(id: string): string {
+  return getLocalDeckRow(id)?.slug || id;
+}
+
+function getLocalCard(deckId: string, cardId: string): Card | undefined {
+  return getLocalDeckRow(deckId)?.cards.find(card => card.id === cardId);
+}
+
+function buildCardPayload(
+  editionSlug: string,
+  cardId: string,
+  updates: Partial<Card>,
+  fallback?: Card,
+): Record<string, unknown> {
+  const front = updates.front ?? fallback?.front;
+  const back = updates.back ?? fallback?.back;
+
+  if (!front || !back) {
+    throw new Error('Card front and back are required before saving to Supabase.');
+  }
+
+  return {
+    id: cardId,
+    edition_slug: editionSlug,
+    number: front.number,
+    front,
+    back,
+    tags: updates.tags ?? fallback?.tags ?? [],
+  };
+}
+
 function getDeckMetadata(value: unknown, fallback?: DeckMetadata): DeckMetadata {
   const base: DeckMetadata = fallback ?? {
     topic: '',
@@ -124,6 +156,39 @@ export class SupabaseDeckRepository implements IDeckRepository {
 
   constructor() {
     this.client = supabase;
+  }
+
+  private async ensureEditionRow(id: string): Promise<string> {
+    if (!hasSupabaseConfig) {
+      throw new Error('Supabase is not configured; deck changes cannot be persisted.');
+    }
+
+    const editionSlug = getDeckSlug(id);
+    const { data: existing, error: existingError } = await this.client
+      .from('editions')
+      .select('slug')
+      .eq('slug', editionSlug)
+      .maybeSingle();
+
+    if (!existingError && existing?.slug) {
+      return String(existing.slug);
+    }
+
+    const localDeck = getLocalDeckRow(id);
+    if (!localDeck) {
+      throw new Error(`Deck "${id}" does not exist in Supabase and has no bundled seed content.`);
+    }
+
+    const { error } = await this.client
+      .from('editions')
+      .upsert(buildEditionPayloadFromDeck(localDeck), { onConflict: 'slug' });
+
+    if (error) {
+      console.error(`[SupabaseDeckRepository] ensureEditionRow error for ${id}:`, error);
+      throw error;
+    }
+
+    return editionSlug;
   }
 
   async getDeckById(id: string): Promise<RawDeckContent | null> {
@@ -242,13 +307,18 @@ export class SupabaseDeckRepository implements IDeckRepository {
   }
 
   async updateDeckSettings(id: string, updates: Partial<RawDeckContent>): Promise<void> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const payload: Record<string, any> = {};
-
     if (!hasSupabaseConfig) {
       throw new Error('Supabase is not configured; deck settings cannot be persisted.');
     }
 
+    const payload: Record<string, unknown> = {};
+
+    if (updates.name !== undefined) {
+      payload.name = updates.name;
+    }
+    if (updates.description !== undefined) {
+      payload.description = updates.description;
+    }
     if (updates.print_spec_id !== undefined) {
       payload.print_spec_id = updates.print_spec_id;
     }
@@ -275,20 +345,36 @@ export class SupabaseDeckRepository implements IDeckRepository {
     }
 
     if (Object.keys(payload).length > 0) {
-      const localDeck = getLocalDeckRow(id);
-      const upsertPayload = {
-        ...(localDeck ? buildEditionPayloadFromDeck(localDeck) : { slug: id }),
-        ...payload,
-      };
+      const editionSlug = await this.ensureEditionRow(id);
 
       const { error } = await this.client
         .from('editions')
-        .upsert(upsertPayload, { onConflict: 'slug' });
+        .update(payload)
+        .eq('slug', editionSlug);
 
       if (error) {
         console.error(`[SupabaseDeckRepository] updateDeckSettings error for ${id}:`, error);
         throw error;
       }
+    }
+  }
+
+  async updateCard(editionId: string, cardId: string, updates: Partial<Card>): Promise<void> {
+    if (!hasSupabaseConfig) {
+      throw new Error('Supabase is not configured; card changes cannot be persisted.');
+    }
+
+    const editionSlug = await this.ensureEditionRow(editionId);
+    const fallbackCard = getLocalCard(editionId, cardId);
+    const payload = buildCardPayload(editionSlug, cardId, updates, fallbackCard);
+
+    const { error } = await this.client
+      .from('cards')
+      .upsert(payload, { onConflict: 'id' });
+
+    if (error) {
+      console.error(`[SupabaseDeckRepository] updateCard error for ${editionId}/${cardId}:`, error);
+      throw error;
     }
   }
 
@@ -301,17 +387,7 @@ export class SupabaseDeckRepository implements IDeckRepository {
       throw new Error('Supabase is not configured; preset assignment cannot be persisted.');
     }
 
-    const localDeck = getLocalDeckRow(editionSlug);
-    if (localDeck) {
-      const { error: upsertError } = await this.client
-        .from('editions')
-        .upsert(buildEditionPayloadFromDeck(localDeck), { onConflict: 'slug' });
-
-      if (upsertError) {
-        console.error(`[SupabaseDeckRepository] assignPreset upsert error:`, upsertError);
-        throw upsertError;
-      }
-    }
+    const resolvedEditionSlug = await this.ensureEditionRow(editionSlug);
 
     const { error } = await this.client
       .from('editions')
@@ -319,7 +395,7 @@ export class SupabaseDeckRepository implements IDeckRepository {
         design_template_id: presetId,
         design_template_overrides: {}, // Clear overrides — preset is the source of truth
       })
-      .eq('slug', editionSlug);
+      .eq('slug', resolvedEditionSlug);
 
     if (error) {
       console.error(`[SupabaseDeckRepository] assignPreset error:`, error);
@@ -501,6 +577,14 @@ export interface SavedConfigRow {
 
 export type SavedConfigInput = Omit<SavedConfigRow, 'id' | 'created_at' | 'updated_at'>;
 
+export interface SavedConfigApplyOverrides {
+  layout_config?: Record<string, unknown>;
+  hidden_fields?: Record<string, boolean>;
+  card_width?: number;
+  card_height?: number;
+  design_template_id?: string | null;
+}
+
 export class SavedConfigRepository {
   private client: typeof supabase;
 
@@ -560,7 +644,11 @@ export class SavedConfigRepository {
    * Writes the config's layout, size, hidden fields, and template reference
    * back to the edition's design_template_overrides.
    */
-  async applyToEdition(configId: string, editionSlug: string): Promise<void> {
+  async applyToEdition(
+    configId: string,
+    editionSlug: string,
+    overrides: SavedConfigApplyOverrides = {},
+  ): Promise<void> {
     // 1. Fetch the saved config
     const { data: config, error: fetchError } = await this.client
       .from('saved_configs')
@@ -576,15 +664,16 @@ export class SavedConfigRepository {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const payload: Record<string, any> = {
       design_template_overrides: {
-        layout_config: config.layout_config,
-        hidden_fields: config.hidden_fields,
-        card_width: config.card_width,
-        card_height: config.card_height,
+        layout_config: overrides.layout_config ?? config.layout_config,
+        hidden_fields: overrides.hidden_fields ?? config.hidden_fields,
+        card_width: overrides.card_width ?? config.card_width,
+        card_height: overrides.card_height ?? config.card_height,
       },
     };
 
-    if (config.design_template_id) {
-      payload.design_template_id = config.design_template_id;
+    const designTemplateId = overrides.design_template_id ?? config.design_template_id;
+    if (designTemplateId) {
+      payload.design_template_id = designTemplateId;
     }
 
     // 3. Update the edition

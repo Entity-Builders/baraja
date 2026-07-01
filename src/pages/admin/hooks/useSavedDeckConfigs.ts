@@ -3,11 +3,22 @@ import type { RawDeckContent } from '@eb-packages/deck-engine';
 import type { Template } from '@pdfme/common';
 import {
   SavedConfigRepository,
+  type SavedConfigApplyOverrides,
   type SavedConfigRow,
 } from '../../../lib/deckRepository';
 import { getErrorMessage } from '../../../lib/errors';
 
 const savedConfigRepo = new SavedConfigRepository();
+
+function broadcastTemplateUpdated(deckId: string): void {
+  try {
+    const channel = new BroadcastChannel('baraja_template_updates');
+    channel.postMessage({ type: 'TEMPLATE_UPDATED', deckId });
+    channel.close();
+  } catch (err) {
+    console.warn('[useSavedDeckConfigs] Failed to broadcast template update:', err);
+  }
+}
 
 interface UseSavedDeckConfigsParams {
   activeDeck: RawDeckContent | null | undefined;
@@ -23,6 +34,7 @@ interface UseSavedDeckConfigsParams {
     hiddenFields: Record<string, boolean>,
   ) => void;
   onSelectDeckId: (deckId: string) => void;
+  getApplyOverrides?: (config: SavedConfigRow) => SavedConfigApplyOverrides | undefined;
 }
 
 export function useSavedDeckConfigs({
@@ -34,6 +46,7 @@ export function useSavedDeckConfigs({
   getLiveTemplate,
   onApplyTemplateSnapshot,
   onSelectDeckId,
+  getApplyOverrides,
 }: UseSavedDeckConfigsParams) {
   const layoutScratchRef = useRef<{
     template: Template;
@@ -127,15 +140,11 @@ export function useSavedDeckConfigs({
     savedConfigs,
   ]);
 
-  const handleSaveConfig = useCallback(async () => {
-    if (!activeDeck || !activeTemplate) return;
-
-    const configName = prompt(
-      'Nombre de la versión de diseño:\n(ej: "Barómetro 6×9 Premium", "Poker Night")',
-      `${activeDeck.name} ${cardWidth}×${cardHeight}`
-    );
-    if (!configName) return;
-
+  const saveConfigSnapshot = useCallback(async (
+    configName: string,
+    options: { notify?: boolean } = {},
+  ): Promise<boolean> => {
+    if (!activeDeck || !activeTemplate) return false;
     setSavingConfig(true);
     try {
       const liveTemplate = getLiveTemplate() || activeTemplate;
@@ -152,9 +161,13 @@ export function useSavedDeckConfigs({
       });
 
       await fetchSavedConfigs(activeDeck.slug);
-      alert(`Versión "${configName}" guardada correctamente.`);
+      if (options.notify) {
+        alert(`Copia "${configName}" guardada en el historial. Para aplicarla al mazo usá "Aplicar", o usá "Guardar layout" para aplicar lo que ves ahora.`);
+      }
+      return true;
     } catch (err: unknown) {
       alert('Error guardando config: ' + getErrorMessage(err));
+      return false;
     } finally {
       setSavingConfig(false);
     }
@@ -168,13 +181,30 @@ export function useSavedDeckConfigs({
     hiddenFields,
   ]);
 
+  const handleSaveConfig = useCallback(async () => {
+    if (!activeDeck || !activeTemplate) return;
+
+    const configName = prompt(
+      'Nombre de la versión de diseño:\n(ej: "Barómetro 6×9 Premium", "Poker Night")',
+      `${activeDeck.name} ${cardWidth}×${cardHeight}`
+    );
+    if (!configName) return;
+
+    await saveConfigSnapshot(configName, { notify: true });
+  }, [activeDeck, activeTemplate, cardHeight, cardWidth, saveConfigSnapshot]);
+
   const handleApplyConfig = useCallback(async (config: SavedConfigRow) => {
     if (!activeDeck) return;
     if (!confirm(`¿Aplicar la versión "${config.name}" a ${activeDeck.name}?\n\nEsto reemplazará el layout, tamaño y campos ocultos actuales para todo el mazo.`)) return;
 
     setApplyingConfigId(config.id);
     try {
-      await savedConfigRepo.applyToEdition(config.id, activeDeck.slug || activeDeck.id);
+      await savedConfigRepo.applyToEdition(
+        config.id,
+        activeDeck.slug || activeDeck.id,
+        getApplyOverrides?.(config),
+      );
+      broadcastTemplateUpdated(activeDeck.slug || activeDeck.id);
       onSelectDeckId('');
       setTimeout(() => onSelectDeckId(activeDeck.id), 100);
       alert(`Versión "${config.name}" aplicada al mazo. El editor se recargó.`);
@@ -183,7 +213,7 @@ export function useSavedDeckConfigs({
     } finally {
       setApplyingConfigId(null);
     }
-  }, [activeDeck, onSelectDeckId]);
+  }, [activeDeck, getApplyOverrides, onSelectDeckId]);
 
   const handleDeleteConfig = useCallback(async (config: SavedConfigRow) => {
     if (!confirm(`¿Eliminar la versión "${config.name}"? Esta acción no se puede deshacer.`)) return;
@@ -204,6 +234,7 @@ export function useSavedDeckConfigs({
     applyingConfigId,
     handleSelectConfig,
     handleSaveConfig,
+    saveConfigSnapshot,
     handleApplyConfig,
     handleDeleteConfig,
   };

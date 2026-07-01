@@ -9,6 +9,10 @@ type StyledSchema = Schema & {
   opacity?: number;
 };
 
+interface ReadabilityColorOptions {
+  respectExplicitColors?: boolean;
+}
+
 interface Rect {
   x: number;
   y: number;
@@ -145,6 +149,12 @@ function getSolidSchemaBackground(schema: StyledSchema): Rgb | null {
 function getSchemaColor(schema: StyledSchema): string | undefined {
   if (schema.type === 'qrcode') return schema.barColor || schema.fontColor;
   return schema.fontColor || schema.color;
+}
+
+function hasExplicitSchemaColor(schema: StyledSchema): boolean {
+  if (schema.type === 'qrcode') return Boolean(schema.barColor || schema.fontColor);
+  if (schema.type === 'text') return Boolean(schema.fontColor || schema.color);
+  return Boolean(schema.color);
 }
 
 function getMinContrast(schema: StyledSchema): number {
@@ -292,12 +302,14 @@ async function getBackgroundForSchema(
 export async function resolveReadableSchemaColorOverrides(
   schemas: Schema[],
   mockData: Record<string, string>,
+  options: ReadabilityColorOptions = {},
 ): Promise<Record<string, string>> {
   const styledSchemas = schemas as StyledSchema[];
   const overrides: Record<string, string> = {};
 
   await Promise.all(styledSchemas.map(async (schema, index) => {
     if (schema.type !== 'text' && schema.type !== 'qrcode') return;
+    if (options.respectExplicitColors && hasExplicitSchemaColor(schema)) return;
 
     const currentColor = getSchemaColor(schema);
     if (!currentColor) return;
@@ -323,11 +335,12 @@ export async function resolveReadableSchemaColorOverrides(
 export async function applyReadableSchemaColors(
   template: Template,
   mockData: Record<string, string>,
+  options: ReadabilityColorOptions = {},
 ): Promise<Template> {
   const next = JSON.parse(JSON.stringify(template)) as Template;
 
   next.schemas = await Promise.all(next.schemas.map(async page => {
-    const overrides = await resolveReadableSchemaColorOverrides(page, mockData);
+    const overrides = await resolveReadableSchemaColorOverrides(page, mockData, options);
     return page.map(schema => {
       const readable = overrides[schema.name];
       if (!readable) return schema;

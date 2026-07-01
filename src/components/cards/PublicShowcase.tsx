@@ -25,6 +25,7 @@ export function PublicShowcase({ deck, maxCards }: PublicShowcaseProps) {
           onFlip={() => setFlippedCardId(flippedCardId === card.id ? null : card.id)}
           // Grids look tighter and better framed with the literal printed aspect ratio
           forceOriginalMode={true} 
+          showInfoRow={false}
           showQr={false}
         />
       ))}

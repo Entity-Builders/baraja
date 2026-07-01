@@ -13,6 +13,9 @@
 	"compatibility_flags": [
 		"nodejs_compat"
 	],
+	"vars": {
+		"SUPABASE_URL": "https://xfcvuzcxvdpzkqpnahyx.supabase.co"
+	},
 	"d1_databases": [
 		{
 			"binding": "DB",
@@ -39,6 +42,9 @@
 					"custom_domain": true
 				}
 			],
+			"vars": {
+				"SUPABASE_URL": "https://xfcvuzcxvdpzkqpnahyx.supabase.co"
+			},
 			"d1_databases": [
 				{
 					"binding": "DB",

@@ -11,19 +11,29 @@ import {
   getCanonicalTemplateFieldName,
   normalizeTemplateFieldAliases,
 } from './cardFieldPlacements';
+import {
+  cardUsesFlujob,
+  getDeckReverseModel,
+  shouldUseLegacyFullBackTemplate,
+} from './reverseModel';
 
 // ── Typography hints from AI (mirrors CardCanvas interface) ───────────────────
 export interface PdfTypographyZone {
   fontSize?: number;    // pt (pdfme units)
   fontFamily?: string;  // must match a registered font name
+  fontWeight?: string;
   lineHeight?: number;
   letterSpacing?: number;
+  characterSpacing?: number;
   color?: string;       // hex (#rrggbb)
   topPct?: number;      // % spacing from top
   heightPct?: number;   // % height bounds
   leftPct?: number;     // % spacing from left edge
   widthPct?: number;    // % bounding box width
   containerSvg?: string;
+  readabilityScore?: number;
+  backgroundComplexity?: 'low' | 'medium' | 'high';
+  needsOverlay?: boolean;
 }
 
 export interface PdfTypographyHints {
@@ -65,6 +75,56 @@ function getTypographyZone(
   }
 
   return undefined;
+}
+
+function normalizeTextContainerSvg(rawSvg: string): string {
+  const svg = rawSvg.trim();
+  if (!svg) return '';
+
+  const lower = svg.toLowerCase();
+  const isPlainRect = lower.includes('<rect') && !/<(path|circle|ellipse|polygon|lineargradient|radialgradient)\b/.test(lower);
+  const hasHeavyFill = /rgba\([^)]*,\s*(0\.[4-9]|1(?:\.0+)?)\)/.test(lower) || /opacity="0\.[5-9]/.test(lower);
+
+  if (isPlainRect && hasHeavyFill) {
+    return [
+      '<defs>',
+      '<linearGradient id="barajaTextWash" x1="0%" y1="0%" x2="100%" y2="100%">',
+      '<stop offset="0%" stop-color="rgba(0,0,0,0.18)"/>',
+      '<stop offset="55%" stop-color="rgba(0,0,0,0.34)"/>',
+      '<stop offset="100%" stop-color="rgba(255,255,255,0.08)"/>',
+      '</linearGradient>',
+      '</defs>',
+      '<rect x="1.5%" y="3%" width="97%" height="94%" rx="14" fill="url(#barajaTextWash)"/>',
+      '<rect x="3%" y="9%" width="94%" height="82%" rx="12" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="1"/>',
+    ].join('');
+  }
+
+  return svg
+    .replace(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*(0\.[5-9]|1(?:\.0+)?)\)/g, 'rgba($1,$2,$3,0.34)')
+    .replace(/opacity="0\.[7-9][^"]*"/g, 'opacity="0.55"');
+}
+
+function normalizeFontWeight(value: unknown, key: string): string {
+  if (typeof value === 'number' && Number.isFinite(value)) return String(Math.round(value));
+  if (typeof value === 'string' && value.trim()) {
+    if (value === 'regular') return '500';
+    if (value === 'bold') return '700';
+    if (value === 'thin') return '400';
+    return value;
+  }
+
+  if (key === 'instruction' || key === 'phrase') return '700';
+  if (key === 'answer' || key === 'when_to_use') return '650';
+  return '500';
+}
+
+function getDynamicMinimumFontSize(key: string, maxFontSize: number): number {
+  if (key === 'instruction') return Math.min(maxFontSize, 8.8);
+  if (key === 'phrase') return Math.min(maxFontSize, 8);
+  if (key === 'answer') return Math.min(maxFontSize, 6.4);
+  if (key === 'when_to_use') return Math.min(maxFontSize, 6.2);
+  if (key === 'fun_fact') return Math.min(maxFontSize, 5.8);
+  return Math.max(4, maxFontSize * 0.45);
 }
 
 // ── Plugins available in Designer + Generator ────────
@@ -287,6 +347,10 @@ export function createDefaultCardTemplate(
 
     const zY = (zoneInfo.topPct / 100) * heightMm;
     let zHeight = (zoneInfo.heightPct / 100) * heightMm;
+    const zoneFontSize = zoneInfo.fontSize || 12;
+    const zoneLineHeight = zoneInfo.lineHeight || 1.12;
+    const zoneCharacterSpacing = zoneInfo.characterSpacing ?? zoneInfo.letterSpacing ?? 0;
+    const zoneFontWeight = normalizeFontWeight(zoneInfo.fontWeight, canonicalKey);
     
     // Collision detection with QR code area at bottom
     if (zY + zHeight > textNoFlyZone) {
@@ -294,9 +358,13 @@ export function createDefaultCardTemplate(
     }
 
     // If the AI generated an SVG container for this text block, inject it directly behind the text!
-    if (zoneInfo.containerSvg && typeof zoneInfo.containerSvg === 'string' && zoneInfo.containerSvg.trim().length > 0) {
+    const containerSvg = typeof zoneInfo.containerSvg === 'string'
+      ? normalizeTextContainerSvg(zoneInfo.containerSvg)
+      : '';
+
+    if (containerSvg.length > 0) {
       // The AI returns raw shapes (e.g. <rect ...> or <path ...>), so we wrap it mathematically
-      const wrappedSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" preserveAspectRatio="none">${zoneInfo.containerSvg.trim()}</svg>`;
+      const wrappedSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" preserveAspectRatio="none">${containerSvg}</svg>`;
       
       dynamicTextZones.push({
         name: `${canonicalKey}_container_bg`, // background element suffix
@@ -321,14 +389,17 @@ export function createDefaultCardTemplate(
       },
       width: ((zoneInfo.widthPct - (pd * 2)) / 100) * widthMm,
       height: zHeight,
-      fontSize: zoneInfo.fontSize || 12,
+      fontSize: zoneFontSize,
       fontName: zoneInfo.fontFamily || 'Inter',
       fontColor: zoneInfo.color || '#ffffff',
+      fontWeight: zoneFontWeight,
+      lineHeight: zoneLineHeight,
+      characterSpacing: zoneCharacterSpacing,
       alignment: 'center',
       verticalAlignment: 'middle',
       rotate: 0,
       // Safe shrinking so text never spills out of its box
-      dynamicFontSize: { min: (zoneInfo.fontSize || 12) * 0.4, max: zoneInfo.fontSize || 12, fit: 'vertical' },
+      dynamicFontSize: { min: getDynamicMinimumFontSize(canonicalKey, zoneFontSize), max: zoneFontSize, fit: 'vertical' as const },
     });
   });
 
@@ -346,7 +417,7 @@ export function createDefaultCardTemplate(
       position: { x: backSafeArea, y: hintY },
       width: backTextW, height: 8,
       fontSize: hintFontSize, alignment: 'center', verticalAlignment: 'middle',
-      fontName: hintFont, fontColor: hintColor, letterSpacing: 2.0, rotate: 0,
+      fontName: hintFont, fontColor: hintColor, fontWeight: '650', letterSpacing: 2.0, rotate: 0,
       dynamicFontSize: { min: hintFontSize * 0.5, max: hintFontSize, fit: 'vertical' as const },
     });
 
@@ -355,7 +426,7 @@ export function createDefaultCardTemplate(
       position: { x: backSafeArea, y: 20 },
       width: backTextW, height: 42,
       fontSize: phraseFontSize, alignment: 'center', verticalAlignment: 'middle',
-      fontName: phraseFont, fontColor: phraseColor, rotate: 0,
+      fontName: phraseFont, fontColor: phraseColor, fontWeight: '700', rotate: 0,
       dynamicFontSize: { min: phraseFontSize * 0.5, max: phraseFontSize, fit: 'vertical' as const },
     });
 
@@ -364,7 +435,7 @@ export function createDefaultCardTemplate(
       position: { x: backSafeArea, y: 65 },
       width: backTextW, height: 20,
       fontSize: instrFontSize, alignment: 'center', verticalAlignment: 'middle',
-      fontName: instrFont, fontColor: instrColor, rotate: 0,
+      fontName: instrFont, fontColor: instrColor, fontWeight: '700', rotate: 0,
       dynamicFontSize: { min: instrFontSize * 0.5, max: instrFontSize, fit: 'vertical' as const },
     });
     
@@ -373,7 +444,7 @@ export function createDefaultCardTemplate(
       position: { x: backSafeArea, y: 88 },
       width: backTextW, height: 4,
       fontSize: answerFontSize, alignment: 'center', verticalAlignment: 'middle',
-      fontName: answerFont, fontColor: answerColor, rotate: 0,
+      fontName: answerFont, fontColor: answerColor, fontWeight: '650', rotate: 0,
       dynamicFontSize: { min: answerFontSize * 0.5, max: answerFontSize, fit: 'vertical' as const },
     });
   }
@@ -428,15 +499,27 @@ export function createDefaultCardTemplate(
 
 export function getTemplateForDeck(deck: DeckSchema): Template {
   const config = deck.design?.layout_config;
+  const dimensions = deck.print_specs?.dimensions;
+  const widthMm = dimensions?.width || 70;
+  const heightMm = dimensions?.height || 120;
+  const configuredTemplate = isRecord(config) && 'basePdf' in config && 'schemas' in config
+    ? normalizeTemplateFieldAliases(JSON.parse(JSON.stringify(config)) as Template)
+    : null;
+  const reverseModel = getDeckReverseModel(deck, configuredTemplate);
+  const useFullBackTemplate = shouldUseLegacyFullBackTemplate(reverseModel);
   
-  if (isRecord(config) && 'basePdf' in config && 'schemas' in config) {
-    const template = normalizeTemplateFieldAliases(JSON.parse(JSON.stringify(config)) as Template);
+  if (configuredTemplate) {
+    const template = configuredTemplate;
+    if (useFullBackTemplate) {
+      const templateSize = getTemplateBaseDimensions(template, widthMm, heightMm);
+      return normalizeFlujoBTemplate(template, templateSize.width, templateSize.height);
+    }
     
     // Automatically upgrade legacy templates missing page 2
     if (template.schemas && template.schemas.length === 1) {
       const defaults = createDefaultCardTemplate(
-        deck.print_specs?.dimensions?.width || 88,
-        deck.print_specs?.dimensions?.height || 63
+        widthMm,
+        heightMm
       );
       template.schemas = [defaults.schemas[0], template.schemas[0]];
     }
@@ -454,8 +537,12 @@ export function getTemplateForDeck(deck: DeckSchema): Template {
 
     return normalizeTemplateFieldAliases(template);
   }
+
+  if (useFullBackTemplate) {
+    return createFlujoBTemplate(widthMm, heightMm);
+  }
   
-  return createDefaultCardTemplate(70, 120);
+  return createDefaultCardTemplate(widthMm, heightMm);
 }
 
 // ── Flujo B: AI-generated full card back + QR overlay ────────────────────────
@@ -523,7 +610,55 @@ export function createFlujoBTemplate(
   };
 }
 
-/** Returns true if a card has an AI-generated full back image (Flujo B). */
-export function cardUsesFlujob(card: { back?: { back_image_url?: string } }): boolean {
-  return !!card?.back?.back_image_url;
+export function normalizeFlujoBTemplate(
+  template: Template,
+  widthMm = 70,
+  heightMm = 120,
+): Template {
+  const source = JSON.parse(JSON.stringify(template)) as Template;
+  const base = createFlujoBTemplate(widthMm, heightMm);
+  const frontSchemas = source.schemas?.[0] || [];
+  const backSchemas = source.schemas?.[1] || [];
+
+  if (frontSchemas.some(schema => schema.name === 'art')) {
+    base.schemas[0] = frontSchemas.map(schema => ({
+      ...schema,
+      rotate: schema.rotate ?? 0,
+    }));
+  }
+
+  const existingQr = [...backSchemas, ...(source.schemas?.[0] || [])]
+    .find(schema => schema.name === 'qr_overlay' || schema.name === 'qr');
+  if (existingQr) {
+    const defaultQr = base.schemas[1][1];
+    base.schemas[1][1] = {
+      ...defaultQr,
+      position: existingQr.position ?? defaultQr.position,
+      width: existingQr.width ?? defaultQr.width,
+      height: existingQr.height ?? defaultQr.height,
+      rotate: existingQr.rotate ?? defaultQr.rotate ?? 0,
+      barColor: (existingQr as { barColor?: string }).barColor ?? (defaultQr as { barColor?: string }).barColor,
+      name: 'qr_overlay',
+      type: 'qrcode',
+    } as Schema;
+  }
+
+  return base;
 }
+
+function getTemplateBaseDimensions(
+  template: Template,
+  fallbackWidth: number,
+  fallbackHeight: number,
+): { width: number; height: number } {
+  if (typeof template.basePdf === 'object' && 'width' in template.basePdf && 'height' in template.basePdf) {
+    return {
+      width: typeof template.basePdf.width === 'number' ? template.basePdf.width : fallbackWidth,
+      height: typeof template.basePdf.height === 'number' ? template.basePdf.height : fallbackHeight,
+    };
+  }
+
+  return { width: fallbackWidth, height: fallbackHeight };
+}
+
+export { cardUsesFlujob };

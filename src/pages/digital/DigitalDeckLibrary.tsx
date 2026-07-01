@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { EbWhatsAppButton } from '@eb-packages/ui-web';
 import {
   getPreviewCards,
   type Card,
   type DeckSchema,
 } from '@eb-packages/deck-engine';
 import {
-  BARAJA_CONTACT_EMAIL,
   DIGITAL_DECKS,
   FEATURED_DIGITAL_DECK,
+  getBarajaCustomEditionInquiryMessage,
+  getBarajaGeneralInquiryMessage,
+  getBarajaInquiryHref,
+  getBarajaProfessionalUseInquiryMessage,
   getDeckPrintableLabel,
   getDeckPrintableVersion,
 } from '../../lib/digitalDeckCatalog';
@@ -28,14 +32,19 @@ import {
 } from './components/DigitalDeckCatalog';
 import { DigitalDeckHero } from './components/DigitalDeckHero';
 
-const GENERAL_INQUIRY_URL = `mailto:${BARAJA_CONTACT_EMAIL}?subject=Consulta%20por%20Baraja`;
-const CUSTOM_EDITION_URL = `mailto:${BARAJA_CONTACT_EMAIL}?subject=Edici%C3%B3n%20a%20medida%20de%20Baraja`;
+const GENERAL_INQUIRY_URL = getBarajaInquiryHref(getBarajaGeneralInquiryMessage());
+const CUSTOM_EDITION_URL = getBarajaInquiryHref(
+  getBarajaCustomEditionInquiryMessage()
+);
+const PROFESSIONAL_USE_INQUIRY_URL = getBarajaInquiryHref(
+  getBarajaProfessionalUseInquiryMessage()
+);
 
 function trackInquiryStart(source: string, ctaId: string, surface = 'landing') {
   trackBarajaEvent('baraja_inquiry_started', {
     cta_id: ctaId,
-    cta_kind: 'mailto',
-    href_type: 'mailto',
+    cta_kind: 'whatsapp',
+    href_type: 'wa_me',
     source,
     surface,
   });
@@ -74,7 +83,7 @@ const FAQS = [
     answer:
       'Sí, pero el uso profesional necesita una licencia adecuada. Para talleres, coaching, terapia, educación o equipos, escribinos y vemos el caso.',
     ctaLabel: 'Consultar uso profesional',
-    ctaHref: `mailto:${BARAJA_CONTACT_EMAIL}?subject=Uso%20profesional%20de%20Baraja`,
+    ctaHref: PROFESSIONAL_USE_INQUIRY_URL,
   },
 ];
 
@@ -125,12 +134,14 @@ function LandingNav() {
         <a href="#pdf" onClick={() => trackPrintableInterest('nav_pdf')}>PDF imprimible</a>
         <a href="#faq">FAQ</a>
         <Link to="/app">Abrir app</Link>
-        <a
+        <EbWhatsAppButton
+          className="baraja-link-button"
           href={GENERAL_INQUIRY_URL}
+          showIcon={false}
           onClick={() => trackInquiryStart('nav_consulta', 'nav_consulta')}
         >
           Consulta
-        </a>
+        </EbWhatsAppButton>
         <a href="#mazos" className="baraja-nav-cta">Ver mazos</a>
       </div>
     </nav>
@@ -342,13 +353,13 @@ function FAQ() {
             <summary>{faq.question}</summary>
             <p>{faq.answer}</p>
             {'ctaHref' in faq && (
-              <a
+              <EbWhatsAppButton
                 className="baraja-faq-cta"
                 href={faq.ctaHref}
                 onClick={() => trackInquiryStart('faq_professional_use', 'faq_professional_use')}
               >
                 {faq.ctaLabel}
-              </a>
+              </EbWhatsAppButton>
             )}
           </details>
         ))}
@@ -374,13 +385,13 @@ function FinalCTA() {
         <span>Digital + PDF</span>
       </div>
       <div className="baraja-final-actions">
-        <a
+        <EbWhatsAppButton
           href={CUSTOM_EDITION_URL}
           className="baraja-button baraja-button-primary"
           onClick={() => trackInquiryStart('custom_edition', 'custom_edition')}
         >
           Consultar edición
-        </a>
+        </EbWhatsAppButton>
         <a href="#mazos" className="baraja-button baraja-button-outline">Ver ejemplos</a>
       </div>
     </section>
@@ -394,20 +405,24 @@ function LandingFooter() {
       <span>© 2026 Baraja · Mazos digitales en español</span>
       <div>
         <a href="#mazos">Colección</a>
-        <a
+        <EbWhatsAppButton
+          className="baraja-link-button"
           href={GENERAL_INQUIRY_URL}
+          showIcon={false}
           onClick={() => trackInquiryStart('footer_consulta', 'footer_consulta')}
         >
           Consulta
-        </a>
+        </EbWhatsAppButton>
         <a href="#pdf" onClick={() => trackPrintableInterest('footer_pdf')}>PDF imprimible</a>
         <a href="#faq">FAQ</a>
-        <a
-          href={`mailto:${BARAJA_CONTACT_EMAIL}`}
+        <EbWhatsAppButton
+          className="baraja-link-button"
+          href={GENERAL_INQUIRY_URL}
+          showIcon={false}
           onClick={() => trackInquiryStart('footer_contacto', 'footer_contacto')}
         >
           Contacto
-        </a>
+        </EbWhatsAppButton>
       </div>
     </footer>
   );

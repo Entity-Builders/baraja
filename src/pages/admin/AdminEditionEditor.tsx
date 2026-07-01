@@ -1,6 +1,6 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import type { Card, DeckSchema } from '@eb-packages/deck-engine';
+import type { Card, DeckSchema, RawDeckContent } from '@eb-packages/deck-engine';
 import { useDeck } from '../../hooks/useDeck';
 
 import { EditorSidebar } from '../../components/cards/EditorSidebar';
@@ -15,7 +15,6 @@ import {
   getStudioMode,
   type AdminNotice,
   type CardViewMode,
-  type SaveEditionResponse,
 } from './components/edition-editor/editionEditorTypes';
 import {
   PublicationStatusPanel,
@@ -25,6 +24,11 @@ import AdminTemplates from './AdminTemplates';
 import {
   getDeckPublicationReadiness,
 } from '../../lib/deckPublicationReadiness';
+import {
+  persistAdminCardUpdates,
+  persistAdminEditionUpdates,
+} from '../../lib/adminDeckPersistence';
+import { getErrorMessage } from '../../lib/errors';
 
 export default function AdminEditionEditor() {
   const { deckId } = useParams();
@@ -40,9 +44,7 @@ export default function AdminEditionEditor() {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<AdminNotice | null>(null);
   const [generatingArt, setGeneratingArt] = useState<Record<string, boolean>>({});
-  const [generatingBack, setGeneratingBack] = useState<Record<string, boolean>>({});
   const [batchGenerating, setBatchGenerating] = useState(false);
-  const [batchGeneratingBacks, setBatchGeneratingBacks] = useState(false);
   const [viewMode, setViewMode] = useState<CardViewMode>('gallery');
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -76,7 +78,7 @@ export default function AdminEditionEditor() {
       const res = await fetch('/__cms__/generate-art', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deckId, cardId, force }),
+        body: JSON.stringify({ deckId, cardId, force, legacyFullBack: true }),
       });
       const result = await res.json() as { success?: boolean; art_url?: string; art_versions?: string[]; error?: string };
       if (result.success && result.art_url) {
@@ -111,46 +113,6 @@ export default function AdminEditionEditor() {
     setBatchGenerating(false);
   }
 
-  async function handleGenerateCardBack(cardId: string, force = true) {
-    setGeneratingBack(prev => ({ ...prev, [cardId]: true }));
-    try {
-      const res = await fetch('/__cms__/generate-card-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deckId, cardId, force }),
-      });
-      const result = await res.json() as { success?: boolean; back_image_url?: string; skipped?: boolean; error?: string };
-      if (result.success && result.back_image_url) {
-        const nextBackImageUrl = result.back_image_url;
-        updateLocalCard(cardId, card => ({
-          ...card,
-          back: {
-            ...card.back,
-            back_image_url: nextBackImageUrl,
-          },
-        }));
-        setNotice({ kind: 'success', message: 'Reverso IA actualizado y sincronizado.' });
-      } else if (!result.skipped) {
-        setNotice({ kind: 'error', message: result.error || 'No se pudo generar el reverso.' });
-      }
-    } catch (err: unknown) {
-      setNotice({ kind: 'error', message: `No se pudo conectar con el generador: ${(err as Error).message}` });
-    } finally {
-      setGeneratingBack(prev => ({ ...prev, [cardId]: false }));
-    }
-  }
-
-  async function handleBatchGenerateCardBacks(force = false) {
-    const targets = force ? cards : cards.filter(c => !c.back.back_image_url);
-    if (targets.length === 0) { alert('All cards already have AI back images.'); return; }
-    if (!confirm(`Generate AI card backs for ${targets.length} cards?\nThis will take ~${Math.ceil(targets.length * 4 / 60)} min and use Imagen 4 credits.`)) return;
-    setBatchGeneratingBacks(true);
-    for (const card of targets) {
-      await handleGenerateCardBack(card.id, force);
-    }
-    setBatchGeneratingBacks(false);
-  }
-
   if (studioMode === 'design' && deckId) {
     return <AdminTemplates embeddedDeckId={deckId} />;
   }
@@ -169,28 +131,15 @@ export default function AdminEditionEditor() {
   async function saveEditionUpdates(updates: Partial<DeckSchema>, successMessage: string) {
     setSaving(true);
     try {
-      const response = await fetch('/__cms__/save-edition', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          deckId: activeDeck.slug || deckId,
-          updates,
-        }),
-      });
-
-      const result = await response.json().catch((): SaveEditionResponse => ({})) as SaveEditionResponse;
-      if (response.ok && result.success !== false) {
-        setDeckDraft(prev => ({ ...(prev ?? activeDeck), ...updates }));
-        setNotice({
-          kind: result.warnings?.length ? 'warning' : 'success',
-          message: result.warnings?.length ? result.warnings.join(' ') : successMessage,
-        });
-      } else {
-        setNotice({ kind: 'error', message: result.error || 'No se pudo guardar la edición.' });
-      }
-    } catch (err) {
+      await persistAdminEditionUpdates(
+        activeDeck.slug || deckId || activeDeck.id,
+        updates as Partial<RawDeckContent>,
+      );
+      setDeckDraft(prev => ({ ...(prev ?? activeDeck), ...updates }));
+      setNotice({ kind: 'success', message: successMessage });
+    } catch (err: unknown) {
       console.error(err);
-      setNotice({ kind: 'error', message: 'No se pudo conectar para guardar la edición.' });
+      setNotice({ kind: 'error', message: `No se pudo guardar la edición: ${getErrorMessage(err)}` });
     } finally {
       setSaving(false);
     }
@@ -237,34 +186,21 @@ export default function AdminEditionEditor() {
     
     setSaving(true);
     try {
-      const response = await fetch('/__cms__/save-edition', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          deckId,
-          cardId: editingCard.id,
-          updates: {
-            front: editingCard.front,
-            back: editingCard.back,
-            tags: editingCard.tags,
-          }
-        })
-      });
-      
-      const result = await response.json().catch((): SaveEditionResponse => ({})) as SaveEditionResponse;
-      if (response.ok && result.success !== false) {
-        setCards(cards.map(c => c.id === editingCard.id ? editingCard : c));
-        setEditingCard(null);
-        setNotice({
-          kind: result.warnings?.length ? 'warning' : 'success',
-          message: result.warnings?.length ? result.warnings.join(' ') : 'Carta guardada y sincronizada.',
-        });
-      } else {
-        setNotice({ kind: 'error', message: result.error || 'No se pudo guardar la carta.' });
-      }
-    } catch (err) {
+      await persistAdminCardUpdates(
+        activeDeck.slug || deckId || activeDeck.id,
+        editingCard.id,
+        {
+          front: editingCard.front,
+          back: editingCard.back,
+          tags: editingCard.tags,
+        },
+      );
+      setCards(cards.map(c => c.id === editingCard.id ? editingCard : c));
+      setEditingCard(null);
+      setNotice({ kind: 'success', message: 'Carta guardada en la base de datos.' });
+    } catch (err: unknown) {
       console.error(err);
-      setNotice({ kind: 'error', message: 'No se pudo conectar para guardar la carta.' });
+      setNotice({ kind: 'error', message: `No se pudo guardar la carta: ${getErrorMessage(err)}` });
     } finally {
       setSaving(false);
     }
@@ -355,15 +291,11 @@ export default function AdminEditionEditor() {
             cards={cards}
             activeCardId={activeCardId}
             generatingArt={generatingArt}
-            generatingBack={generatingBack}
             batchGenerating={batchGenerating}
-            batchGeneratingBacks={batchGeneratingBacks}
             onSelectCard={setActiveCardId}
             onEditCard={setEditingCard}
             onGenerateArt={(cardId) => void handleGenerateArt(cardId)}
-            onGenerateCardBack={(cardId) => void handleGenerateCardBack(cardId)}
             onBatchGenerateArt={() => void handleBatchGenerate(false)}
-            onBatchGenerateBacks={() => void handleBatchGenerateCardBacks(false)}
           />
         ) : (
           /* STANDARD GRID (Print or Original Modes) */
@@ -371,11 +303,9 @@ export default function AdminEditionEditor() {
             cards={cards}
             deck={activeDeck}
             generatingArt={generatingArt}
-            generatingBack={generatingBack}
             viewMode={viewMode}
             onEditCard={setEditingCard}
             onGenerateArt={(cardId) => void handleGenerateArt(cardId)}
-            onGenerateCardBack={(cardId) => void handleGenerateCardBack(cardId)}
           />
         )}
       </div>

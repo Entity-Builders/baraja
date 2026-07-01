@@ -52,7 +52,7 @@ export function SavedConfigsPanel({
         }}>
           No hay versiones guardadas aún.
           <br />
-          <span style={{ fontSize: '0.7rem' }}>Usá "Guardar versión" arriba para crear una.</span>
+          <span style={{ fontSize: '0.7rem' }}>Usá "Guardar copia" arriba para crear una.</span>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>

@@ -10,8 +10,15 @@ import {
   type DeckCatalogBreadcrumbItem,
   type DeckSchema,
 } from '@eb-packages/deck-engine';
+import {
+  buildEntityBuildersWhatsappUrl,
+  getEntityBuildersAppWhatsappOrFallback,
+  type EntityBuildersAppWhatsappConfig,
+} from '@eb-packages/app-registry';
 
-export const BARAJA_CONTACT_EMAIL = 'juanobrach@gmail.com';
+export const BARAJA_APP_ID = 'baraja';
+export const BARAJA_WHATSAPP_CONTACT =
+  getEntityBuildersAppWhatsappOrFallback(BARAJA_APP_ID);
 
 export const DIGITAL_DECKS: DeckSchema[] = Object.values(DECKS).filter(
   (deck) => deck.digital?.is_published === true
@@ -44,13 +51,35 @@ export function findDigitalDeck(slug: string | undefined): DeckSchema | null {
   );
 }
 
-export function getDeckInquiryHref(deck: DeckSchema): string {
-  const subject = encodeURIComponent(`Consulta por ${deck.name} en Baraja`);
-  const body = encodeURIComponent(
-    `Hola, quiero consultar por ${deck.name} en Baraja.`
-  );
+export function getBarajaWhatsappContact(): EntityBuildersAppWhatsappConfig {
+  return BARAJA_WHATSAPP_CONTACT;
+}
 
-  return `mailto:${BARAJA_CONTACT_EMAIL}?subject=${subject}&body=${body}`;
+export function getBarajaGeneralInquiryMessage(): string {
+  return 'Hola, quiero consultar por Baraja y sus mazos.';
+}
+
+export function getBarajaCustomEditionInquiryMessage(): string {
+  return 'Hola, quiero consultar por una edición a medida de Baraja.';
+}
+
+export function getBarajaProfessionalUseInquiryMessage(): string {
+  return 'Hola, quiero consultar por uso profesional de Baraja.';
+}
+
+export function getDeckInquiryMessage(deck: DeckSchema): string {
+  return `Hola, quiero consultar por ${deck.name} en Baraja.`;
+}
+
+export function getBarajaInquiryHref(message?: string): string {
+  return buildEntityBuildersWhatsappUrl(
+    BARAJA_WHATSAPP_CONTACT.phoneNumberE164,
+    message ?? BARAJA_WHATSAPP_CONTACT.defaultMessage,
+  );
+}
+
+export function getDeckInquiryHref(deck: DeckSchema): string {
+  return getBarajaInquiryHref(getDeckInquiryMessage(deck));
 }
 
 export function getDeckHeroImage(deck: DeckSchema): string | undefined {
