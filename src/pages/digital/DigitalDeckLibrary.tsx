@@ -9,7 +9,6 @@ import {
 import {
   DIGITAL_DECKS,
   FEATURED_DIGITAL_DECK,
-  getBarajaCustomEditionInquiryMessage,
   getBarajaGeneralInquiryMessage,
   getBarajaInquiryHref,
   getBarajaProfessionalUseInquiryMessage,
@@ -33,9 +32,6 @@ import {
 import { DigitalDeckHero } from './components/DigitalDeckHero';
 
 const GENERAL_INQUIRY_URL = getBarajaInquiryHref(getBarajaGeneralInquiryMessage());
-const CUSTOM_EDITION_URL = getBarajaInquiryHref(
-  getBarajaCustomEditionInquiryMessage()
-);
 const PROFESSIONAL_USE_INQUIRY_URL = getBarajaInquiryHref(
   getBarajaProfessionalUseInquiryMessage()
 );
@@ -84,6 +80,21 @@ const FAQS = [
       'Sí, pero el uso profesional necesita una licencia adecuada. Para talleres, coaching, terapia, educación o equipos, escribinos y vemos el caso.',
     ctaLabel: 'Consultar uso profesional',
     ctaHref: PROFESSIONAL_USE_INQUIRY_URL,
+  },
+  {
+    question: '¿Pueden crear un mazo personalizado?',
+    answer:
+      'Sí. Estamos probando un servicio acompañado para convertir una intención, método, marca, comunidad, historia o dinámica de evento en un juego imprimible o mazo listo para imprimir, con superficie digital opcional.',
+  },
+  {
+    question: '¿Pueden armar un bingo musical?',
+    answer:
+      'Sí. Podemos preparar cartones imprimibles, reglas, lista de canciones sugeridas y guía de dinámica. No vendemos música, audio ni derechos de reproducción; el organizador usa la plataforma y licencias que correspondan a su evento.',
+  },
+  {
+    question: '¿Baraja imprime y envía los mazos?',
+    answer:
+      'No en este piloto. Entregamos archivos preparados para imprimir y una guía clara; la impresión física queda a cargo del cliente o su imprenta.',
   },
 ];
 
@@ -134,6 +145,8 @@ function LandingNav() {
         <a href="#pdf" onClick={() => trackPrintableInterest('nav_pdf')}>PDF imprimible</a>
         <a href="#faq">FAQ</a>
         <Link to="/app">Abrir app</Link>
+        <Link to="/bingo-musical">Bingo musical</Link>
+        <Link to="/mazos-personalizados">Crear juego</Link>
         <EbWhatsAppButton
           className="baraja-link-button"
           href={GENERAL_INQUIRY_URL}
@@ -371,28 +384,44 @@ function FAQ() {
 function FinalCTA() {
   return (
       <section className="baraja-final-cta">
-        <p className="baraja-kicker">Ediciones a medida</p>
-      <h2>Una baraja propia para tu organización.</h2>
+        <p className="baraja-kicker">Juegos y ediciones a medida</p>
+      <h2>Tu idea convertida en un imprimible propio.</h2>
       <p>
-        Para empresas, instituciones o comunidades que necesitan una edición
-        diseñada para su contexto: podemos adaptar imágenes, textos, dinámica,
-        QR y PDF imprimible.
+        Para bingos musicales, fútbol, bares, facilitadores, equipos, marcas,
+        comunidades o historias personales: armamos el juego y entregamos
+        archivos listos para imprimir, con guía de dinámica y superficie
+        digital opcional.
       </p>
       <div className="baraja-final-points" aria-label="Opciones de personalización">
-        <span>Imágenes propias</span>
-        <span>Textos adaptados</span>
-        <span>QR personalizado</span>
-        <span>Digital + PDF</span>
+        <span>Bingo musical</span>
+        <span>Brief guiado</span>
+        <span>Guía de dinámica</span>
+        <span>Textos editados</span>
+        <span>PDF print-ready</span>
+        <span>Digital opcional</span>
       </div>
       <div className="baraja-final-actions">
-        <EbWhatsAppButton
-          href={CUSTOM_EDITION_URL}
+        <Link
+          to="/bingo-musical"
           className="baraja-button baraja-button-primary"
-          onClick={() => trackInquiryStart('custom_edition', 'custom_edition')}
+          onClick={() => trackBarajaEvent('baraja_offer_cta_clicked', {
+            campaign_id: 'music_bingo',
+            cta_id: 'home_music_bingo_landing',
+            offer_id: 'music_bingo',
+            offer_type: 'campaign_landing',
+            source: 'home_final_cta',
+            surface: 'landing',
+          })}
         >
-          Consultar edición
-        </EbWhatsAppButton>
-        <a href="#mazos" className="baraja-button baraja-button-outline">Ver ejemplos</a>
+          Ver bingo musical
+        </Link>
+        <Link
+          to="/mazos-personalizados"
+          className="baraja-button baraja-button-outline"
+          onClick={() => trackInquiryStart('custom_edition_landing', 'custom_edition_landing')}
+        >
+          Armar mi juego
+        </Link>
       </div>
     </section>
   );
@@ -402,9 +431,11 @@ function LandingFooter() {
   return (
     <footer className="baraja-footer">
       <Link to="/" className="baraja-brand">Baraja</Link>
-      <span>© 2026 Baraja · Mazos digitales en español</span>
+      <span>© 2026 Baraja · Barajas digitales, imprimibles y a medida</span>
       <div>
         <a href="#mazos">Colección</a>
+        <Link to="/bingo-musical">Bingo musical</Link>
+        <Link to="/mazos-personalizados">Crear juego</Link>
         <EbWhatsAppButton
           className="baraja-link-button"
           href={GENERAL_INQUIRY_URL}

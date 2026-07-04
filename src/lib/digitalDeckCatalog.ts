@@ -56,7 +56,7 @@ export function getBarajaWhatsappContact(): EntityBuildersAppWhatsappConfig {
 }
 
 export function getBarajaGeneralInquiryMessage(): string {
-  return 'Hola, quiero consultar por Baraja y sus mazos.';
+  return 'Hola, quiero consultar por Baraja.';
 }
 
 export function getBarajaCustomEditionInquiryMessage(): string {

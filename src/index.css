@@ -4,6 +4,7 @@
    ============================================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500&family=Cousine:wght@400;700&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800;900&family=Manrope:wght@400;500;600;700;800&display=swap');
 @import '@eb-packages/ui-web/styles.css';
 
 /* ── Reset ─────────────────────────────────────────────────── */
@@ -13,6 +14,115 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+.baraja-checkout-message {
+  margin: 0.8rem 0 0;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid rgba(212, 175, 100, 0.28);
+  border-radius: 8px;
+  background: rgba(212, 175, 100, 0.08);
+  color: rgba(255, 248, 226, 0.88);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.baraja-checkout-support {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  margin-top: 0.75rem;
+  color: rgba(255, 248, 226, 0.78);
+  font-size: 0.88rem;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  transition: color 160ms ease;
+}
+
+.baraja-checkout-support:hover {
+  color: #f6d994;
+}
+
+.baraja-music-checkout-return {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(47, 129, 247, 0.16), transparent 34rem),
+    linear-gradient(135deg, #0c0b09 0%, #17120c 48%, #101418 100%);
+  color: #f7efe0;
+}
+
+.baraja-checkout-return-panel {
+  width: min(100% - 2rem, 760px);
+  margin: 0 auto;
+  padding: clamp(2rem, 7vw, 5rem) 0 4rem;
+}
+
+.baraja-checkout-return-panel h1 {
+  max-width: 12ch;
+  margin: 0;
+  color: #fff6df;
+  font-size: clamp(3rem, 10vw, 5.8rem);
+  line-height: 0.9;
+  letter-spacing: 0;
+}
+
+.baraja-checkout-return-panel > p:not(.baraja-kicker) {
+  max-width: 56ch;
+  margin: 1.2rem 0 0;
+  color: rgba(255, 248, 226, 0.78);
+  font-size: 1.05rem;
+  line-height: 1.65;
+}
+
+.baraja-checkout-return-note {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 1.4rem;
+  padding: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-left: 4px solid #d4af64;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.055);
+  color: rgba(255, 248, 226, 0.82);
+}
+
+.baraja-checkout-return-note strong {
+  color: #f6d994;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.baraja-checkout-return-panel footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.6rem;
+}
+
+.baraja-checkout-return-panel.is-success .baraja-checkout-return-note {
+  border-left-color: #74c493;
+}
+
+.baraja-checkout-return-panel.is-pending .baraja-checkout-return-note {
+  border-left-color: #f1c96d;
+}
+
+.baraja-checkout-return-panel.is-failed .baraja-checkout-return-note {
+  border-left-color: #ef8f83;
+}
+
+@media (max-width: 720px) {
+  .baraja-checkout-return-panel footer {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .baraja-checkout-return-panel footer > * {
+    width: 100%;
+  }
 }
 
 /* ── Tokens ─────────────────────────────────────────────────── */
@@ -5451,6 +5561,1337 @@ body::before {
 .baraja-footer div {
   display: flex;
   gap: 1rem;
+}
+
+.baraja-custom-hero,
+.baraja-custom-section,
+.baraja-custom-brief {
+  width: min(1180px, calc(100% - 2rem));
+  margin: 0 auto;
+}
+
+.baraja-campaign-hero,
+.baraja-campaign-section {
+  width: min(1180px, calc(100% - 2rem));
+  margin: 0 auto;
+}
+
+.baraja-campaign-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(320px, 0.86fr);
+  gap: clamp(2rem, 6vw, 5rem);
+  align-items: center;
+  padding: clamp(3.2rem, 7vw, 6rem) 0 clamp(3rem, 6vw, 5rem);
+}
+
+.baraja-campaign-hero-copy h1,
+.baraja-campaign-section h2 {
+  margin: 0;
+  color: var(--baraja-text);
+  font-family: var(--baraja-display);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.baraja-campaign-hero-copy h1 {
+  max-width: 780px;
+  font-size: clamp(3rem, 6vw, 6rem);
+  line-height: 0.94;
+}
+
+.baraja-music-bingo-preview {
+  display: grid;
+  gap: 1rem;
+  padding: clamp(1rem, 2vw, 1.25rem);
+  border: 1px solid var(--baraja-line);
+  border-radius: 12px;
+  background:
+    linear-gradient(145deg, rgba(255, 249, 236, 0.92), rgba(230, 238, 217, 0.72)),
+    var(--baraja-paper);
+  box-shadow: 0 30px 74px rgba(55, 83, 58, 0.14);
+}
+
+.baraja-music-bingo-sheet {
+  display: grid;
+  gap: 1rem;
+  min-height: 420px;
+  padding: clamp(1rem, 2.4vw, 1.35rem);
+  border: 1px solid rgba(43, 35, 27, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 253, 249, 0.88);
+}
+
+.baraja-music-bingo-sheet-head {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.baraja-music-bingo-sheet-head span,
+.baraja-music-bingo-sheet-head small,
+.baraja-music-bingo-guide span,
+.baraja-music-bingo-guide small {
+  color: var(--baraja-muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.baraja-music-bingo-sheet-head strong,
+.baraja-music-bingo-guide strong {
+  color: var(--baraja-text);
+  font-family: var(--baraja-display);
+  font-size: clamp(1.35rem, 2.4vw, 2rem);
+  line-height: 1;
+}
+
+.baraja-music-bingo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.baraja-music-bingo-grid span {
+  display: grid;
+  min-height: 78px;
+  place-items: center;
+  padding: 0.55rem;
+  color: var(--baraja-text);
+  border: 1px solid rgba(43, 35, 27, 0.12);
+  border-radius: 8px;
+  background: rgba(247, 229, 189, 0.72);
+  font-size: 0.82rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.baraja-music-bingo-guide {
+  display: grid;
+  gap: 0.25rem;
+  padding: 1rem;
+  border: 1px solid rgba(43, 35, 27, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 253, 249, 0.76);
+}
+
+.baraja-campaign-section {
+  padding: 5.2rem 0;
+}
+
+.baraja-campaign-section h2 {
+  max-width: 820px;
+  font-size: clamp(2.4rem, 4.8vw, 4.9rem);
+  line-height: 0.98;
+}
+
+.baraja-campaign-offer-grid,
+.baraja-campaign-step-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.baraja-campaign-offer,
+.baraja-campaign-paths article,
+.baraja-campaign-step-grid article {
+  display: grid;
+  gap: 1rem;
+  border: 1px solid var(--baraja-line);
+  border-radius: 10px;
+  background: rgba(255, 249, 236, 0.82);
+  box-shadow: 0 22px 54px rgba(91, 66, 30, 0.1);
+}
+
+.baraja-campaign-offer {
+  align-content: start;
+  min-height: 100%;
+  padding: 1.25rem;
+}
+
+.baraja-campaign-offer > div:first-child {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.baraja-campaign-offer h3,
+.baraja-campaign-paths h2,
+.baraja-campaign-step-grid h3 {
+  margin: 0;
+  color: var(--baraja-text);
+  font-family: var(--baraja-display);
+  font-size: 1.65rem;
+  line-height: 1;
+}
+
+.baraja-campaign-paths h2 {
+  font-size: clamp(2rem, 3.6vw, 3.4rem);
+}
+
+.baraja-campaign-offer p,
+.baraja-campaign-offer span,
+.baraja-campaign-paths p,
+.baraja-campaign-step-grid p {
+  color: var(--baraja-muted);
+  line-height: 1.55;
+}
+
+.baraja-campaign-offer > div:first-child p {
+  margin: 0;
+  color: var(--baraja-gold-dark, var(--baraja-gold));
+  font-size: 0.75rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.baraja-campaign-song-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.baraja-campaign-song-list span,
+.baraja-campaign-step-grid article > span {
+  color: var(--baraja-text);
+  border: 1px solid rgba(43, 35, 27, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 253, 249, 0.72);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.baraja-campaign-song-list span {
+  padding: 0.42rem 0.62rem;
+}
+
+.baraja-campaign-offer .baraja-button {
+  align-self: end;
+  width: 100%;
+}
+
+.baraja-campaign-paths {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.baraja-campaign-paths article {
+  align-content: start;
+  padding: clamp(1.15rem, 3vw, 1.55rem);
+}
+
+.baraja-campaign-step-grid article {
+  padding: 1.2rem;
+}
+
+.baraja-campaign-step-grid article > span {
+  display: grid;
+  width: 2.4rem;
+  height: 2.4rem;
+  place-items: center;
+}
+
+.baraja-campaign-demo-band {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1.5rem;
+  align-items: center;
+  padding-block: 3rem;
+  border-top: 1px solid var(--baraja-line);
+  border-bottom: 1px solid var(--baraja-line);
+}
+
+.baraja-campaign-demo-band h2 {
+  max-width: 760px;
+}
+
+.baraja-campaign-demo-band p:not(.baraja-kicker) {
+  max-width: 680px;
+  color: var(--baraja-muted);
+  line-height: 1.65;
+}
+
+.baraja-campaign-demo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.baraja-demo-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(280px, 0.7fr);
+  gap: clamp(2rem, 6vw, 5rem);
+  align-items: center;
+  width: min(1180px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: clamp(3.2rem, 7vw, 6rem) 0 clamp(3rem, 6vw, 5rem);
+}
+
+.baraja-demo-hero-copy h1,
+.baraja-demo-kit h2,
+.baraja-demo-board-preview h2,
+.baraja-player-header h1 {
+  margin: 0;
+  color: var(--baraja-text);
+  font-family: var(--baraja-display);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.baraja-demo-hero-copy h1 {
+  max-width: 800px;
+  font-size: clamp(2.8rem, 5.8vw, 5.8rem);
+  line-height: 0.94;
+}
+
+.baraja-demo-qr-panel {
+  display: grid;
+  gap: 0.85rem;
+  padding: clamp(1rem, 2.4vw, 1.35rem);
+  border: 1px solid var(--baraja-line);
+  border-radius: 12px;
+  background: rgba(255, 249, 236, 0.88);
+  box-shadow: 0 24px 58px rgba(91, 66, 30, 0.12);
+}
+
+.baraja-demo-qr {
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  border-radius: 10px;
+  background: rgba(255, 253, 249, 0.9);
+}
+
+.baraja-demo-qr-panel p,
+.baraja-demo-qr-panel small {
+  margin: 0;
+  color: var(--baraja-muted);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.baraja-demo-kit-grid,
+.baraja-demo-board-preview {
+  display: grid;
+  gap: 1rem;
+}
+
+.baraja-demo-kit-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.baraja-demo-kit-grid article {
+  padding: 1.2rem;
+  border: 1px solid var(--baraja-line);
+  border-radius: 10px;
+  background: rgba(255, 249, 236, 0.82);
+  box-shadow: 0 20px 48px rgba(91, 66, 30, 0.08);
+}
+
+.baraja-demo-kit-grid h3 {
+  margin: 0 0 0.75rem;
+  color: var(--baraja-text);
+  font-family: var(--baraja-display);
+  font-size: 1.55rem;
+  line-height: 1;
+}
+
+.baraja-demo-kit-grid ul,
+.baraja-demo-kit-grid ol {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding-left: 1.2rem;
+  color: var(--baraja-muted);
+  line-height: 1.5;
+}
+
+.baraja-demo-song-column {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.baraja-demo-song-column span {
+  color: var(--baraja-muted);
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+
+.baraja-demo-board-preview {
+  grid-template-columns: minmax(0, 0.8fr) minmax(300px, 0.72fr);
+  align-items: start;
+}
+
+.baraja-demo-board-preview > div:first-child p {
+  color: var(--baraja-muted);
+  line-height: 1.65;
+}
+
+.baraja-digital-bingo-card {
+  display: grid;
+  gap: 1rem;
+  padding: clamp(0.9rem, 2vw, 1.25rem);
+  border: 1px solid var(--baraja-line);
+  border-radius: 12px;
+  background:
+    linear-gradient(150deg, rgba(255, 249, 236, 0.94), rgba(230, 238, 217, 0.7)),
+    var(--baraja-paper);
+  box-shadow: 0 24px 58px rgba(55, 83, 58, 0.12);
+}
+
+.baraja-digital-bingo-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: baseline;
+}
+
+.baraja-digital-bingo-title span {
+  color: var(--baraja-gold-dark, var(--baraja-gold));
+  font-size: 1.2rem;
+  font-weight: 1000;
+  letter-spacing: 0;
+}
+
+.baraja-digital-bingo-title strong {
+  color: var(--baraja-muted);
+  font-size: 0.84rem;
+  font-weight: 900;
+  text-align: right;
+}
+
+.baraja-digital-bingo-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.baraja-digital-bingo-grid button {
+  display: grid;
+  min-height: 82px;
+  gap: 0.25rem;
+  place-items: center;
+  padding: 0.45rem;
+  color: var(--baraja-text);
+  border: 1px solid rgba(43, 35, 27, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 253, 249, 0.8);
+  font: inherit;
+  cursor: pointer;
+}
+
+.baraja-digital-bingo-grid button:disabled {
+  cursor: default;
+}
+
+.baraja-digital-bingo-grid button strong {
+  font-size: clamp(0.62rem, 1.1vw, 0.82rem);
+  line-height: 1.08;
+  text-align: center;
+}
+
+.baraja-digital-bingo-grid button span {
+  color: var(--baraja-muted);
+  font-size: clamp(0.52rem, 1vw, 0.68rem);
+  font-weight: 800;
+  line-height: 1.05;
+  text-align: center;
+}
+
+.baraja-digital-bingo-grid .baraja-digital-bingo-cell--marked {
+  color: var(--baraja-on-gold);
+  border-color: var(--baraja-gold);
+  background: var(--baraja-gold);
+  box-shadow: inset 0 0 0 2px rgba(43, 35, 27, 0.08);
+}
+
+.baraja-digital-bingo-grid .baraja-digital-bingo-cell--marked span {
+  color: rgba(43, 35, 27, 0.72);
+}
+
+.baraja-player-demo {
+  min-height: 100vh;
+  background: var(--baraja-bg);
+}
+
+.baraja-player-shell {
+  display: grid;
+  gap: 1rem;
+  width: min(680px, calc(100% - 1rem));
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 1rem 0 2rem;
+}
+
+.baraja-player-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 1rem;
+  align-items: center;
+  padding: 0.85rem;
+  border: 1px solid var(--baraja-line);
+  border-radius: 10px;
+  background: rgba(255, 249, 236, 0.86);
+}
+
+.baraja-player-header h1 {
+  font-size: clamp(1.6rem, 7vw, 2.6rem);
+  line-height: 0.98;
+}
+
+.baraja-player-header span {
+  color: var(--baraja-muted);
+  font-weight: 900;
+}
+
+.baraja-player-status {
+  display: grid;
+  gap: 0.65rem;
+  padding: 1rem;
+  border: 1px solid var(--baraja-line);
+  border-radius: 10px;
+  background: rgba(255, 249, 236, 0.86);
+}
+
+.baraja-player-status[data-bingo='true'] {
+  border-color: rgba(217, 164, 65, 0.62);
+  box-shadow: 0 18px 44px rgba(217, 164, 65, 0.16);
+}
+
+.baraja-player-status strong {
+  color: var(--baraja-text);
+  font-family: var(--baraja-display);
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.baraja-player-status p {
+  margin: 0;
+  color: var(--baraja-muted);
+  line-height: 1.55;
+}
+
+.baraja-custom-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(300px, 0.82fr);
+  gap: clamp(2rem, 6vw, 5rem);
+  align-items: center;
+  padding: clamp(3.4rem, 7vw, 6rem) 0 clamp(3rem, 6vw, 5rem);
+}
+
+.baraja-custom-hero-copy h1,
+.baraja-custom-section h2,
+.baraja-custom-brief h2 {
+  margin: 0;
+  color: var(--baraja-text);
+  font-family: var(--baraja-display);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.baraja-custom-hero-copy h1 {
+  max-width: 780px;
+  font-size: clamp(3rem, 6vw, 6rem);
+  line-height: 0.94;
+}
+
+.baraja-custom-preview {
+  display: grid;
+  gap: 1rem;
+  padding: clamp(1rem, 2vw, 1.25rem);
+  border: 1px solid var(--baraja-line);
+  border-radius: 12px;
+  background:
+    linear-gradient(145deg, rgba(255, 249, 236, 0.9), rgba(239, 224, 194, 0.72)),
+    var(--baraja-paper);
+  box-shadow: 0 30px 74px rgba(91, 66, 30, 0.14);
+}
+
+.baraja-custom-preview-note {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(43, 35, 27, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 253, 249, 0.76);
+}
+
+.baraja-custom-preview-note span,
+.baraja-custom-preview-note small {
+  color: var(--baraja-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.baraja-custom-preview-note strong {
+  color: var(--baraja-text);
+  font-family: var(--baraja-display);
+  font-size: 1.45rem;
+  line-height: 1;
+}
+
+.baraja-custom-card-spread {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(0.7rem, 2vw, 1rem);
+  align-items: center;
+  padding: 0.45rem;
+}
+
+.baraja-custom-card {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  margin: 0;
+}
+
+.baraja-custom-card-1 {
+  transform: translateY(-0.35rem) rotate(-2deg);
+}
+
+.baraja-custom-card-2 {
+  transform: translateY(0.5rem) rotate(2deg);
+}
+
+.baraja-custom-card figcaption {
+  color: var(--baraja-muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.baraja-custom-placeholder-card {
+  display: grid;
+  min-height: 420px;
+  place-items: center;
+  color: #fff;
+  border-radius: 12px;
+  background: var(--baraja-card-ink);
+  font-family: var(--baraja-display);
+  font-size: 4rem;
+}
+
+.baraja-custom-section {
+  padding: 5.2rem 0;
+}
+
+.baraja-custom-section h2,
+.baraja-custom-brief h2 {
+  max-width: 860px;
+  font-size: clamp(2.4rem, 4.8vw, 4.9rem);
+  line-height: 0.98;
+}
+
+.baraja-custom-example-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.baraja-custom-example-grid article,
+.baraja-custom-list-panel,
+.baraja-custom-form {
+  border: 1px solid var(--baraja-line);
+  border-radius: 10px;
+  background: rgba(255, 249, 236, 0.82);
+  box-shadow: 0 22px 54px rgba(91, 66, 30, 0.1);
+}
+
+.baraja-custom-example-grid article {
+  padding: 1.25rem;
+}
+
+.baraja-custom-example-grid h3,
+.baraja-custom-list-panel h3 {
+  margin: 0 0 0.55rem;
+  color: var(--baraja-text);
+  font-family: var(--baraja-display);
+  font-size: 1.55rem;
+  line-height: 1;
+}
+
+.baraja-custom-example-grid p,
+.baraja-custom-process p,
+.baraja-custom-form-actions p,
+.baraja-section-header-centered > p {
+  color: var(--baraja-muted);
+  line-height: 1.65;
+}
+
+.baraja-custom-process {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) repeat(2, minmax(220px, 0.7fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.baraja-custom-process h2 {
+  margin-bottom: 1rem;
+}
+
+.baraja-custom-legal-note {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(280px, 1fr);
+  gap: clamp(1rem, 4vw, 3rem);
+  align-items: start;
+  padding-block: 3.2rem;
+  border-top: 1px solid var(--baraja-line);
+  border-bottom: 1px solid var(--baraja-line);
+}
+
+.baraja-custom-legal-note h2 {
+  max-width: 560px;
+}
+
+.baraja-custom-legal-note p:last-child {
+  margin: 0;
+  color: var(--baraja-muted);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.baraja-music-legal-note {
+  grid-template-columns: minmax(180px, 0.35fr) minmax(0, 1fr);
+  padding-block: 2rem;
+}
+
+.baraja-music-legal-note strong {
+  color: var(--baraja-text);
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.baraja-custom-list-panel {
+  padding: 1.15rem;
+}
+
+.baraja-custom-list-panel ul {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.baraja-custom-list-panel li {
+  color: var(--baraja-muted);
+  font-size: 0.94rem;
+  line-height: 1.45;
+}
+
+.baraja-custom-list-panel li::before {
+  content: '';
+  display: inline-block;
+  width: 0.48rem;
+  height: 0.48rem;
+  margin-right: 0.5rem;
+  border-radius: 999px;
+  background: var(--baraja-gold);
+}
+
+.baraja-custom-brief {
+  padding: 5.2rem 0 4rem;
+}
+
+.baraja-custom-form {
+  display: grid;
+  gap: 1.1rem;
+  max-width: 900px;
+  margin: 2rem auto 0;
+  padding: clamp(1rem, 3vw, 1.45rem);
+}
+
+.baraja-custom-form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.baraja-custom-field,
+.baraja-custom-choice-group {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.baraja-custom-field span,
+.baraja-custom-choice-group legend {
+  color: var(--baraja-text);
+  font-size: 0.85rem;
+  font-weight: 900;
+}
+
+.baraja-custom-field input,
+.baraja-custom-field select,
+.baraja-custom-field textarea {
+  width: 100%;
+  min-height: 48px;
+  padding: 0.78rem 0.9rem;
+  color: var(--baraja-text);
+  border: 1px solid var(--baraja-line);
+  border-radius: 8px;
+  background: rgba(255, 253, 249, 0.9);
+  font: inherit;
+  font-size: 1rem;
+  outline: none;
+}
+
+.baraja-custom-field textarea {
+  resize: vertical;
+}
+
+.baraja-custom-field input:focus,
+.baraja-custom-field select:focus,
+.baraja-custom-field textarea:focus {
+  border-color: rgba(217, 164, 65, 0.68);
+  box-shadow: 0 0 0 3px rgba(217, 164, 65, 0.18);
+}
+
+.baraja-custom-field input::placeholder,
+.baraja-custom-field textarea::placeholder {
+  color: rgba(111, 92, 73, 0.6);
+}
+
+.baraja-custom-choice-group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.baraja-custom-choice-group > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.baraja-custom-choice-group button {
+  min-height: 44px;
+  padding: 0.58rem 0.78rem;
+  color: var(--baraja-muted);
+  border: 1px solid var(--baraja-line);
+  border-radius: 999px;
+  background: rgba(255, 253, 249, 0.76);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.baraja-custom-choice-group button:hover,
+.baraja-custom-choice-active {
+  color: var(--baraja-on-gold) !important;
+  border-color: var(--baraja-gold) !important;
+  background: var(--baraja-gold) !important;
+}
+
+.baraja-custom-form-error {
+  margin: 0;
+  padding: 0.8rem 0.9rem;
+  color: #7a2f25;
+  border: 1px solid rgba(184, 69, 52, 0.24);
+  border-radius: 8px;
+  background: rgba(184, 69, 52, 0.08);
+  font-weight: 800;
+}
+
+.baraja-custom-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding-top: 0.4rem;
+}
+
+.baraja-custom-form-actions p {
+  max-width: 430px;
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.baraja-custom-form-actions .baraja-button[data-incomplete='true'] {
+  opacity: 0.68;
+}
+
+@media (max-width: 900px) {
+  .baraja-campaign-demo-band,
+  .baraja-demo-hero,
+  .baraja-demo-board-preview {
+    grid-template-columns: 1fr;
+  }
+
+  .baraja-demo-kit-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .baraja-campaign-demo-actions {
+    justify-content: flex-start;
+  }
+
+  .baraja-campaign-hero,
+  .baraja-campaign-paths {
+    grid-template-columns: 1fr;
+  }
+
+  .baraja-campaign-offer-grid,
+  .baraja-campaign-step-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .baraja-music-bingo-preview {
+    width: min(560px, 100%);
+    margin-inline: auto;
+  }
+
+  .baraja-custom-hero,
+  .baraja-custom-process,
+  .baraja-custom-legal-note {
+    grid-template-columns: 1fr;
+  }
+
+  .baraja-custom-hero {
+    padding-top: 2.4rem;
+  }
+
+  .baraja-custom-preview {
+    width: min(560px, 100%);
+    margin-inline: auto;
+  }
+
+  .baraja-custom-example-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .baraja-demo-hero {
+    gap: 1.35rem;
+    padding-top: 1.35rem;
+    padding-bottom: 2.4rem;
+  }
+
+  .baraja-demo-hero-copy h1 {
+    font-size: clamp(2rem, 8.8vw, 2.55rem);
+    line-height: 0.98;
+  }
+
+  .baraja-campaign-demo-band {
+    padding-block: 2rem;
+  }
+
+  .baraja-campaign-demo-actions .baraja-button {
+    width: 100%;
+  }
+
+  .baraja-digital-bingo-card {
+    border-radius: 10px;
+  }
+
+  .baraja-digital-bingo-grid {
+    gap: 0.32rem;
+  }
+
+  .baraja-digital-bingo-grid button {
+    min-height: 64px;
+    padding: 0.3rem;
+  }
+
+  .baraja-digital-bingo-title {
+    display: grid;
+    gap: 0.25rem;
+  }
+
+  .baraja-digital-bingo-title strong {
+    text-align: left;
+  }
+
+  .baraja-player-header {
+    grid-template-columns: 1fr;
+  }
+
+  .baraja-campaign-hero {
+    gap: 1.35rem;
+    padding-top: 1.35rem;
+    padding-bottom: 2.4rem;
+  }
+
+  .baraja-campaign-hero-copy h1 {
+    font-size: clamp(2rem, 8.8vw, 2.55rem);
+    line-height: 0.98;
+  }
+
+  .baraja-campaign-hero-copy .baraja-lead {
+    margin-top: 1rem;
+    font-size: 0.96rem;
+    line-height: 1.5;
+  }
+
+  .baraja-campaign-section {
+    padding-top: 3rem;
+  }
+
+  .baraja-campaign-section h2 {
+    font-size: clamp(2rem, 10vw, 3.05rem);
+    line-height: 1;
+  }
+
+  .baraja-music-bingo-sheet {
+    min-height: auto;
+  }
+
+  .baraja-music-bingo-grid {
+    gap: 0.45rem;
+  }
+
+  .baraja-music-bingo-grid span {
+    min-height: 58px;
+    font-size: 0.72rem;
+  }
+
+  .baraja-custom-hero {
+    gap: 1.35rem;
+    padding-top: 1.35rem;
+    padding-bottom: 2.4rem;
+  }
+
+  .baraja-custom-hero-copy h1 {
+    font-size: clamp(2rem, 8.8vw, 2.55rem);
+    line-height: 0.98;
+  }
+
+  .baraja-custom-hero-copy .baraja-lead {
+    margin-top: 1rem;
+    font-size: 0.96rem;
+    line-height: 1.5;
+  }
+
+  .baraja-custom-preview {
+    gap: 0.75rem;
+    padding: 0.75rem;
+  }
+
+  .baraja-custom-preview-note {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding: 0.72rem 0.78rem;
+  }
+
+  .baraja-custom-preview-note strong {
+    font-size: 1rem;
+  }
+
+  .baraja-custom-preview-note small {
+    display: none;
+  }
+
+  .baraja-custom-section h2,
+  .baraja-custom-brief h2 {
+    font-size: clamp(2rem, 10vw, 3.05rem);
+    line-height: 1;
+  }
+
+  .baraja-custom-section,
+  .baraja-custom-brief {
+    padding-top: 3rem;
+  }
+
+  .baraja-custom-form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .baraja-custom-card-spread {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+    width: min(245px, 100%);
+    margin-inline: auto;
+    padding: 0.2rem;
+  }
+
+  .baraja-custom-card-1,
+  .baraja-custom-card-2 {
+    transform: none;
+  }
+
+  .baraja-custom-card {
+    width: 100%;
+    margin-inline: auto;
+  }
+
+  .baraja-custom-card figcaption {
+    font-size: 0.58rem;
+  }
+
+  .baraja-custom-form-actions {
+    align-items: stretch;
+  }
+
+  .baraja-custom-form-actions .baraja-button {
+    width: 100%;
+  }
+}
+
+/* Music bingo demo: phone is the primary surface because players arrive by QR. */
+.baraja-campaign-demo-band,
+.baraja-demo-hero,
+.baraja-demo-board-preview {
+  grid-template-columns: 1fr;
+}
+
+.baraja-campaign-demo-band {
+  gap: 1.1rem;
+  padding-block: 2rem;
+}
+
+.baraja-campaign-demo-actions,
+.baraja-demo-hero .baraja-actions {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
+.baraja-campaign-demo-actions .baraja-button,
+.baraja-demo-hero .baraja-button {
+  width: 100%;
+  justify-content: center;
+}
+
+.baraja-demo-hero {
+  gap: 1.35rem;
+  padding-top: 1.35rem;
+  padding-bottom: 2.4rem;
+}
+
+.baraja-demo-hero-copy h1 {
+  font-size: 2.3rem;
+  line-height: 0.98;
+}
+
+.baraja-demo-qr-panel {
+  width: min(100%, 24rem);
+  margin-inline: auto;
+}
+
+.baraja-digital-bingo-card {
+  width: 100%;
+  gap: 0.65rem;
+  padding: 0.65rem;
+  border-radius: 10px;
+  box-shadow: 0 16px 38px rgba(55, 83, 58, 0.1);
+}
+
+.baraja-digital-bingo-title {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.baraja-digital-bingo-title span {
+  font-size: 1rem;
+}
+
+.baraja-digital-bingo-title strong {
+  text-align: left;
+}
+
+.baraja-digital-bingo-grid {
+  gap: 0.28rem;
+}
+
+.baraja-digital-bingo-grid button {
+  min-height: 4.25rem;
+  padding: 0.26rem;
+  touch-action: manipulation;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.baraja-digital-bingo-grid button:not(:disabled):active {
+  transform: scale(0.98);
+}
+
+.baraja-digital-bingo-grid button strong {
+  max-width: 100%;
+  font-size: 0.64rem;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.baraja-digital-bingo-grid button span {
+  max-width: 100%;
+  font-size: 0.54rem;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+
+.baraja-player-shell {
+  width: min(100% - 0.75rem, 430px);
+  min-height: 100dvh;
+  padding: 0.5rem 0 1rem;
+}
+
+.baraja-player-header {
+  position: sticky;
+  top: 0.35rem;
+  z-index: 2;
+  display: block;
+  min-height: 0;
+  padding: 0.65rem;
+  backdrop-filter: blur(10px);
+}
+
+.baraja-player-header .baraja-brand {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
+  width: max-content;
+  font-size: 0.95rem;
+}
+
+.baraja-player-header > div {
+  display: grid;
+  gap: 0.12rem;
+  padding-right: 0;
+}
+
+.baraja-player-header h1 {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.baraja-player-header .baraja-kicker {
+  font-size: 0.72rem;
+  padding-right: 4.7rem;
+}
+
+.baraja-player-status {
+  gap: 0.7rem;
+  padding: 0.9rem;
+}
+
+.baraja-player-status strong {
+  font-size: 1.25rem;
+}
+
+.baraja-player-status .baraja-button {
+  width: 100%;
+  justify-content: center;
+}
+
+@media (min-width: 681px) {
+  .baraja-digital-bingo-card {
+    gap: 1rem;
+    padding: 1rem;
+  }
+
+  .baraja-digital-bingo-title {
+    display: flex;
+  }
+
+  .baraja-digital-bingo-title span {
+    font-size: 1.2rem;
+  }
+
+  .baraja-digital-bingo-title strong {
+    text-align: right;
+  }
+
+  .baraja-digital-bingo-grid {
+    gap: 0.45rem;
+  }
+
+  .baraja-digital-bingo-grid button {
+    min-height: 82px;
+    padding: 0.45rem;
+  }
+
+  .baraja-digital-bingo-grid button strong {
+    font-size: 0.78rem;
+  }
+
+  .baraja-digital-bingo-grid button span {
+    font-size: 0.64rem;
+  }
+
+  .baraja-player-shell {
+    width: min(680px, calc(100% - 1rem));
+    padding: 1rem 0 2rem;
+  }
+
+  .baraja-player-header {
+    top: 0.75rem;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: 0.85rem;
+  }
+
+  .baraja-player-header .baraja-brand {
+    position: static;
+  }
+
+  .baraja-player-header .baraja-kicker {
+    padding-right: 0;
+  }
+
+  .baraja-player-header h1 {
+    font-size: 2.35rem;
+  }
+
+  .baraja-player-status .baraja-button {
+    width: max-content;
+  }
+}
+
+@media (min-width: 901px) {
+  .baraja-campaign-demo-band {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 1.5rem;
+    padding-block: 3rem;
+  }
+
+  .baraja-campaign-demo-actions {
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+
+  .baraja-campaign-demo-actions .baraja-button {
+    width: auto;
+  }
+
+  .baraja-demo-hero {
+    grid-template-columns: minmax(0, 0.95fr) minmax(280px, 0.7fr);
+    gap: clamp(2rem, 6vw, 5rem);
+    padding: clamp(3.2rem, 7vw, 6rem) 0 clamp(3rem, 6vw, 5rem);
+  }
+
+  .baraja-demo-hero .baraja-actions {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .baraja-demo-hero .baraja-button {
+    width: auto;
+  }
+
+  .baraja-demo-hero-copy h1 {
+    font-size: 3.4rem;
+    line-height: 0.94;
+  }
+
+  .baraja-demo-board-preview {
+    grid-template-columns: minmax(0, 0.8fr) minmax(300px, 0.72fr);
+  }
+}
+
+@media (min-width: 1180px) {
+  .baraja-demo-hero-copy h1 {
+    font-size: 5rem;
+  }
 }
 
 .digital-shell {
@@ -11223,4 +12664,4964 @@ body::before {
   box-shadow:
     0 18px 36px rgba(37, 211, 102, 0.34),
     inset 0 1px 0 rgba(255, 255, 255, 0.38);
+}
+
+/* ── Music bingo creator MVP ────────────────────────────────── */
+.baraja-music-creator {
+  min-height: 100svh;
+  padding-bottom: 7.5rem;
+  color: #231d17;
+  background:
+    linear-gradient(180deg, #fff8ea 0%, #f4ecd9 48%, #e8f0e5 100%);
+}
+
+.baraja-creator-hero,
+.baraja-creator-layout {
+  width: min(1180px, calc(100% - 1.25rem));
+  margin: 0 auto;
+}
+
+.baraja-creator-hero {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem 0 0.9rem;
+}
+
+.baraja-creator-hero-copy {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.baraja-creator-hero-copy h1 {
+  max-width: 720px;
+  color: #211911;
+  font-family: var(--baraja-display, var(--font-serif));
+  font-size: clamp(2.7rem, 11vw, 5.9rem);
+  line-height: 0.92;
+  letter-spacing: 0;
+}
+
+.baraja-creator-hero-copy .baraja-lead {
+  max-width: 620px;
+  color: rgba(35, 29, 23, 0.72);
+}
+
+.baraja-creator-summary,
+.baraja-creator-panel,
+.baraja-creator-preview,
+.baraja-creator-sticky-cta {
+  border: 1px solid rgba(42, 34, 25, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 253, 248, 0.84);
+  box-shadow: 0 18px 44px rgba(53, 41, 27, 0.1);
+}
+
+.baraja-creator-summary {
+  display: grid;
+  gap: 0.25rem;
+  align-content: center;
+  padding: 1rem;
+}
+
+.baraja-creator-summary strong,
+.baraja-creator-price strong {
+  color: #1f1710;
+  font-size: 1.08rem;
+  line-height: 1.15;
+}
+
+.baraja-creator-summary span,
+.baraja-creator-price p,
+.baraja-creator-legal p {
+  color: rgba(35, 29, 23, 0.66);
+}
+
+.baraja-creator-layout {
+  display: grid;
+  gap: 1rem;
+  padding-bottom: 1rem;
+}
+
+.baraja-creator-form {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.baraja-creator-panel {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1rem;
+}
+
+.baraja-creator-panel h2 {
+  color: #201811;
+  font-family: var(--baraja-display, var(--font-serif));
+  font-size: 1.55rem;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.baraja-field {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.baraja-field span,
+.baraja-creator-price span,
+.baraja-creator-legal strong,
+.baraja-creator-playlist-mini span,
+.baraja-theme-playlist span {
+  color: rgba(35, 29, 23, 0.72);
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.baraja-field input,
+.baraja-field textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(42, 34, 25, 0.16);
+  border-radius: 8px;
+  color: #211911;
+  background: rgba(255, 255, 255, 0.8);
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1.35;
+  outline: none;
+}
+
+.baraja-field input {
+  min-height: 48px;
+  padding: 0 0.9rem;
+}
+
+.baraja-field textarea {
+  min-height: 190px;
+  padding: 0.85rem 0.9rem;
+  resize: vertical;
+}
+
+.baraja-field input:focus,
+.baraja-field textarea:focus {
+  border-color: rgba(33, 105, 92, 0.62);
+  box-shadow: 0 0 0 3px rgba(33, 105, 92, 0.12);
+}
+
+.baraja-creator-choice-grid,
+.baraja-theme-grid,
+.baraja-card-count-grid {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.baraja-creator-choice-grid button,
+.baraja-theme-grid button,
+.baraja-card-count-grid button,
+.baraja-segmented-control button {
+  min-width: 0;
+  border: 1px solid rgba(42, 34, 25, 0.12);
+  border-radius: 8px;
+  color: #241d16;
+  background: rgba(255, 255, 255, 0.62);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.baraja-creator-choice-grid button,
+.baraja-theme-grid button,
+.baraja-card-count-grid button {
+  display: grid;
+  gap: 0.25rem;
+  min-height: 82px;
+  padding: 0.78rem;
+}
+
+.baraja-creator-choice-grid strong,
+.baraja-theme-grid strong,
+.baraja-card-count-grid strong {
+  color: #1f1710;
+  font-size: 0.95rem;
+  line-height: 1.15;
+}
+
+.baraja-creator-choice-grid span,
+.baraja-theme-grid span,
+.baraja-card-count-grid span,
+.baraja-theme-grid small,
+.baraja-theme-playlist small,
+.baraja-theme-playlist p,
+.baraja-toggle-row small,
+.baraja-validation span {
+  color: rgba(35, 29, 23, 0.64);
+  font-size: 0.82rem;
+  line-height: 1.28;
+}
+
+.baraja-creator-choice-grid button.is-selected,
+.baraja-theme-grid button.is-selected,
+.baraja-card-count-grid button.is-selected,
+.baraja-segmented-control button.is-selected {
+  border-color: rgba(33, 105, 92, 0.72);
+  background: rgba(219, 242, 232, 0.88);
+  box-shadow: inset 0 0 0 1px rgba(33, 105, 92, 0.1);
+}
+
+.baraja-segmented-control {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+  padding: 0.25rem;
+  border: 1px solid rgba(42, 34, 25, 0.1);
+  border-radius: 8px;
+  background: rgba(35, 29, 23, 0.06);
+}
+
+.baraja-segmented-control button {
+  min-height: 48px;
+  padding: 0.55rem 0.75rem;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.baraja-validation {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.78rem;
+  border: 1px solid rgba(147, 48, 32, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 238, 226, 0.78);
+}
+
+.baraja-validation.is-ready {
+  border-color: rgba(33, 105, 92, 0.22);
+  background: rgba(229, 247, 236, 0.82);
+}
+
+.baraja-validation strong {
+  color: #241d16;
+  font-size: 0.9rem;
+  line-height: 1.22;
+}
+
+.baraja-theme-playlist {
+  display: grid;
+  gap: 0.75rem;
+  align-items: center;
+  padding-top: 0.15rem;
+}
+
+.baraja-theme-playlist > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.18rem;
+}
+
+.baraja-theme-playlist strong {
+  color: #1f1710;
+  font-size: 1rem;
+  line-height: 1.12;
+}
+
+.baraja-theme-playlist p {
+  max-width: 620px;
+}
+
+.baraja-theme-playlist .baraja-button {
+  width: 100%;
+  min-height: 44px;
+}
+
+.baraja-toggle-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.78rem;
+  border: 1px solid rgba(42, 34, 25, 0.1);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.56);
+  cursor: pointer;
+}
+
+.baraja-toggle-row input {
+  width: 24px;
+  height: 24px;
+  accent-color: #21695c;
+}
+
+.baraja-toggle-row span {
+  display: grid;
+  gap: 0.16rem;
+}
+
+.baraja-deliverable-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.baraja-deliverable-list span {
+  padding: 0.4rem 0.55rem;
+  border: 1px solid rgba(42, 34, 25, 0.1);
+  border-radius: 999px;
+  color: #241d16;
+  background: rgba(255, 255, 255, 0.62);
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.baraja-creator-preview {
+  display: grid;
+  gap: 0.85rem;
+  align-content: start;
+  padding: 1rem;
+}
+
+.baraja-creator-preview-head {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.baraja-creator-preview-head h2 {
+  color: #1f1710;
+  font-size: 1.65rem;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.baraja-creator-preview-head > span {
+  color: rgba(35, 29, 23, 0.64);
+  font-weight: 700;
+}
+
+.baraja-creator-bingo-card {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.7rem;
+  border: 1px solid rgba(42, 34, 25, 0.12);
+  border-radius: 8px;
+  background: #fffdf7;
+}
+
+.baraja-creator-bingo-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+  color: #201811;
+}
+
+.baraja-creator-bingo-title span {
+  color: rgba(35, 29, 23, 0.58);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.baraja-creator-bingo-title strong {
+  font-family: var(--baraja-display, var(--font-serif));
+  font-size: 1.08rem;
+  line-height: 1;
+  text-align: right;
+}
+
+.baraja-creator-bingo-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.28rem;
+}
+
+.baraja-creator-bingo-grid span {
+  min-width: 0;
+  min-height: 58px;
+  display: grid;
+  gap: 0.12rem;
+  align-content: center;
+  justify-items: center;
+  padding: 0.28rem;
+  border: 1px solid rgba(42, 34, 25, 0.11);
+  border-radius: 7px;
+  background: rgba(239, 232, 214, 0.62);
+  text-align: center;
+}
+
+.baraja-creator-bingo-grid span.is-free {
+  color: #0e463b;
+  border-color: rgba(33, 105, 92, 0.28);
+  background: rgba(219, 242, 232, 0.9);
+}
+
+.baraja-creator-bingo-grid strong,
+.baraja-creator-bingo-grid small {
+  max-width: 100%;
+  overflow: hidden;
+  line-height: 1.08;
+  text-overflow: ellipsis;
+}
+
+.baraja-creator-bingo-grid strong {
+  display: -webkit-box;
+  color: #211911;
+  font-size: 0.62rem;
+  font-weight: 900;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.baraja-creator-bingo-grid small {
+  color: rgba(35, 29, 23, 0.58);
+  font-size: 0.52rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.baraja-preview-empty,
+.baraja-creator-price,
+.baraja-creator-legal,
+.baraja-creator-playlist-mini {
+  display: grid;
+  gap: 0.28rem;
+  padding: 0.85rem;
+  border-radius: 8px;
+  background: rgba(35, 29, 23, 0.06);
+}
+
+.baraja-preview-empty strong {
+  color: #211911;
+}
+
+.baraja-preview-empty span {
+  color: rgba(35, 29, 23, 0.68);
+}
+
+.baraja-creator-playlist-mini strong {
+  color: #211911;
+  font-size: 0.98rem;
+  line-height: 1.15;
+}
+
+.baraja-creator-playlist-mini a {
+  color: #21695c;
+  font-weight: 900;
+  line-height: 1.2;
+  text-decoration: none;
+}
+
+.baraja-creator-playlist-mini a:hover {
+  text-decoration: underline;
+}
+
+.baraja-creator-sticky-cta {
+  position: sticky;
+  bottom: 0.7rem;
+  z-index: 90;
+  width: min(1180px, calc(100% - 1.25rem));
+  margin: 0 auto 0.7rem;
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.72rem;
+  color: #211911;
+  background: rgba(255, 253, 248, 0.96);
+  backdrop-filter: blur(14px);
+}
+
+.baraja-creator-sticky-cta div {
+  min-width: 0;
+  display: grid;
+  gap: 0.1rem;
+}
+
+.baraja-creator-sticky-cta strong,
+.baraja-creator-sticky-cta span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.baraja-creator-sticky-cta strong {
+  color: #211911;
+  font-size: 0.9rem;
+}
+
+.baraja-creator-sticky-cta span {
+  color: rgba(35, 29, 23, 0.62);
+  font-size: 0.78rem;
+}
+
+.baraja-creator-sticky-cta .baraja-button {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0 1rem;
+}
+
+@media (min-width: 760px) {
+  .baraja-creator-hero {
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+    align-items: end;
+    padding-top: 2.2rem;
+  }
+
+  .baraja-creator-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 440px);
+    align-items: start;
+  }
+
+  .baraja-creator-choice-grid,
+  .baraja-card-count-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .baraja-theme-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .baraja-theme-playlist {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .baraja-theme-playlist .baraja-button {
+    width: auto;
+  }
+
+  .baraja-creator-preview {
+    position: sticky;
+    top: 1rem;
+  }
+
+  .baraja-creator-sticky-cta {
+    width: min(780px, calc(100% - 2rem));
+  }
+}
+
+@media (max-width: 520px) {
+  .baraja-music-creator .baraja-nav {
+    gap: 0.7rem;
+  }
+
+  .baraja-music-creator .baraja-nav-links {
+    gap: 0.55rem;
+    font-size: 0.78rem;
+  }
+
+  .baraja-creator-panel,
+  .baraja-creator-preview {
+    padding: 0.82rem;
+  }
+
+  .baraja-creator-bingo-card {
+    padding: 0.5rem;
+  }
+
+  .baraja-creator-bingo-grid {
+    gap: 0.2rem;
+  }
+
+  .baraja-creator-bingo-grid span {
+    min-height: 50px;
+    padding: 0.18rem;
+  }
+
+  .baraja-creator-bingo-grid strong {
+    font-size: 0.55rem;
+  }
+
+  .baraja-creator-bingo-grid small {
+    font-size: 0.47rem;
+  }
+}
+
+/* ── Music bingo creator simplified app layout ──────────────── */
+.baraja-music-creator-app {
+  --creator-bg: #f7f3ef;
+  --creator-surface: rgba(255, 253, 251, 0.96);
+  --creator-ink: #261f1c;
+  --creator-muted: #746763;
+  --creator-line: rgba(72, 59, 54, 0.14);
+  --creator-accent: #d76550;
+  --creator-accent-dark: #a94233;
+  --creator-accent-soft: #f6ded6;
+  --creator-sage: #e6eee7;
+  padding-bottom: 6.6rem;
+  color: var(--creator-ink);
+  background:
+    linear-gradient(180deg, #fbfaf8 0%, var(--creator-bg) 48%, #ebe3dc 100%);
+}
+
+.baraja-creator-app-nav {
+  width: min(1180px, calc(100% - 2rem));
+  padding: 1rem 0;
+}
+
+.baraja-creator-app-layout {
+  width: min(1180px, calc(100% - 2rem));
+  margin: 0 auto;
+  display: grid;
+  gap: 1rem;
+}
+
+.baraja-creator-games-panel,
+.baraja-creator-builder-panel,
+.baraja-creator-preview-stage {
+  border: 1px solid var(--creator-line);
+  border-radius: 8px;
+  background: var(--creator-surface);
+  box-shadow: 0 18px 48px rgba(65, 45, 38, 0.08);
+}
+
+.baraja-creator-games-panel {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+  padding: 1rem;
+}
+
+.baraja-creator-games-head {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.baraja-creator-games-head h1,
+.baraja-creator-workspace-head h1 {
+  margin: 0;
+  color: var(--creator-ink);
+  font-family: var(--baraja-display, var(--font-serif));
+  font-weight: 650;
+  letter-spacing: 0;
+  line-height: 0.98;
+}
+
+.baraja-creator-games-head h1 {
+  font-size: 2rem;
+}
+
+.baraja-creator-games-head span {
+  color: rgba(36, 34, 37, 0.52);
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.baraja-creator-empty-game {
+  min-height: 230px;
+  display: grid;
+  gap: 0.7rem;
+  align-content: center;
+  justify-items: center;
+  padding: 1.2rem 0.6rem;
+  text-align: center;
+}
+
+.baraja-creator-empty-game > div {
+  width: 4.7rem;
+  height: 4.7rem;
+  display: grid;
+  place-items: center;
+  border: 2px solid rgba(255, 64, 64, 0.72);
+  border-radius: 999px;
+  color: #ff3c3c;
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.94), rgba(255, 237, 237, 0.76)),
+    #fff;
+  font-size: 1.45rem;
+  font-weight: 950;
+  box-shadow: 0 12px 30px rgba(255, 62, 62, 0.16);
+}
+
+.baraja-creator-empty-game strong {
+  max-width: 260px;
+  color: #28252a;
+  font-size: 1.22rem;
+  line-height: 1.12;
+}
+
+.baraja-creator-empty-game p {
+  max-width: 280px;
+  color: rgba(36, 34, 37, 0.64);
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+
+.baraja-creator-new-game,
+.baraja-creator-side-order {
+  min-height: 48px;
+  width: 100%;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  color: #ffffff;
+  background: #ff3d3d;
+  font: inherit;
+  font-weight: 950;
+  cursor: pointer;
+  text-align: center;
+  text-decoration: none;
+  box-shadow: 0 14px 30px rgba(255, 61, 61, 0.2);
+}
+
+.baraja-creator-side-actions {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.baraja-creator-side-order {
+  color: #2b2118;
+  background: #e2ab36;
+  box-shadow: 0 14px 30px rgba(226, 171, 54, 0.2);
+}
+
+.baraja-creator-workspace {
+  display: grid;
+  gap: 1rem;
+}
+
+.baraja-creator-workspace-head {
+  display: grid;
+  gap: 0.55rem;
+  padding: clamp(0.8rem, 2vw, 1rem) 0 0.25rem;
+}
+
+.baraja-creator-workspace-head h1 {
+  max-width: 760px;
+  font-size: clamp(2.65rem, 6vw, 5rem);
+}
+
+.baraja-creator-workspace-head p:not(.baraja-kicker) {
+  max-width: 660px;
+  margin: 0;
+  color: var(--creator-muted);
+  font-size: clamp(1rem, 2vw, 1.15rem);
+  line-height: 1.55;
+}
+
+.baraja-context-select {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.baraja-context-select span,
+.baraja-playlist-catalog-head span,
+.baraja-field small {
+  color: var(--creator-muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.baraja-context-select select {
+  min-height: 44px;
+  width: 100%;
+  border: 1px solid var(--creator-line);
+  border-radius: 8px;
+  color: var(--creator-ink);
+  background: var(--creator-surface);
+  font: inherit;
+  font-weight: 800;
+  outline: none;
+  padding: 0 0.75rem;
+}
+
+.baraja-creator-builder-panel,
+.baraja-creator-preview-stage {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.baraja-music-creator-app .baraja-field input,
+.baraja-music-creator-app .baraja-field textarea,
+.baraja-playlist-url-row {
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.baraja-music-creator-app .baraja-field input,
+.baraja-music-creator-app .baraja-field textarea {
+  border-color: var(--creator-line);
+}
+
+.baraja-music-creator-app .baraja-field input:focus,
+.baraja-music-creator-app .baraja-field textarea:focus {
+  border-color: rgba(215, 101, 80, 0.68);
+  box-shadow: 0 0 0 3px rgba(215, 101, 80, 0.14);
+}
+
+.baraja-music-creator-app .baraja-segmented-control {
+  background: rgba(38, 31, 28, 0.05);
+}
+
+.baraja-music-creator-app .baraja-segmented-control button.is-selected {
+  border-color: rgba(215, 101, 80, 0.46);
+  background: var(--creator-accent-soft);
+  box-shadow: inset 0 0 0 1px rgba(215, 101, 80, 0.12);
+}
+
+.baraja-count-editor {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.baraja-count-readout {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 0.55rem;
+  align-items: baseline;
+  padding: 0.85rem;
+  border: 1px solid var(--creator-line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.baraja-count-readout strong {
+  color: var(--creator-ink);
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.baraja-count-readout span {
+  color: var(--creator-muted);
+  font-size: 1rem;
+  font-weight: 850;
+}
+
+.baraja-count-readout b {
+  grid-column: 1 / -1;
+  margin-top: 0.25rem;
+  color: var(--creator-accent-dark);
+  font-size: 0.92rem;
+  line-height: 1.2;
+}
+
+.baraja-count-helper {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.8rem;
+  border: 1px solid rgba(72, 59, 54, 0.12);
+  border-radius: 8px;
+  color: var(--creator-muted);
+  background: linear-gradient(180deg, #ffffff, #f8f0ed);
+}
+
+.baraja-count-helper strong,
+.baraja-count-helper b {
+  color: var(--creator-ink);
+}
+
+.baraja-count-helper strong {
+  font-size: 0.95rem;
+  line-height: 1.15;
+}
+
+.baraja-count-helper p,
+.baraja-count-helper small {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.baraja-count-helper div {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  background: var(--creator-sage);
+}
+
+.baraja-count-helper span {
+  color: var(--creator-muted);
+  font-size: 0.68rem;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.baraja-count-helper b {
+  font-size: 0.82rem;
+  line-height: 1.25;
+}
+
+.baraja-count-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.baraja-count-options button {
+  min-height: 44px;
+  border: 1px solid var(--creator-line);
+  border-radius: 8px;
+  color: var(--creator-muted);
+  background: rgba(255, 255, 255, 0.88);
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.baraja-count-options button.is-selected {
+  border-color: var(--creator-accent);
+  color: #ffffff;
+  background: var(--creator-accent);
+}
+
+.baraja-compact-toggle {
+  align-items: center;
+  padding: 0.7rem;
+  background: #ffffff;
+}
+
+.baraja-music-creator-app .baraja-toggle-row input {
+  accent-color: var(--creator-accent);
+}
+
+.baraja-playlist-url-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  border: 1px solid var(--creator-line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.baraja-playlist-url-row input {
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.baraja-playlist-url-row a {
+  min-height: 48px;
+  display: grid;
+  place-items: center;
+  padding: 0 0.9rem;
+  border-left: 1px solid var(--creator-line);
+  color: var(--creator-accent-dark);
+  font-size: 0.86rem;
+  font-weight: 950;
+  text-decoration: none;
+}
+
+.baraja-playlist-catalog-head {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.baraja-playlist-catalog-head strong {
+  color: var(--creator-ink);
+  font-size: 1.05rem;
+  line-height: 1.1;
+}
+
+.baraja-playlist-source-card {
+  display: grid;
+  gap: 0.9rem;
+  align-items: center;
+  padding: 1rem;
+  border: 1px solid rgba(215, 101, 80, 0.18);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(246, 222, 214, 0.64), rgba(230, 238, 231, 0.72)),
+    #ffffff;
+}
+
+.baraja-playlist-source-card div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.baraja-playlist-source-card span {
+  color: var(--creator-accent-dark);
+  font-size: 0.74rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.baraja-playlist-source-card strong {
+  color: var(--creator-ink);
+  font-family: var(--baraja-display, var(--font-serif));
+  font-size: clamp(1.35rem, 3vw, 2rem);
+  font-weight: 650;
+  line-height: 1.05;
+}
+
+.baraja-playlist-source-card p {
+  max-width: 640px;
+  margin: 0;
+  color: var(--creator-muted);
+  font-size: 0.94rem;
+  line-height: 1.45;
+}
+
+.baraja-playlist-source-card a {
+  min-height: 44px;
+  display: inline-grid;
+  place-items: center;
+  justify-self: start;
+  padding: 0 1rem;
+  color: #ffffff;
+  border-radius: 999px;
+  background: var(--creator-accent);
+  font-size: 0.88rem;
+  font-weight: 950;
+  text-decoration: none;
+}
+
+.baraja-playlist-catalog {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.baraja-playlist-catalog button {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.18rem 0.8rem;
+  align-items: center;
+  min-height: 76px;
+  padding: 0.8rem;
+  border: 1px solid var(--creator-line);
+  border-radius: 8px;
+  color: var(--creator-ink);
+  background: rgba(255, 255, 255, 0.9);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.baraja-playlist-catalog button.is-selected {
+  border-color: rgba(215, 101, 80, 0.46);
+  background: #fff7f4;
+  box-shadow: inset 0 0 0 1px rgba(215, 101, 80, 0.12);
+}
+
+.baraja-playlist-catalog strong,
+.baraja-playlist-catalog span,
+.baraja-playlist-catalog small {
+  min-width: 0;
+}
+
+.baraja-playlist-catalog strong {
+  color: var(--creator-ink);
+  font-size: 0.96rem;
+  line-height: 1.14;
+}
+
+.baraja-playlist-catalog span {
+  color: var(--creator-accent-dark);
+  font-size: 0.83rem;
+  font-weight: 950;
+}
+
+.baraja-playlist-catalog small {
+  grid-column: 1 / -1;
+  color: var(--creator-muted);
+  font-size: 0.82rem;
+  line-height: 1.28;
+}
+
+.baraja-playlist-detail {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem;
+  border: 1px solid var(--creator-line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.baraja-playlist-detail header {
+  display: flex;
+  gap: 0.75rem;
+  align-items: end;
+  justify-content: space-between;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid var(--creator-line);
+}
+
+.baraja-playlist-detail h2 {
+  margin: 0;
+  color: var(--creator-ink);
+  font-family: inherit;
+  font-size: clamp(1.25rem, 3vw, 1.7rem);
+  font-weight: 900;
+  line-height: 1.05;
+  letter-spacing: 0;
+}
+
+.baraja-playlist-detail header span {
+  color: var(--creator-muted);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.baraja-playlist-track-list {
+  max-height: 260px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem 1.25rem;
+  overflow: auto;
+  padding-right: 0.45rem;
+  scrollbar-color: rgba(72, 59, 54, 0.28) transparent;
+}
+
+.baraja-playlist-track {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 0.7rem;
+  align-items: center;
+}
+
+.baraja-playlist-track img,
+.baraja-playlist-track i {
+  width: 44px;
+  height: 44px;
+  display: block;
+  border-radius: 8px;
+}
+
+.baraja-playlist-track img {
+  object-fit: cover;
+  background: rgba(72, 59, 54, 0.12);
+}
+
+.baraja-playlist-track i {
+  display: grid;
+  place-items: center;
+  color: var(--creator-accent-dark);
+  background: var(--creator-accent-soft);
+  font-style: normal;
+  font-size: 0.72rem;
+  font-weight: 950;
+}
+
+.baraja-playlist-track div {
+  min-width: 0;
+  display: grid;
+  gap: 0.12rem;
+}
+
+.baraja-playlist-track strong,
+.baraja-playlist-track span {
+  min-width: 0;
+  overflow: hidden;
+  line-height: 1.16;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.baraja-playlist-track strong {
+  color: var(--creator-ink);
+  font-size: 0.96rem;
+}
+
+.baraja-playlist-track span,
+.baraja-playlist-track small {
+  color: var(--creator-muted);
+  font-weight: 800;
+}
+
+.baraja-playlist-track small {
+  font-size: 0.72rem;
+}
+
+.baraja-grid-size-editor {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.85rem;
+  border: 1px solid var(--creator-line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.baraja-grid-size-editor > strong {
+  color: var(--creator-ink);
+  font-size: 1.02rem;
+  line-height: 1.15;
+}
+
+.baraja-grid-size-editor > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.baraja-grid-size-editor label {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.baraja-grid-size-editor span {
+  color: var(--creator-muted);
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+.baraja-grid-size-editor select {
+  min-height: 44px;
+  width: 100%;
+  border: 1px solid var(--creator-line);
+  border-radius: 8px;
+  color: var(--creator-ink);
+  background: #ffffff;
+  font: inherit;
+  font-weight: 850;
+  padding: 0 0.65rem;
+}
+
+.baraja-grid-size-editor p {
+  color: var(--creator-muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.baraja-creator-preview-stage {
+  align-content: start;
+}
+
+.baraja-creator-preview-stage .baraja-creator-preview-head {
+  display: flex;
+  gap: 0.85rem;
+  align-items: end;
+  justify-content: space-between;
+}
+
+.baraja-creator-preview-stage .baraja-creator-preview-head h2 {
+  font-family: inherit;
+  font-size: clamp(1.55rem, 4vw, 2.3rem);
+  font-weight: 900;
+}
+
+.baraja-creator-sheet-preview {
+  display: grid;
+  gap: 1rem;
+  padding: clamp(0.8rem, 2vw, 1.1rem);
+  border: 1px solid rgba(72, 59, 54, 0.12);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(230, 238, 231, 0.58), rgba(246, 222, 214, 0.42)),
+    #ffffff;
+}
+
+.baraja-creator-sheet-preview-meta {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.baraja-creator-sheet-preview-meta span {
+  color: var(--creator-accent-dark);
+  font-size: 0.74rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.baraja-creator-sheet-preview-meta strong {
+  color: var(--creator-muted);
+  font-size: 0.88rem;
+  font-weight: 850;
+}
+
+.baraja-creator-playlist-strip {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.78rem;
+  border: 1px solid var(--baraja-line);
+  border-radius: 8px;
+  background: rgba(255, 249, 236, 0.82);
+}
+
+.baraja-creator-playlist-strip div {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.baraja-creator-playlist-strip strong {
+  color: var(--baraja-text);
+  line-height: 1.15;
+}
+
+.baraja-creator-playlist-strip span {
+  color: var(--baraja-muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.baraja-creator-playlist-strip a {
+  color: var(--baraja-rust);
+  font-weight: 950;
+  line-height: 1.2;
+  text-decoration: none;
+}
+
+.baraja-pdf-preview {
+  overflow: hidden;
+  border: 1px solid rgba(32, 34, 35, 0.16);
+  border-radius: 8px;
+  background: #282828;
+  box-shadow: 0 16px 36px rgba(17, 24, 39, 0.16);
+}
+
+.baraja-pdf-toolbar {
+  min-height: 56px;
+  display: flex;
+  gap: clamp(0.8rem, 2.5vw, 1.5rem);
+  align-items: center;
+  padding: 0 1rem;
+  color: #ffffff;
+  background: #3a3a3a;
+  font-size: 1rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.baraja-pdf-toolbar strong {
+  padding: 0.3rem 0.5rem;
+  background: rgba(0, 0, 0, 0.32);
+}
+
+.baraja-pdf-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 520px;
+  overflow: hidden;
+}
+
+.baraja-pdf-body aside {
+  display: grid;
+  gap: 0.8rem;
+  align-content: start;
+  justify-items: center;
+  padding: 2rem 1rem;
+  color: #ffffff;
+  background: #252627;
+}
+
+.baraja-pdf-body aside > div {
+  width: min(190px, 100%);
+  padding: 0.5rem;
+  background: #d7c3a0;
+}
+
+.baraja-pdf-body aside > strong {
+  color: #ffffff;
+  font-size: 1.25rem;
+}
+
+.baraja-mini-print-card {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.45rem;
+  color: #111827;
+  background: #ffffff;
+}
+
+.baraja-mini-print-card small {
+  font-size: 0.42rem;
+  font-weight: 950;
+}
+
+.baraja-mini-print-card div {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.baraja-mini-print-card span {
+  aspect-ratio: 1.35;
+  border: 1px solid rgba(17, 24, 39, 0.34);
+}
+
+.baraja-mini-print-card span.is-free {
+  background: rgba(217, 164, 65, 0.2);
+}
+
+.baraja-pdf-body > section {
+  min-width: 0;
+  padding: 2rem;
+  background: #1f1f1f;
+}
+
+.baraja-pdf-frame-shell {
+  min-width: 0 !important;
+  padding: 0 !important;
+  background: #202020 !important;
+}
+
+.baraja-pdf-frame {
+  width: 100%;
+  min-height: 560px;
+  height: min(68vh, 720px);
+  display: block;
+  border: 0;
+  background: #ffffff;
+}
+
+.baraja-pdf-render {
+  min-height: 560px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.8rem;
+  padding: 1.25rem;
+  overflow: hidden;
+  background: #303030;
+}
+
+.baraja-pdf-canvas {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  background: #ffffff;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+}
+
+.baraja-pdf-render.is-loading .baraja-pdf-canvas,
+.baraja-pdf-render.is-error .baraja-pdf-canvas {
+  display: none;
+}
+
+.baraja-pdf-render span {
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.baraja-pdf-preview-actions {
+  min-height: 46px;
+  display: grid;
+  align-items: center;
+  color: rgba(255, 255, 255, 0.72);
+  background: #2a2a2a;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.85rem;
+  font-weight: 850;
+}
+
+.baraja-pdf-preview-actions > span {
+  padding: 0.75rem 1rem;
+  text-align: right;
+}
+
+.baraja-pdf-open-link {
+  display: block;
+  padding: 0.75rem 1rem;
+  color: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 900;
+  text-align: right;
+  text-decoration: none;
+}
+
+.baraja-pdf-loading {
+  min-height: 560px;
+  display: grid;
+  place-items: center;
+  gap: 1rem;
+  padding: 2rem;
+  color: #ffffff;
+  text-align: center;
+}
+
+.baraja-pdf-loading strong,
+.baraja-pdf-loading span {
+  max-width: 34rem;
+}
+
+.baraja-pdf-body aside .baraja-print-preview-card {
+  width: 100%;
+  padding: 0.35rem;
+  border-radius: 2px;
+  box-shadow: none;
+}
+
+.baraja-pdf-body aside .baraja-print-preview-card header {
+  margin-bottom: 0.28rem;
+  font-size: 0.42rem;
+}
+
+.baraja-pdf-body aside .baraja-print-preview-grid div {
+  min-height: 24px;
+  gap: 0.08rem;
+  padding: 0.08rem;
+}
+
+.baraja-pdf-body aside .baraja-print-preview-grid strong {
+  font-size: 0.26rem;
+}
+
+.baraja-pdf-body aside .baraja-print-preview-grid small {
+  display: none;
+}
+
+.baraja-print-preview-card {
+  width: min(760px, 100%);
+  margin: 0 auto;
+  padding: clamp(0.8rem, 2vw, 1.1rem);
+  color: #111827;
+  background: #fffefe;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  border-radius: 4px;
+  box-shadow: 0 16px 42px rgba(72, 59, 54, 0.12);
+}
+
+.baraja-print-preview-card header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+  color: #111827;
+  font-weight: 950;
+}
+
+.baraja-print-preview-grid {
+  display: grid;
+  border-top: 1px solid #111827;
+  border-left: 1px solid #111827;
+}
+
+.baraja-print-preview-grid div {
+  min-height: 112px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem;
+  border-right: 1px solid #111827;
+  border-bottom: 1px solid #111827;
+  text-align: center;
+}
+
+.baraja-print-preview-grid strong {
+  color: #111827;
+  font-size: clamp(0.72rem, 1.5vw, 1rem);
+  line-height: 1.12;
+}
+
+.baraja-print-preview-grid small {
+  color: #111827;
+  font-size: clamp(0.62rem, 1.2vw, 0.82rem);
+  line-height: 1.1;
+}
+
+.baraja-print-preview-grid div.is-free {
+  background: rgba(246, 222, 214, 0.72);
+}
+
+.baraja-creator-instructions {
+  display: grid;
+  gap: 1rem;
+}
+
+.baraja-creator-instruction-box,
+.baraja-creator-warning-box,
+.baraja-creator-checkout {
+  border-radius: 8px;
+  background: var(--creator-surface);
+}
+
+.baraja-creator-instruction-box {
+  display: grid;
+  gap: 0.65rem;
+  padding: 1rem;
+  border: 1px solid var(--creator-line);
+  color: var(--creator-ink);
+  background: #ffffff;
+}
+
+.baraja-creator-instruction-box h2 {
+  margin: 0;
+  color: var(--creator-ink);
+  font-size: 1.25rem;
+  font-weight: 900;
+  line-height: 1.05;
+}
+
+.baraja-creator-instruction-box p {
+  color: var(--creator-muted);
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.baraja-creator-warning-box {
+  padding: 1rem;
+  border: 1px solid rgba(72, 59, 54, 0.12);
+  color: var(--creator-muted);
+  background: #ffffff;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.baraja-creator-checkout {
+  display: grid;
+  gap: 0;
+  padding: 1rem;
+  border: 1px solid var(--creator-line);
+  box-shadow: 0 18px 48px rgba(65, 45, 38, 0.08);
+}
+
+.baraja-creator-checkout > div {
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--creator-line);
+}
+
+.baraja-creator-checkout span {
+  color: var(--creator-muted);
+  font-size: 1rem;
+  font-weight: 950;
+}
+
+.baraja-creator-checkout strong {
+  color: var(--creator-ink);
+  font-size: 1.1rem;
+}
+
+.baraja-creator-checkout footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  align-items: center;
+  justify-content: flex-end;
+  padding-top: 1rem;
+}
+
+.baraja-checkout-cancel,
+.baraja-checkout-proceed {
+  min-height: 46px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  font: inherit;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.baraja-checkout-cancel {
+  padding: 0 1rem;
+  color: var(--creator-muted);
+}
+
+.baraja-checkout-proceed {
+  padding: 0 1.5rem;
+  color: #ffffff;
+  background: var(--creator-accent);
+}
+
+.baraja-checkout-proceed:disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
+}
+
+.baraja-music-creator-app .baraja-creator-bingo-card {
+  background: #ffffff;
+}
+
+.baraja-music-creator-app .baraja-validation {
+  background: #fff7f4;
+}
+
+.baraja-music-creator-app .baraja-validation.is-ready {
+  border-color: rgba(72, 59, 54, 0.12);
+  background: #ffffff;
+}
+
+.baraja-music-creator-app .baraja-creator-sticky-cta {
+  border-color: rgba(32, 34, 35, 0.1);
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.baraja-creator-sticky-actions {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: 0.5rem !important;
+  justify-content: flex-end;
+}
+
+@media (min-width: 860px) {
+  .baraja-creator-app-layout {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .baraja-creator-games-panel {
+    position: sticky;
+    top: 1rem;
+    min-height: calc(100svh - 2rem);
+  }
+
+  .baraja-creator-workspace-head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .baraja-creator-builder-panel {
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+    align-items: start;
+  }
+
+  .baraja-creator-builder-panel .baraja-field:first-child,
+  .baraja-creator-builder-panel .baraja-segmented-control,
+  .baraja-creator-builder-panel .baraja-field:has(textarea),
+  .baraja-creator-builder-panel .baraja-field:has(.baraja-playlist-url-row),
+  .baraja-playlist-source-card,
+  .baraja-playlist-catalog-head,
+  .baraja-playlist-catalog,
+  .baraja-validation {
+    grid-column: 1 / -1;
+  }
+
+  .baraja-playlist-source-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .baraja-playlist-catalog {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .baraja-playlist-detail {
+    grid-column: 1 / -1;
+  }
+
+  .baraja-creator-playlist-strip {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .baraja-music-creator-app .baraja-creator-sticky-cta {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .baraja-creator-app-nav .baraja-nav-links {
+    gap: 0.55rem;
+    font-size: 0.78rem;
+  }
+
+  .baraja-creator-games-panel {
+    display: none;
+  }
+
+  .baraja-creator-builder-panel,
+  .baraja-creator-preview-stage {
+    padding: 0.8rem;
+  }
+
+  .baraja-creator-preview-stage .baraja-creator-preview-head {
+    display: grid;
+  }
+
+  .baraja-playlist-url-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .baraja-playlist-track-list {
+    grid-template-columns: 1fr;
+  }
+
+  .baraja-playlist-url-row a {
+    border-top: 1px solid rgba(32, 34, 35, 0.1);
+    border-left: 0;
+  }
+
+  .baraja-music-creator-app .baraja-creator-sticky-cta {
+    align-items: stretch;
+  }
+
+  .baraja-music-creator-app .baraja-creator-sticky-cta,
+  .baraja-creator-sticky-actions {
+    display: grid !important;
+  }
+
+  .baraja-music-creator-app .baraja-creator-sticky-cta .baraja-button {
+    width: 100%;
+  }
+
+  .baraja-pdf-toolbar {
+    overflow-x: auto;
+  }
+
+  .baraja-pdf-body {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 440px;
+  }
+
+  .baraja-pdf-body aside {
+    padding: 1.2rem 0.7rem;
+  }
+
+  .baraja-pdf-body > section {
+    padding: 1rem;
+  }
+
+  .baraja-pdf-frame-shell {
+    min-width: 0;
+  }
+
+  .baraja-pdf-frame,
+  .baraja-pdf-render,
+  .baraja-pdf-loading {
+    min-height: 460px;
+    height: 460px;
+  }
+
+  .baraja-print-preview-grid div {
+    min-height: 82px;
+  }
+
+  .baraja-creator-sheet-preview-meta {
+    display: grid;
+  }
+
+  .baraja-creator-checkout footer {
+    display: grid;
+    justify-content: stretch;
+  }
+
+  .baraja-checkout-cancel,
+  .baraja-checkout-proceed {
+    width: 100%;
+  }
+}
+
+/* ── Music bingo creator v2 clarity pass ───────────────────── */
+.baraja-music-creator-app {
+  --creator-bg: #f4efe8;
+  --creator-surface: rgba(255, 253, 249, 0.96);
+  --creator-ink: #211b18;
+  --creator-muted: #6f625d;
+  --creator-line: rgba(64, 52, 46, 0.13);
+  --creator-accent: #c85d49;
+  --creator-accent-dark: #8d382d;
+  --creator-accent-soft: #f4ddd6;
+  --creator-sage: #e8eee6;
+  --creator-sage-strong: #cfdcd2;
+  --creator-cream: #fff8ee;
+  padding-bottom: 3.5rem;
+  background:
+    radial-gradient(circle at top left, rgba(232, 238, 230, 0.9), transparent 36rem),
+    linear-gradient(180deg, #fffbf5 0%, var(--creator-bg) 100%);
+}
+
+.baraja-creator-app-layout,
+.baraja-creator-app-nav {
+  width: min(1220px, calc(100% - 2rem));
+}
+
+.baraja-creator-workspace {
+  gap: clamp(1rem, 2vw, 1.35rem);
+}
+
+.baraja-creator-workspace-head {
+  padding: clamp(1rem, 3vw, 1.5rem) 0 0.15rem;
+}
+
+.baraja-creator-workspace-head h1 {
+  max-width: 780px;
+  font-size: clamp(2.65rem, 5.5vw, 4.8rem);
+}
+
+.baraja-creator-workspace-head p:not(.baraja-kicker) {
+  max-width: 620px;
+}
+
+.baraja-music-creator-app .baraja-kicker {
+  color: var(--creator-accent-dark);
+}
+
+.baraja-creator-workspace-shell {
+  display: grid;
+  gap: clamp(1rem, 2vw, 1.25rem);
+  align-items: start;
+}
+
+.baraja-creator-setup-panel,
+.baraja-creator-preview-stage,
+.baraja-creator-checkout,
+.baraja-creator-instruction-box,
+.baraja-creator-warning-box {
+  border: 1px solid var(--creator-line);
+  border-radius: 8px;
+  background: var(--creator-surface);
+  box-shadow: 0 18px 48px rgba(64, 45, 36, 0.07);
+}
+
+.baraja-creator-setup-panel {
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+}
+
+.baraja-creator-name-field {
+  padding: clamp(1rem, 2vw, 1.25rem);
+  border-bottom: 1px solid var(--creator-line);
+  background:
+    linear-gradient(135deg, rgba(255, 248, 238, 0.92), rgba(232, 238, 230, 0.55)),
+    #ffffff;
+}
+
+.baraja-creator-step {
+  display: grid;
+  gap: 1rem;
+  padding: clamp(1rem, 2vw, 1.25rem);
+  border-bottom: 1px solid var(--creator-line);
+}
+
+.baraja-creator-step:last-of-type {
+  border-bottom: 0;
+}
+
+.baraja-creator-step-head {
+  display: flex;
+  gap: 0.7rem;
+  align-items: center;
+}
+
+.baraja-creator-step-head span {
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--creator-accent-dark);
+  background: var(--creator-accent-soft);
+  font-size: 0.82rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.baraja-creator-step-head h2 {
+  margin: 0;
+  color: var(--creator-ink);
+  font: inherit;
+  font-size: clamp(1.15rem, 2vw, 1.35rem);
+  font-weight: 950;
+  letter-spacing: 0;
+  line-height: 1.1;
+}
+
+.baraja-music-creator-app .baraja-field input,
+.baraja-music-creator-app .baraja-field textarea {
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.baraja-music-creator-app .baraja-segmented-control {
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border: 1px solid rgba(64, 52, 46, 0.08);
+  background: rgba(64, 52, 46, 0.05);
+}
+
+.baraja-music-creator-app .baraja-segmented-control button {
+  min-height: 46px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--creator-muted);
+  background: transparent;
+}
+
+.baraja-music-creator-app .baraja-segmented-control button.is-selected {
+  color: var(--creator-ink);
+  background: #ffffff;
+  box-shadow: 0 8px 22px rgba(64, 45, 36, 0.08);
+}
+
+.baraja-playlist-source-card {
+  border-color: rgba(141, 56, 45, 0.15);
+  background:
+    linear-gradient(135deg, rgba(244, 221, 214, 0.64), rgba(255, 248, 238, 0.92) 58%, rgba(232, 238, 230, 0.82)),
+    #ffffff;
+}
+
+.baraja-playlist-source-card a,
+.baraja-count-options button.is-selected,
+.baraja-checkout-proceed {
+  background: var(--creator-accent);
+  box-shadow: 0 12px 28px rgba(141, 56, 45, 0.18);
+}
+
+.baraja-playlist-catalog button,
+.baraja-grid-size-editor,
+.baraja-count-readout,
+.baraja-playlist-detail,
+.baraja-compact-toggle {
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.baraja-playlist-catalog button.is-selected {
+  border-color: rgba(200, 93, 73, 0.44);
+  background: #fff6f1;
+}
+
+.baraja-count-editor {
+  gap: 0.9rem;
+}
+
+.baraja-count-readout {
+  min-height: 108px;
+  align-content: center;
+  border-color: rgba(200, 93, 73, 0.18);
+  background:
+    linear-gradient(135deg, rgba(255, 248, 238, 0.96), rgba(244, 221, 214, 0.56)),
+    #ffffff;
+}
+
+.baraja-count-readout strong {
+  font-size: clamp(2rem, 4vw, 2.65rem);
+}
+
+.baraja-count-helper {
+  border-color: rgba(64, 52, 46, 0.1);
+  background: #ffffff;
+}
+
+.baraja-count-helper div {
+  background: var(--creator-sage);
+}
+
+.baraja-count-options button {
+  background: #ffffff;
+  transition:
+    border-color 160ms ease,
+    color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.baraja-count-options button:hover {
+  border-color: rgba(200, 93, 73, 0.42);
+  color: var(--creator-ink);
+  transform: translateY(-1px);
+}
+
+.baraja-creator-settings-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.baraja-compact-toggle {
+  min-height: 100%;
+  border: 1px solid var(--creator-line);
+  border-radius: 8px;
+}
+
+.baraja-spotify-import-field {
+  padding: 1rem;
+  border: 1px solid rgba(64, 52, 46, 0.11);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.baraja-spotify-import-field textarea {
+  min-height: 220px;
+}
+
+.baraja-spotify-import-status {
+  margin: 0;
+  border: 1px solid rgba(64, 52, 46, 0.11);
+  border-radius: 8px;
+  color: var(--creator-muted);
+  background: var(--creator-sage);
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.35;
+  padding: 0.72rem 0.8rem;
+}
+
+.baraja-spotify-import-status.is-loading {
+  border-color: rgba(24, 168, 232, 0.24);
+  color: #166987;
+  background: rgba(24, 168, 232, 0.08);
+}
+
+.baraja-spotify-import-status.is-success {
+  border-color: rgba(29, 185, 84, 0.26);
+  color: #176b36;
+  background: rgba(29, 185, 84, 0.09);
+}
+
+.baraja-spotify-import-status.is-fallback {
+  border-color: rgba(200, 93, 73, 0.24);
+  color: #8c3f31;
+  background: #fff6f1;
+}
+
+.baraja-music-creator-app .baraja-validation {
+  margin: clamp(1rem, 2vw, 1.25rem);
+  margin-top: 0;
+  border-color: rgba(200, 93, 73, 0.2);
+  background: #fff6f1;
+}
+
+.baraja-music-creator-app .baraja-validation.is-ready {
+  border-color: rgba(64, 52, 46, 0.11);
+  background: var(--creator-sage);
+}
+
+.baraja-creator-preview-order {
+  display: grid;
+  gap: 1rem;
+  align-self: start;
+}
+
+.baraja-creator-preview-stage {
+  display: grid;
+  gap: 0.9rem;
+  padding: clamp(0.9rem, 2vw, 1rem);
+  align-content: start;
+}
+
+.baraja-creator-preview-stage .baraja-creator-preview-head {
+  align-items: start;
+}
+
+.baraja-creator-preview-stage .baraja-creator-preview-head h2 {
+  font-size: clamp(1.35rem, 2.5vw, 1.9rem);
+  line-height: 1.08;
+}
+
+.baraja-creator-preview-stage .baraja-creator-preview-head > span {
+  color: var(--creator-muted);
+  font-size: 0.82rem;
+  font-weight: 900;
+  line-height: 1.25;
+  text-align: right;
+}
+
+.baraja-preview-format-controls {
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.82rem;
+  border: 1px solid rgba(64, 52, 46, 0.11);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.baraja-preview-format-controls header {
+  display: flex;
+  gap: 0.75rem;
+  align-items: start;
+  justify-content: space-between;
+}
+
+.baraja-preview-format-controls header div {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.baraja-preview-format-controls span,
+.baraja-preview-format-controls small {
+  color: var(--creator-muted);
+  font-size: 0.76rem;
+  font-weight: 950;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.baraja-preview-format-controls strong {
+  color: var(--creator-ink);
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.baraja-preview-format-controls small {
+  max-width: 11rem;
+  line-height: 1.2;
+  text-align: right;
+}
+
+.baraja-preview-format-controls > div:last-child {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.baraja-preview-format-controls button {
+  min-height: 42px;
+  border: 1px solid var(--creator-line);
+  border-radius: 8px;
+  color: var(--creator-muted);
+  background: #fffdf8;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 950;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.baraja-preview-format-controls button:hover {
+  border-color: rgba(200, 93, 73, 0.42);
+  color: var(--creator-ink);
+  transform: translateY(-1px);
+}
+
+.baraja-preview-format-controls button.is-selected {
+  border-color: rgba(200, 93, 73, 0.48);
+  color: var(--creator-accent-dark);
+  background: #fff1eb;
+  box-shadow: 0 8px 18px rgba(141, 56, 45, 0.1);
+}
+
+.baraja-creator-sheet-preview {
+  padding: 0.8rem;
+  background:
+    linear-gradient(180deg, rgba(232, 238, 230, 0.72), rgba(255, 248, 238, 0.82)),
+    #ffffff;
+}
+
+.baraja-creator-preview-order .baraja-print-preview-card {
+  box-shadow: 0 14px 34px rgba(64, 45, 36, 0.11);
+}
+
+.baraja-creator-preview-order .baraja-print-preview-grid div {
+  min-height: clamp(72px, 7vw, 96px);
+}
+
+.baraja-preview-empty {
+  border-color: rgba(200, 93, 73, 0.22);
+  background: #fff6f1;
+}
+
+.baraja-creator-checkout {
+  padding: 1rem;
+}
+
+.baraja-creator-checkout > div {
+  padding: 0.72rem 0;
+}
+
+.baraja-creator-checkout > div:first-child {
+  padding-top: 0;
+}
+
+.baraja-creator-checkout footer {
+  display: grid;
+  gap: 0.65rem;
+  justify-content: stretch;
+}
+
+.baraja-checkout-cancel,
+.baraja-checkout-proceed {
+  width: 100%;
+  min-height: 46px;
+  cursor: pointer;
+}
+
+.baraja-checkout-cancel {
+  order: 3;
+  color: var(--creator-muted);
+  background: transparent;
+}
+
+.baraja-checkout-proceed:disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.baraja-creator-instructions {
+  gap: 0.7rem;
+}
+
+.baraja-creator-instruction-box,
+.baraja-creator-warning-box {
+  box-shadow: none;
+}
+
+.baraja-creator-instruction-box h2 {
+  font-size: 1.05rem;
+}
+
+.baraja-creator-instruction-box p,
+.baraja-creator-warning-box {
+  font-size: 0.9rem;
+}
+
+@media (min-width: 1020px) {
+  .baraja-creator-workspace-shell {
+    grid-template-columns: minmax(0, 1.55fr) minmax(360px, 0.9fr);
+  }
+
+  .baraja-creator-preview-order {
+    position: sticky;
+    top: 1rem;
+  }
+
+  .baraja-playlist-source-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .baraja-playlist-catalog {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .baraja-count-editor {
+    grid-template-columns: minmax(150px, 0.35fr) minmax(0, 1fr);
+  }
+
+  .baraja-count-options {
+    grid-column: 1 / -1;
+  }
+
+  .baraja-creator-settings-grid {
+    grid-template-columns: minmax(0, 1.2fr) minmax(210px, 0.8fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .baraja-music-creator-app {
+    padding-bottom: 2rem;
+  }
+
+  .baraja-creator-app-layout,
+  .baraja-creator-app-nav {
+    width: min(100% - 1rem, 1220px);
+  }
+
+  .baraja-creator-workspace-head h1 {
+    font-size: clamp(2.25rem, 13vw, 3.3rem);
+  }
+
+  .baraja-creator-step,
+  .baraja-creator-name-field {
+    padding: 0.9rem;
+  }
+
+  .baraja-music-creator-app .baraja-segmented-control {
+    grid-template-columns: 1fr;
+  }
+
+  .baraja-playlist-catalog {
+    grid-template-columns: 1fr;
+  }
+
+  .baraja-playlist-track-list {
+    max-height: 320px;
+    grid-template-columns: 1fr;
+  }
+
+  .baraja-creator-preview-stage .baraja-creator-preview-head {
+    display: grid;
+  }
+
+  .baraja-creator-preview-stage .baraja-creator-preview-head > span {
+    text-align: left;
+  }
+
+  .baraja-preview-format-controls header {
+    display: grid;
+  }
+
+  .baraja-preview-format-controls small {
+    max-width: none;
+    text-align: left;
+  }
+
+  .baraja-creator-preview-order .baraja-print-preview-grid div {
+    min-height: 78px;
+  }
+}
+
+/* ── Music bingo creator v3 journey pass ───────────────────── */
+.baraja-music-creator-app {
+  --creator-bg: #eef6ee;
+  background:
+    linear-gradient(180deg, #fbf8f1 0 92px, transparent 92px),
+    linear-gradient(180deg, #eef6ee 0%, #f7f0e7 100%);
+}
+
+.baraja-creator-app-nav {
+  min-height: 76px;
+  width: min(1180px, calc(100% - 2rem));
+  border-bottom: 1px solid rgba(64, 52, 46, 0.12);
+}
+
+.baraja-creator-app-nav .baraja-brand {
+  font-size: clamp(1.55rem, 3vw, 2rem);
+}
+
+.baraja-creator-app-layout {
+  width: min(1180px, calc(100% - 2rem));
+}
+
+.baraja-creator-workspace-head {
+  display: flex;
+  gap: 1rem;
+  align-items: end;
+  justify-content: space-between;
+  padding: clamp(1.25rem, 2.5vw, 2rem) 0 clamp(0.8rem, 2vw, 1.25rem);
+}
+
+.baraja-creator-workspace-head h1 {
+  max-width: 540px;
+  font-family: inherit;
+  font-size: clamp(2rem, 4.8vw, 3.25rem);
+  font-weight: 950;
+  line-height: 0.98;
+}
+
+.baraja-creator-workspace-head p:not(.baraja-kicker) {
+  max-width: 520px;
+  font-size: clamp(1rem, 1.7vw, 1.12rem);
+}
+
+.baraja-creator-setup-panel {
+  border-radius: 18px;
+  box-shadow: 0 18px 50px rgba(64, 45, 36, 0.08);
+}
+
+.baraja-creator-name-field,
+.baraja-creator-step {
+  padding: clamp(1.35rem, 2.4vw, 1.8rem);
+}
+
+.baraja-creator-name-field {
+  background: #ffffff;
+}
+
+.baraja-creator-step-head span {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+
+.baraja-count-editor {
+  display: grid;
+  gap: 1rem;
+}
+
+.baraja-count-readout {
+  min-height: 92px;
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: clamp(1rem, 2vw, 1.25rem);
+  border: 0;
+  border-radius: 10px;
+  background: #f8f9fb;
+}
+
+.baraja-count-readout > div:first-child {
+  display: flex;
+  gap: 0.65rem;
+  align-items: baseline;
+}
+
+.baraja-count-readout strong {
+  color: var(--creator-ink);
+  font-size: clamp(2rem, 4vw, 2.6rem);
+  line-height: 1;
+}
+
+.baraja-count-readout span {
+  color: var(--creator-muted);
+  font-size: 1.05rem;
+  font-weight: 850;
+}
+
+.baraja-count-readout b {
+  color: var(--creator-accent);
+  font-size: clamp(1rem, 2vw, 1.35rem);
+  text-align: right;
+}
+
+.baraja-count-price {
+  max-width: min(58%, 28rem);
+  display: grid;
+  gap: 0.16rem;
+  justify-items: end;
+  text-align: right;
+}
+
+.baraja-count-price small {
+  color: var(--creator-muted);
+  font-size: 0.76rem;
+  font-weight: 760;
+  line-height: 1.25;
+}
+
+.baraja-count-helper {
+  display: flex;
+  gap: 0.55rem;
+  align-items: start;
+  padding: 0;
+  border: 0;
+  color: var(--creator-muted);
+  background: transparent;
+  font-size: 0.96rem;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.baraja-count-helper::before {
+  content: "!";
+  width: 1.2rem;
+  height: 1.2rem;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #ffffff;
+  background: var(--creator-accent);
+  font-size: 0.78rem;
+  font-weight: 950;
+}
+
+.baraja-count-slider {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.baraja-count-slider input {
+  width: 100%;
+  accent-color: var(--creator-accent);
+}
+
+.baraja-count-slider span {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.35rem;
+  color: var(--creator-muted);
+  font-size: 0.86rem;
+  font-weight: 850;
+}
+
+.baraja-count-slider i {
+  font-style: normal;
+}
+
+.baraja-count-options {
+  display: none;
+}
+
+.baraja-creator-settings-grid {
+  gap: 1rem;
+}
+
+.baraja-playlist-url-review {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.baraja-playlist-url-review label {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.baraja-playlist-url-review label > span {
+  color: var(--creator-ink);
+  font-size: clamp(1.25rem, 2.4vw, 1.72rem);
+  font-weight: 900;
+}
+
+.baraja-playlist-url-review input {
+  min-height: 62px;
+  width: 100%;
+  border: 2px solid var(--creator-line);
+  border-radius: 12px;
+  color: var(--creator-muted);
+  background: #ffffff;
+  font: inherit;
+  font-size: clamp(1rem, 2vw, 1.25rem);
+  padding: 0 1.15rem;
+  outline: 0;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.baraja-playlist-url-review input:focus {
+  border-color: #18a8e8;
+  box-shadow: 0 0 0 4px rgba(24, 168, 232, 0.16);
+}
+
+.baraja-playlist-url-review p {
+  color: var(--creator-muted);
+  font-size: 0.92rem;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.baraja-playlist-url-review > button {
+  min-height: 48px;
+  width: fit-content;
+  display: inline-flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--creator-line);
+  border-radius: 999px;
+  color: var(--creator-ink);
+  background: #ffffff;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 900;
+  padding: 0 1.1rem;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.baraja-playlist-url-review > button:hover {
+  border-color: rgba(24, 168, 232, 0.44);
+  box-shadow: 0 12px 28px rgba(64, 45, 36, 0.09);
+  transform: translateY(-1px);
+}
+
+.baraja-playlist-url-review > button span {
+  width: 1.6rem;
+  height: 1.6rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: #ffffff;
+  background: #1db954;
+  font-size: 0.58rem;
+  font-weight: 950;
+}
+
+.baraja-playlist-url-review > button .baraja-spotify-logo {
+  position: relative;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: 0 0 auto;
+  display: block;
+  border-radius: 999px;
+  background: #1db954;
+}
+
+.baraja-spotify-logo em {
+  position: absolute;
+  left: 0.44rem;
+  width: 0.9rem;
+  height: 0.32rem;
+  border-top: 2px solid #ffffff;
+  border-radius: 999px 999px 0 0;
+  transform: rotate(9deg);
+}
+
+.baraja-spotify-logo em:nth-child(1) {
+  top: 0.52rem;
+  width: 0.98rem;
+}
+
+.baraja-spotify-logo em:nth-child(2) {
+  top: 0.77rem;
+  width: 0.82rem;
+}
+
+.baraja-spotify-logo em:nth-child(3) {
+  top: 1rem;
+  width: 0.62rem;
+}
+
+.baraja-playlist-url-review > button b {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.baraja-playlist-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  align-items: center;
+  justify-items: center;
+  padding: clamp(0.75rem, 2vw, 1.5rem);
+  background: rgba(22, 27, 33, 0.62);
+}
+
+.baraja-playlist-modal {
+  width: min(1120px, 100%);
+  max-height: min(820px, calc(100svh - 2rem));
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid rgba(24, 168, 232, 0.18);
+  border-radius: 24px;
+  background: #ffffff;
+  box-shadow: 0 34px 90px rgba(0, 0, 0, 0.24);
+}
+
+.baraja-playlist-modal > header {
+  display: flex;
+  gap: 1rem;
+  align-items: start;
+  justify-content: space-between;
+  padding: clamp(1.35rem, 2.5vw, 2.1rem);
+  border-bottom: 1px solid var(--creator-line);
+  background:
+    linear-gradient(135deg, rgba(232, 246, 255, 0.9), rgba(237, 248, 239, 0.82)),
+    #ffffff;
+}
+
+.baraja-playlist-modal h2 {
+  margin: 0;
+  color: var(--creator-ink);
+  font-size: clamp(1.85rem, 3.8vw, 2.6rem);
+  font-weight: 950;
+  line-height: 1.05;
+}
+
+.baraja-playlist-modal header p {
+  margin-top: 0.45rem;
+  color: var(--creator-muted);
+  font-size: clamp(1rem, 2vw, 1.16rem);
+  line-height: 1.35;
+}
+
+.baraja-playlist-modal header button {
+  width: 54px;
+  height: 54px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 999px;
+  color: var(--creator-muted);
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(64, 45, 36, 0.12);
+  font: inherit;
+  font-size: 1.4rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.baraja-playlist-modal-search {
+  display: grid;
+  gap: 0.5rem;
+  padding: clamp(1rem, 2vw, 1.45rem) clamp(1.35rem, 2.5vw, 2.1rem);
+  border-bottom: 1px solid var(--creator-line);
+}
+
+.baraja-playlist-modal-search span {
+  color: var(--creator-muted);
+  font-size: 0.78rem;
+  font-weight: 950;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.baraja-playlist-modal-search input {
+  min-height: 58px;
+  width: 100%;
+  border: 2px solid rgba(24, 168, 232, 0.22);
+  border-radius: 14px;
+  color: var(--creator-ink);
+  background: #ffffff;
+  font: inherit;
+  font-size: clamp(1rem, 2vw, 1.22rem);
+  padding: 0 1rem;
+  outline: 0;
+}
+
+.baraja-playlist-modal-search input:focus {
+  border-color: #18a8e8;
+  box-shadow: 0 0 0 4px rgba(24, 168, 232, 0.14);
+}
+
+.baraja-playlist-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  overflow-y: auto;
+  padding: clamp(1rem, 2vw, 1.45rem) clamp(1.35rem, 2.5vw, 2.1rem);
+}
+
+.baraja-playlist-modal-grid article {
+  overflow: hidden;
+  border: 1px solid var(--creator-line);
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(64, 45, 36, 0.08);
+}
+
+.baraja-playlist-modal-grid article.is-selected {
+  border-color: rgba(24, 168, 232, 0.48);
+}
+
+.baraja-playlist-modal-art {
+  position: relative;
+  isolation: isolate;
+  min-height: 154px;
+  display: grid;
+  align-items: end;
+  overflow: hidden;
+  padding: 1rem;
+  color: #ffffff;
+  background:
+    linear-gradient(135deg, rgba(24, 168, 232, 0.95), rgba(29, 185, 84, 0.86)),
+    #1687a7;
+}
+
+.baraja-playlist-modal-art::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.62));
+}
+
+.baraja-playlist-modal-art img {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.baraja-playlist-modal-grid article:nth-child(2n) .baraja-playlist-modal-art {
+  background:
+    linear-gradient(135deg, rgba(141, 56, 45, 0.96), rgba(200, 93, 73, 0.88)),
+    #8d382d;
+}
+
+.baraja-playlist-modal-grid article:nth-child(3n) .baraja-playlist-modal-art {
+  background:
+    linear-gradient(135deg, rgba(200, 93, 73, 0.94), rgba(33, 27, 24, 0.86)),
+    #c85d49;
+}
+
+.baraja-playlist-modal-art span {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.42rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.baraja-playlist-modal-grid article > div:last-child {
+  display: grid;
+  gap: 0.55rem;
+  padding: 1rem;
+}
+
+.baraja-playlist-modal-grid strong {
+  color: var(--creator-ink);
+  font-size: 1.25rem;
+  line-height: 1.15;
+}
+
+.baraja-playlist-modal-grid small {
+  color: var(--creator-muted);
+  font-size: 0.82rem;
+  font-weight: 950;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.baraja-playlist-modal-grid p {
+  color: var(--creator-muted);
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+
+.baraja-playlist-modal-grid article button {
+  width: fit-content;
+  min-height: 42px;
+  display: inline-flex;
+  gap: 0.55rem;
+  align-items: center;
+  border: 0;
+  color: #1493d1;
+  background: transparent;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 950;
+  padding: 0;
+  cursor: pointer;
+}
+
+@media (min-width: 1020px) {
+  .baraja-count-editor {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .baraja-creator-workspace-shell {
+    grid-template-columns: minmax(0, 1.42fr) minmax(360px, 0.78fr);
+  }
+}
+
+@media (max-width: 760px) {
+  .baraja-creator-app-nav,
+  .baraja-creator-app-layout {
+    width: min(100% - 0.75rem, 1180px);
+  }
+
+  .baraja-creator-workspace-head {
+    display: grid;
+    align-items: start;
+    padding-top: 1rem;
+  }
+
+  .baraja-creator-workspace-head h1 {
+    font-size: clamp(2rem, 12vw, 2.9rem);
+  }
+
+  .baraja-creator-name-field,
+  .baraja-creator-step {
+    padding: 1rem;
+  }
+
+  .baraja-count-readout {
+    display: grid;
+    align-items: start;
+  }
+
+  .baraja-count-readout b {
+    text-align: left;
+  }
+
+  .baraja-playlist-url-review label > div {
+    grid-template-columns: 1fr;
+  }
+
+  .baraja-playlist-url-review a,
+  .baraja-playlist-url-review button {
+    min-height: 44px;
+    border-left: 0;
+    border-top: 1px solid var(--creator-line);
+  }
+
+  .baraja-playlist-url-review > button {
+    width: 100%;
+    border-top: 1px solid var(--creator-line);
+  }
+
+  .baraja-playlist-modal-backdrop {
+    align-items: stretch;
+    padding: 0.5rem;
+  }
+
+  .baraja-playlist-modal {
+    max-height: calc(100svh - 1rem);
+    border-radius: 18px;
+  }
+
+  .baraja-playlist-modal > header {
+    align-items: start;
+  }
+
+  .baraja-playlist-modal header button {
+    width: 46px;
+    height: 46px;
+  }
+
+  .baraja-playlist-modal-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Music bingo creator v4 layout polish ──────────────────── */
+.baraja-music-creator-app {
+  --creator-bg: #1a1a1a;
+  --creator-surface: #222222;
+  --creator-line: rgba(255, 255, 255, 0.09);
+  --creator-ink: #e8e8e8;
+  --creator-muted: #8b8b8b;
+  --creator-accent: #b0f000;
+  --creator-accent-dark: #d6ff3d;
+  --creator-accent-soft: rgba(176, 240, 0, 0.12);
+  --creator-sage: #2a2a2a;
+  --creator-cream: #242424;
+  min-height: 100svh;
+  color: var(--creator-ink);
+  background: var(--creator-bg);
+}
+
+.baraja-creator-app-nav {
+  min-height: 52px;
+  width: min(1280px, calc(100% - 3rem));
+  padding: 0;
+  color: var(--creator-ink);
+  background: rgba(26, 26, 26, 0.9);
+  border-bottom-color: var(--creator-line);
+  backdrop-filter: blur(16px);
+}
+
+.baraja-creator-app-nav .baraja-brand {
+  color: var(--creator-ink);
+  font-family: var(--baraja-display, var(--font-serif));
+  font-size: clamp(1.2rem, 2vw, 1.55rem);
+}
+
+.baraja-creator-app-nav .baraja-nav-links {
+  gap: 1rem;
+  color: var(--creator-muted);
+  font-size: 0.88rem;
+}
+
+.baraja-creator-app-layout {
+  width: min(1280px, calc(100% - 3rem));
+}
+
+.baraja-creator-workspace-head {
+  min-height: auto;
+  align-items: center;
+  padding: clamp(0.85rem, 1.8vw, 1.35rem) 0 clamp(0.75rem, 1.6vw, 1rem);
+}
+
+.baraja-creator-workspace-head h1 {
+  max-width: 560px;
+  font-size: clamp(1.9rem, 4vw, 2.95rem);
+  line-height: 1;
+}
+
+.baraja-creator-workspace-head p:not(.baraja-kicker) {
+  max-width: 560px;
+  color: rgba(32, 25, 21, 0.62);
+  font-size: clamp(0.95rem, 1.4vw, 1.04rem);
+}
+
+.baraja-creator-workspace-shell {
+  gap: 0.85rem;
+}
+
+.baraja-creator-setup-panel,
+.baraja-creator-preview-stage,
+.baraja-creator-checkout,
+.baraja-creator-instruction-box,
+.baraja-creator-warning-box {
+  border-color: var(--creator-line);
+  border-radius: 12px;
+  background: var(--creator-surface);
+  box-shadow: 0 14px 42px rgba(54, 43, 34, 0.075);
+}
+
+.baraja-creator-setup-panel {
+  overflow: clip;
+}
+
+.baraja-creator-name-field,
+.baraja-creator-step {
+  padding: clamp(0.92rem, 1.8vw, 1.18rem);
+}
+
+.baraja-creator-name-field {
+  background: #fffdf8;
+}
+
+.baraja-creator-name-field span,
+.baraja-playlist-url-review label > span {
+  color: rgba(32, 25, 21, 0.72);
+  font-size: 0.76rem;
+  font-weight: 950;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.baraja-music-creator-app .baraja-field input,
+.baraja-playlist-url-review input {
+  min-height: 50px;
+  border-width: 1px;
+  border-color: rgba(43, 35, 29, 0.13);
+  border-radius: 10px;
+  color: var(--creator-ink);
+  font-size: 0.98rem;
+}
+
+.baraja-creator-step {
+  gap: 0.78rem;
+}
+
+.baraja-creator-step-head {
+  gap: 0.58rem;
+}
+
+.baraja-creator-step-head span {
+  width: 1.65rem;
+  height: 1.65rem;
+  background: #f4e2dc;
+  font-size: 0.72rem;
+}
+
+.baraja-creator-step-head h2 {
+  font-size: 1.04rem;
+  letter-spacing: 0;
+}
+
+.baraja-count-editor {
+  gap: 0.72rem;
+}
+
+.baraja-count-readout {
+  min-height: 76px;
+  padding: 0.85rem;
+  border: 1px solid rgba(43, 35, 29, 0.08);
+  background:
+    linear-gradient(135deg, rgba(255, 249, 239, 0.96), rgba(244, 222, 216, 0.42)),
+    #ffffff;
+}
+
+.baraja-count-readout strong {
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
+}
+
+.baraja-count-readout span,
+.baraja-count-readout b {
+  font-size: 0.92rem;
+}
+
+.baraja-count-price {
+  max-width: 58%;
+}
+
+.baraja-count-price small {
+  font-size: 0.72rem;
+}
+
+.baraja-count-helper {
+  padding: 0.7rem 0.76rem;
+  border: 1px solid rgba(43, 35, 29, 0.08);
+  border-radius: 10px;
+  background: #fffbf5;
+  font-size: 0.84rem;
+}
+
+.baraja-count-helper::before {
+  width: 1rem;
+  height: 1rem;
+  margin-top: 0.05rem;
+  font-size: 0.66rem;
+}
+
+.baraja-count-slider {
+  gap: 0.52rem;
+}
+
+.baraja-count-slider span {
+  font-size: 0.78rem;
+}
+
+.baraja-inline-free-space {
+  min-height: 54px;
+  padding: 0.72rem;
+  border-color: rgba(43, 35, 29, 0.1);
+  background: #ffffff;
+}
+
+.baraja-inline-free-space span strong {
+  font-size: 0.95rem;
+}
+
+.baraja-inline-free-space span small {
+  color: var(--creator-muted);
+  font-size: 0.82rem;
+}
+
+.baraja-playlist-url-review {
+  gap: 0.62rem;
+}
+
+.baraja-playlist-url-review label {
+  gap: 0.5rem;
+}
+
+.baraja-playlist-url-review p {
+  font-size: 0.84rem;
+}
+
+.baraja-playlist-url-review > button {
+  min-height: 42px;
+  gap: 0.6rem;
+  justify-self: start;
+  padding: 0 0.95rem;
+  font-size: 0.9rem;
+}
+
+.baraja-playlist-url-review > button span {
+  width: 1.35rem;
+  height: 1.35rem;
+  font-size: 0.48rem;
+}
+
+.baraja-playlist-detail {
+  border: 1px solid rgba(43, 35, 29, 0.1);
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+.baraja-playlist-detail header {
+  padding: 0.9rem 0.95rem 0.68rem;
+}
+
+.baraja-playlist-detail h2 {
+  font-size: clamp(1.15rem, 2vw, 1.45rem);
+  line-height: 1.04;
+}
+
+.baraja-playlist-detail header span {
+  font-size: 0.86rem;
+}
+
+.baraja-playlist-track-list {
+  max-height: min(38svh, 360px);
+  grid-template-columns: 1fr;
+  gap: 0;
+  padding: 0.5rem 0.7rem 0.8rem;
+}
+
+.baraja-playlist-track {
+  grid-template-columns: 2.25rem minmax(0, 1fr) 1.5rem;
+  gap: 0.58rem;
+  padding: 0.45rem 0.22rem;
+  border-bottom: 1px solid rgba(43, 35, 29, 0.08);
+}
+
+.baraja-playlist-track:last-child {
+  border-bottom: 0;
+}
+
+.baraja-playlist-track img,
+.baraja-playlist-track i {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 8px;
+}
+
+.baraja-playlist-track img {
+  object-fit: cover;
+  background: #f4ded8;
+}
+
+.baraja-playlist-track i {
+  background: #f4ded8;
+  font-size: 0.68rem;
+}
+
+.baraja-playlist-track strong {
+  font-size: 0.92rem;
+}
+
+.baraja-playlist-track span,
+.baraja-playlist-track small {
+  font-size: 0.8rem;
+}
+
+.baraja-music-creator-app .baraja-validation {
+  margin: 0.85rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 10px;
+  font-size: 0.86rem;
+}
+
+.baraja-creator-preview-order {
+  gap: 0.85rem;
+}
+
+.baraja-creator-preview-stage {
+  gap: 0.72rem;
+  padding: 0.8rem;
+}
+
+.baraja-creator-preview-stage .baraja-creator-preview-head {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.baraja-creator-preview-stage .baraja-creator-preview-head h2 {
+  font-size: clamp(1.18rem, 2vw, 1.55rem);
+}
+
+.baraja-creator-preview-stage .baraja-creator-preview-head > span {
+  text-align: left;
+}
+
+.baraja-preview-format-controls {
+  gap: 0.55rem;
+  padding: 0.65rem;
+  border-radius: 10px;
+}
+
+.baraja-preview-format-controls header {
+  align-items: center;
+}
+
+.baraja-preview-format-controls strong {
+  font-size: 1.05rem;
+}
+
+.baraja-preview-format-controls button {
+  min-height: 36px;
+  border-radius: 7px;
+  font-size: 0.8rem;
+}
+
+.baraja-pdf-preview {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.baraja-pdf-toolbar {
+  min-height: 42px;
+  gap: 0.65rem;
+  padding: 0 0.65rem;
+  overflow-x: auto;
+}
+
+.baraja-pdf-toolbar > span:first-child {
+  padding: 0.22rem 0.45rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+}
+
+.baraja-pdf-body {
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 430px;
+}
+
+.baraja-pdf-body aside {
+  padding: 1rem 0.55rem;
+}
+
+.baraja-pdf-body > section,
+.baraja-pdf-frame-shell {
+  min-width: 0 !important;
+}
+
+.baraja-pdf-render,
+.baraja-pdf-loading {
+  min-height: 430px;
+  padding: 0.8rem;
+}
+
+.baraja-pdf-canvas {
+  max-width: 100%;
+  height: auto !important;
+}
+
+.baraja-pdf-open-link {
+  padding: 0.62rem 0.75rem;
+  font-size: 0.78rem;
+}
+
+.baraja-creator-checkout {
+  padding: 0.85rem;
+}
+
+.baraja-creator-checkout > div {
+  padding: 0.55rem 0;
+}
+
+.baraja-creator-checkout span,
+.baraja-creator-checkout strong {
+  font-size: 0.9rem;
+}
+
+.baraja-checkout-cancel,
+.baraja-checkout-proceed {
+  min-height: 42px;
+  font-size: 0.9rem;
+}
+
+.baraja-creator-instruction-box,
+.baraja-creator-warning-box {
+  padding: 0.82rem;
+}
+
+.baraja-creator-instruction-box h2 {
+  font-size: 0.98rem;
+}
+
+.baraja-creator-instruction-box p,
+.baraja-creator-warning-box {
+  font-size: 0.82rem;
+}
+
+@media (min-width: 880px) {
+  .baraja-creator-workspace-shell {
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 0.74fr);
+    align-items: start;
+  }
+
+  .baraja-creator-preview-order {
+    position: sticky;
+    top: 4.75rem;
+  }
+}
+
+@media (min-width: 1180px) {
+  .baraja-creator-workspace-shell {
+    grid-template-columns: minmax(0, 1.04fr) minmax(390px, 0.78fr);
+  }
+}
+
+@media (max-width: 879px) {
+  .baraja-creator-workspace-head {
+    display: grid;
+    align-items: start;
+  }
+}
+
+@media (max-width: 520px) {
+  .baraja-creator-app-nav,
+  .baraja-creator-app-layout {
+    width: min(100% - 0.75rem, 1220px);
+  }
+
+  .baraja-creator-app-nav {
+    min-height: 58px;
+  }
+
+  .baraja-creator-workspace-head {
+    gap: 0.65rem;
+    padding: 0.75rem 0 0.85rem;
+  }
+
+  .baraja-creator-workspace-head h1 {
+    font-size: clamp(1.78rem, 9vw, 2.25rem);
+    line-height: 1.02;
+  }
+
+  .baraja-creator-workspace-head p:not(.baraja-kicker) {
+    font-size: 0.94rem;
+    line-height: 1.35;
+  }
+
+  .baraja-creator-name-field,
+  .baraja-creator-step {
+    padding: 0.82rem;
+  }
+
+  .baraja-count-readout {
+    min-height: auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .baraja-count-readout > div:first-child {
+    display: flex;
+  }
+
+  .baraja-count-readout .baraja-count-price {
+    display: grid;
+    max-width: 8.75rem;
+    justify-items: end;
+    text-align: right;
+  }
+
+  .baraja-count-readout b {
+    text-align: right;
+  }
+
+  .baraja-playlist-url-review > button {
+    width: 100%;
+    justify-self: stretch;
+  }
+
+  .baraja-pdf-body {
+    grid-template-columns: 1fr;
+  }
+
+  .baraja-pdf-body aside {
+    display: none;
+  }
+}
+
+/* ── Spotify imported playlist preview ─────────────────────── */
+.baraja-spotify-import-stack {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.baraja-manual-import {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.baraja-manual-import-toggle {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  color: #176b36;
+  background: transparent;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 900;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+  cursor: pointer;
+}
+
+.baraja-manual-import-field {
+  padding: 0.95rem;
+  border: 1px solid #dde4ec;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.baraja-manual-import-field textarea {
+  min-height: 145px;
+}
+
+.baraja-spotify-playlist-card {
+  display: grid;
+  gap: 0.85rem;
+  width: 100%;
+  padding: clamp(1rem, 2.2vw, 1.15rem);
+  border: 1px solid #dde4ec;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #171d2d;
+  font-family: 'Inter', 'DM Sans', system-ui, sans-serif;
+  box-shadow: none;
+}
+
+.baraja-spotify-playlist-card header {
+  display: grid;
+  gap: 0.15rem;
+  padding-bottom: 0.78rem;
+  border-bottom: 1px solid #e4e8ee;
+}
+
+.baraja-spotify-playlist-card h3 {
+  max-width: 28rem;
+  margin: 0;
+  color: #171d2d;
+  font-family: inherit;
+  font-size: clamp(1.55rem, 3.4vw, 2.05rem);
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.baraja-spotify-playlist-card header span {
+  color: #687083;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.baraja-spotify-playlist-scroll {
+  display: grid;
+  gap: 0.72rem;
+  max-height: 225px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 0.45rem;
+  scrollbar-color: #c7ccd4 transparent;
+  scrollbar-width: thin;
+}
+
+.baraja-spotify-playlist-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+.baraja-spotify-playlist-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.baraja-spotify-playlist-scroll::-webkit-scrollbar-thumb {
+  border: 3px solid #ffffff;
+  border-radius: 999px;
+  background: #c7ccd4;
+}
+
+.baraja-spotify-preview-track {
+  display: grid;
+  grid-template-columns: 2.45rem minmax(0, 1fr);
+  gap: 0.72rem;
+  align-items: center;
+  min-height: 2.45rem;
+}
+
+.baraja-spotify-preview-track img,
+.baraja-spotify-preview-track i {
+  display: block;
+  width: 2.45rem;
+  height: 2.45rem;
+  border-radius: 7px;
+}
+
+.baraja-spotify-preview-track img {
+  object-fit: cover;
+  background: #edf0f4;
+}
+
+.baraja-spotify-preview-track i {
+  display: grid;
+  place-items: center;
+  color: #176b36;
+  background: rgba(29, 185, 84, 0.13);
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 950;
+}
+
+.baraja-spotify-preview-track div {
+  display: grid;
+  min-width: 0;
+  gap: 0.1rem;
+}
+
+.baraja-spotify-preview-track strong,
+.baraja-spotify-preview-track span {
+  min-width: 0;
+  overflow: hidden;
+  line-height: 1.22;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.baraja-spotify-preview-track strong {
+  color: #252a35;
+  font-size: 1rem;
+  font-weight: 850;
+}
+
+.baraja-spotify-preview-track span {
+  color: #626977;
+  font-size: 0.92rem;
+  font-weight: 650;
+}
+
+.baraja-spotify-import-stack:has(.baraja-spotify-playlist-card) .baraja-spotify-import-field textarea {
+  min-height: 150px;
+}
+
+@media (max-width: 640px) {
+  .baraja-spotify-playlist-card {
+    padding: 0.95rem;
+  }
+
+  .baraja-spotify-playlist-card h3 {
+    font-size: clamp(1.35rem, 7vw, 1.75rem);
+  }
+
+  .baraja-spotify-playlist-scroll {
+    max-height: 215px;
+  }
+}
+
+/* ── Music bingo creator v5 Spotify-first dark polish ───────── */
+.baraja-music-creator-app {
+  --baraja-display: 'Barlow Condensed', 'IBM Plex Sans', system-ui, sans-serif;
+  --creator-bg: #1a1a1a;
+  --creator-surface: #222222;
+  --creator-raised: #242424;
+  --creator-secondary: #2a2a2a;
+  --creator-line: rgba(255, 255, 255, 0.09);
+  --creator-ink: #e8e8e8;
+  --creator-muted: #8b8b8b;
+  --creator-soft: #5f5f5f;
+  --creator-accent: #b0f000;
+  --creator-accent-ink: #0f1400;
+  --creator-warning: #e85050;
+  min-height: 100svh;
+  padding-bottom: 2.5rem;
+  color: var(--creator-ink);
+  background: var(--creator-bg);
+  font-family: 'Manrope', var(--font-sans);
+}
+
+.baraja-music-creator-app .baraja-kicker {
+  color: var(--creator-accent);
+  font-family: 'Manrope', var(--font-sans);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.baraja-creator-app-nav {
+  width: min(1280px, calc(100% - 3rem));
+  min-height: 52px;
+  color: var(--creator-ink);
+  background: rgba(26, 26, 26, 0.92);
+  border-bottom-color: var(--creator-line);
+}
+
+.baraja-creator-app-nav .baraja-brand {
+  color: var(--creator-ink);
+  font-family: var(--baraja-display);
+  font-size: 1.5rem;
+  font-weight: 900;
+}
+
+.baraja-creator-app-nav .baraja-nav-links a {
+  color: var(--creator-muted);
+}
+
+.baraja-creator-app-nav .baraja-nav-links a:hover {
+  color: var(--creator-ink);
+}
+
+.baraja-creator-app-layout {
+  width: min(1280px, calc(100% - 3rem));
+}
+
+.baraja-creator-workspace-head {
+  align-items: start;
+  padding: clamp(2rem, 4vw, 3rem) 0 clamp(1.35rem, 2vw, 1.8rem);
+}
+
+.baraja-creator-workspace-head h1 {
+  max-width: 31rem;
+  color: var(--creator-ink);
+  font-family: var(--baraja-display);
+  font-size: clamp(2.55rem, 5.6vw, 4.1rem);
+  font-weight: 900;
+  line-height: 0.98;
+}
+
+.baraja-creator-workspace-head p:not(.baraja-kicker) {
+  max-width: 32rem;
+  color: var(--creator-muted);
+  font-size: clamp(0.95rem, 1.45vw, 1.02rem);
+  line-height: 1.65;
+}
+
+.baraja-creator-trust-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.15rem;
+}
+
+.baraja-creator-trust-badges span {
+  min-height: 2rem;
+  display: inline-flex;
+  gap: 0.45rem;
+  align-items: center;
+  padding: 0.32rem 0.75rem;
+  border: 1px solid var(--creator-line);
+  border-radius: 999px;
+  color: var(--creator-muted);
+  background: var(--creator-secondary);
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.baraja-creator-trust-badges b {
+  color: var(--creator-accent);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.baraja-creator-setup-panel,
+.baraja-creator-preview-stage,
+.baraja-creator-checkout,
+.baraja-creator-instruction-box,
+.baraja-creator-warning-box {
+  border-color: var(--creator-line);
+  border-radius: 6px;
+  color: var(--creator-ink);
+  background: var(--creator-surface);
+  box-shadow: none;
+}
+
+.baraja-creator-name-field {
+  display: grid;
+  gap: 0.78rem;
+  background: transparent;
+}
+
+.baraja-creator-name-field .baraja-field {
+  gap: 0;
+}
+
+.baraja-creator-name-field span,
+.baraja-playlist-url-review label > span {
+  color: var(--creator-muted);
+}
+
+.baraja-creator-step-head span {
+  width: 1.55rem;
+  height: 1.55rem;
+  border: 1px solid var(--creator-line);
+  border-radius: 4px;
+  color: var(--creator-muted);
+  background: var(--creator-secondary);
+  font-family: var(--baraja-display);
+  font-size: 0.75rem;
+  font-weight: 900;
+}
+
+.baraja-creator-step-head h2 {
+  color: var(--creator-ink);
+  font-size: 0.98rem;
+  font-weight: 800;
+}
+
+.baraja-music-creator-app .baraja-field input,
+.baraja-music-creator-app .baraja-field textarea,
+.baraja-playlist-url-review input {
+  border-color: var(--creator-line);
+  border-radius: 6px;
+  color: var(--creator-ink);
+  background: var(--creator-raised);
+  box-shadow: none;
+}
+
+.baraja-music-creator-app .baraja-field input:focus,
+.baraja-music-creator-app .baraja-field textarea:focus,
+.baraja-playlist-url-review input:focus {
+  border-color: rgba(176, 240, 0, 0.62);
+  box-shadow: 0 0 0 3px rgba(176, 240, 0, 0.12);
+}
+
+.baraja-count-readout,
+.baraja-inline-free-space,
+.baraja-playlist-url-review > button,
+.baraja-playlist-detail,
+.baraja-preview-format-controls,
+.baraja-spotify-playlist-card {
+  border-color: var(--creator-line);
+  border-radius: 6px;
+  color: var(--creator-ink);
+  background: var(--creator-raised);
+  box-shadow: none;
+}
+
+.baraja-count-readout strong {
+  color: var(--creator-ink);
+  font-family: var(--baraja-display);
+  font-size: clamp(2.35rem, 4vw, 3.1rem);
+  font-weight: 900;
+}
+
+.baraja-count-readout span,
+.baraja-count-readout small,
+.baraja-count-price small {
+  color: var(--creator-muted);
+}
+
+.baraja-count-readout b,
+.baraja-count-price b {
+  color: var(--creator-accent);
+}
+
+.baraja-count-helper {
+  border-color: rgba(232, 80, 80, 0.18);
+  border-radius: 6px;
+  color: var(--creator-muted);
+  background: #2a2318;
+}
+
+.baraja-count-helper::before {
+  color: #ffffff;
+  background: var(--creator-warning);
+}
+
+.baraja-count-options {
+  display: none;
+}
+
+.baraja-inline-free-space span strong,
+.baraja-playlist-detail h2,
+.baraja-playlist-track strong,
+.baraja-spotify-playlist-card h3,
+.baraja-spotify-preview-track strong {
+  color: var(--creator-ink);
+}
+
+.baraja-inline-free-space span small,
+.baraja-playlist-detail header span,
+.baraja-playlist-track span,
+.baraja-playlist-track small,
+.baraja-spotify-playlist-card header span,
+.baraja-spotify-preview-track span {
+  color: var(--creator-muted);
+}
+
+.baraja-preview-format-controls {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.baraja-preview-format-controls header span,
+.baraja-preview-format-controls header small {
+  color: var(--creator-muted);
+}
+
+.baraja-preview-format-controls strong {
+  color: var(--creator-ink);
+  font-family: var(--baraja-display);
+}
+
+.baraja-preview-format-controls div[role='group'] {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.baraja-preview-format-controls button {
+  min-height: 44px;
+  border-color: var(--creator-line);
+  border-radius: 6px;
+  color: var(--creator-muted);
+  background: var(--creator-surface);
+  font-weight: 900;
+}
+
+.baraja-preview-format-controls button.is-selected {
+  border-color: rgba(176, 240, 0, 0.62);
+  color: var(--creator-accent);
+  background: rgba(176, 240, 0, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(176, 240, 0, 0.12);
+}
+
+.baraja-playlist-url-review p,
+.baraja-playlist-url-review label,
+.baraja-spotify-import-field small {
+  color: var(--creator-muted);
+}
+
+.baraja-playlist-url-review > button {
+  color: var(--creator-muted);
+}
+
+.baraja-playlist-url-review > button:hover {
+  border-color: rgba(29, 185, 84, 0.45);
+  color: var(--creator-ink);
+}
+
+.baraja-playlist-url-review > button span {
+  color: #ffffff;
+  background: #1db954;
+}
+
+.baraja-music-creator-app .baraja-manual-import-toggle {
+  color: var(--creator-accent);
+}
+
+.baraja-music-creator-app .baraja-manual-import-toggle:hover {
+  color: var(--creator-ink);
+}
+
+.baraja-music-creator-app .baraja-manual-import-field {
+  border-color: var(--creator-line);
+  color: var(--creator-ink);
+  background: var(--creator-raised);
+}
+
+.baraja-playlist-track {
+  border-bottom-color: var(--creator-line);
+}
+
+.baraja-playlist-track img,
+.baraja-playlist-track i,
+.baraja-spotify-preview-track i {
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.baraja-playlist-track i,
+.baraja-spotify-preview-track i {
+  color: var(--creator-accent);
+  background: rgba(176, 240, 0, 0.1);
+}
+
+.baraja-spotify-playlist-scroll::-webkit-scrollbar-thumb {
+  border-color: var(--creator-raised);
+  background: #555555;
+}
+
+.baraja-music-creator-app .baraja-validation {
+  border-color: rgba(232, 80, 80, 0.2);
+  color: var(--creator-muted);
+  background: rgba(232, 80, 80, 0.08);
+}
+
+.baraja-music-creator-app .baraja-validation strong {
+  color: var(--creator-ink);
+}
+
+.baraja-music-creator-app .baraja-validation span {
+  color: var(--creator-muted);
+}
+
+.baraja-music-creator-app .baraja-validation.is-ready {
+  border-color: rgba(176, 240, 0, 0.22);
+  background: rgba(176, 240, 0, 0.08);
+}
+
+.baraja-creator-preview-stage .baraja-creator-preview-head h2 {
+  color: var(--creator-ink);
+  font-family: var(--baraja-display);
+  font-size: clamp(1.55rem, 3vw, 2rem);
+  font-weight: 900;
+}
+
+.baraja-creator-preview-stage .baraja-creator-preview-head > span {
+  color: var(--creator-muted);
+}
+
+.baraja-print-preview-card {
+  border-radius: 4px;
+}
+
+.baraja-pdf-body {
+  min-height: 340px;
+}
+
+.baraja-pdf-render,
+.baraja-pdf-loading {
+  min-height: 340px;
+  align-content: center;
+}
+
+.baraja-print-preview-grid div.is-free {
+  background: rgba(176, 240, 0, 0.12);
+}
+
+.baraja-creator-checkout > div {
+  border-bottom-color: var(--creator-line);
+}
+
+.baraja-creator-checkout span {
+  color: var(--creator-muted);
+}
+
+.baraja-creator-checkout strong {
+  color: var(--creator-ink);
+}
+
+.baraja-checkout-cancel,
+.baraja-checkout-proceed {
+  border-radius: 6px;
+}
+
+.baraja-checkout-cancel {
+  color: var(--creator-muted);
+}
+
+.baraja-checkout-proceed {
+  color: var(--creator-accent-ink);
+  background: var(--creator-accent);
+}
+
+.baraja-checkout-proceed:disabled {
+  opacity: 0.5;
+}
+
+.baraja-creator-instruction-box h2 {
+  color: var(--creator-ink);
+}
+
+.baraja-creator-instruction-box p,
+.baraja-creator-warning-box {
+  color: var(--creator-muted);
+}
+
+.baraja-playlist-modal {
+  border-color: var(--creator-line);
+  color: var(--creator-ink);
+  background: var(--creator-surface);
+}
+
+.baraja-playlist-modal h2,
+.baraja-playlist-modal-grid strong {
+  color: var(--creator-ink);
+}
+
+.baraja-playlist-modal header p,
+.baraja-playlist-modal-grid small,
+.baraja-playlist-modal-grid p {
+  color: var(--creator-muted);
+}
+
+.baraja-playlist-modal-search,
+.baraja-playlist-modal-grid article {
+  border-color: var(--creator-line);
+  background: var(--creator-raised);
+}
+
+.baraja-playlist-modal-grid article.is-selected {
+  border-color: rgba(176, 240, 0, 0.5);
+}
+
+.baraja-playlist-modal-grid article button {
+  color: var(--creator-accent-ink);
+  background: var(--creator-accent);
+}
+
+@media (min-width: 880px) {
+  .baraja-creator-workspace-shell {
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 400px);
+    gap: 3rem;
+  }
+
+  .baraja-creator-preview-order {
+    top: 4.35rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .baraja-creator-app-nav,
+  .baraja-creator-app-layout {
+    width: min(100% - 1rem, 1280px);
+  }
+
+  .baraja-creator-workspace-head {
+    padding-top: 1.35rem;
+  }
+
+  .baraja-creator-workspace-head h1 {
+    font-size: clamp(2.2rem, 12vw, 3.1rem);
+  }
+
+  .baraja-creator-trust-badges span {
+    max-width: 100%;
+  }
+
+  .baraja-preview-format-controls div[role='group'] {
+    grid-template-columns: 1fr;
+  }
+
+  .baraja-pdf-body,
+  .baraja-pdf-render,
+  .baraja-pdf-loading {
+    min-height: 300px;
+  }
+}
+
+/* Music bingo landing creator bridge — BMAD/Figma Make pass 2026-07-04 */
+.baraja-campaign-hero-copy h1 {
+  text-wrap: balance;
+}
+
+.baraja-music-creator-mini {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+  padding: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 8px;
+  color: #e8e8e8;
+  background: #1a1a1a;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.baraja-music-creator-mini div {
+  display: grid;
+  min-width: 0;
+  gap: 0.2rem;
+  padding: 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  background: #242424;
+}
+
+.baraja-music-creator-mini span {
+  color: #8b8b8b;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.baraja-music-creator-mini strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #b0f000;
+  font-size: 0.9rem;
+  font-weight: 900;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.baraja-creator-bridge {
+  padding-top: clamp(2.5rem, 5vw, 4.6rem);
+  padding-bottom: clamp(2.8rem, 5vw, 4.8rem);
+  border-top: 1px solid rgba(43, 35, 27, 0.1);
+  border-bottom: 1px solid rgba(43, 35, 27, 0.1);
+}
+
+.baraja-creator-bridge .baraja-section-header {
+  max-width: 900px;
+}
+
+.baraja-creator-bridge-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+  margin-top: 1.5rem;
+}
+
+.baraja-creator-bridge-grid article {
+  display: grid;
+  min-width: 0;
+  gap: 0.65rem;
+  align-content: start;
+  padding: 1.1rem;
+  border: 1px solid var(--baraja-line);
+  border-radius: 8px;
+  color: var(--baraja-text);
+  background:
+    linear-gradient(180deg, rgba(255, 253, 249, 0.94), rgba(247, 236, 215, 0.82));
+  box-shadow: 0 20px 46px rgba(91, 66, 30, 0.1);
+}
+
+.baraja-creator-bridge-grid article > span {
+  display: grid;
+  width: 2.1rem;
+  height: 2.1rem;
+  place-items: center;
+  color: var(--baraja-on-gold);
+  border-radius: 999px;
+  background: var(--baraja-gold);
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.baraja-creator-bridge-grid h3 {
+  margin: 0;
+  color: var(--baraja-text);
+  font-family: var(--baraja-display);
+  font-size: clamp(1.45rem, 2.2vw, 1.9rem);
+  font-weight: 650;
+  line-height: 1.02;
+}
+
+.baraja-creator-bridge-grid p {
+  margin: 0;
+  color: var(--baraja-muted);
+  line-height: 1.5;
+}
+
+.baraja-creator-bridge-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+@media (max-width: 760px) {
+  .baraja-music-creator-mini,
+  .baraja-creator-bridge-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .baraja-creator-bridge {
+    padding-top: 2.5rem;
+  }
+
+  .baraja-creator-bridge-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .baraja-creator-bridge-actions .baraja-button {
+    width: 100%;
+  }
+}
+
+/* Music bingo landing dark redesign - Figma Make pass 2026-07-04 */
+.baraja-campaign {
+  --bingo-bg: #1a1a1a;
+  --bingo-nav: #111111;
+  --bingo-surface: #222222;
+  --bingo-raised: #242424;
+  --bingo-field: #2a2a2a;
+  --bingo-line: rgba(255, 255, 255, 0.09);
+  --bingo-line-strong: rgba(255, 255, 255, 0.16);
+  --bingo-text: #f0f0f0;
+  --bingo-muted: #8b8b8b;
+  --bingo-soft: #cfcfcf;
+  --bingo-accent: #b0f000;
+  --bingo-accent-ink: #101010;
+
+  min-height: 100svh;
+  color: var(--bingo-text);
+  background: var(--bingo-bg);
+  font-family: 'Manrope', var(--baraja-body), sans-serif;
+}
+
+.baraja-campaign .baraja-nav {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  width: 100%;
+  min-height: 52px;
+  margin: 0;
+  padding: 0 clamp(1rem, 3vw, 3rem);
+  color: var(--bingo-text);
+  border: 0;
+  border-bottom: 1px solid var(--bingo-line);
+  background: rgba(17, 17, 17, 0.96);
+  backdrop-filter: blur(16px);
+}
+
+.baraja-campaign .baraja-brand {
+  color: var(--bingo-accent);
+  font-family: 'Barlow Condensed', var(--baraja-display), sans-serif;
+  font-size: 1.15rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.baraja-campaign .baraja-nav-links {
+  gap: 1.35rem;
+  color: var(--bingo-muted);
+}
+
+.baraja-campaign .baraja-nav-links a {
+  color: var(--bingo-muted);
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.baraja-campaign .baraja-nav-links a:hover {
+  color: var(--bingo-text);
+}
+
+.baraja-campaign .baraja-nav-cta,
+.baraja-campaign .baraja-button-primary {
+  color: var(--bingo-accent-ink);
+  border-color: var(--bingo-accent);
+  background: var(--bingo-accent);
+  box-shadow: none;
+}
+
+.baraja-campaign .baraja-nav-cta:hover,
+.baraja-campaign .baraja-button-primary:hover {
+  color: var(--bingo-accent-ink);
+  background: #c2ff2f;
+}
+
+.baraja-campaign .baraja-button-outline {
+  color: var(--bingo-text);
+  border-color: var(--bingo-line-strong);
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: none;
+}
+
+.baraja-campaign .baraja-button-outline:hover {
+  color: var(--bingo-text);
+  border-color: rgba(176, 240, 0, 0.45);
+  background: rgba(176, 240, 0, 0.08);
+}
+
+.baraja-campaign .baraja-button,
+.baraja-campaign .baraja-nav-cta {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  font-family: 'Manrope', var(--baraja-body), sans-serif;
+  font-size: 0.9rem;
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+}
+
+.baraja-campaign .baraja-campaign-hero,
+.baraja-campaign .baraja-campaign-section,
+.baraja-campaign .baraja-custom-legal-note,
+.baraja-campaign .baraja-footer {
+  width: min(1180px, calc(100% - 2rem));
+  margin-inline: auto;
+}
+
+.baraja-campaign .baraja-campaign-hero {
+  min-height: calc(100svh - 52px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 520px);
+  gap: clamp(2rem, 5vw, 4.5rem);
+  align-items: center;
+  padding: clamp(3.2rem, 7vw, 6.8rem) 0 clamp(3rem, 5vw, 5rem);
+}
+
+.baraja-campaign .baraja-campaign-hero-copy {
+  min-width: 0;
+}
+
+.baraja-campaign .baraja-kicker {
+  margin: 0 0 0.9rem;
+  color: var(--bingo-accent);
+  font-family: 'Manrope', var(--baraja-body), sans-serif;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.baraja-campaign .baraja-campaign-hero-copy h1,
+.baraja-campaign .baraja-campaign-section h2 {
+  color: var(--bingo-text);
+  font-family: 'Barlow Condensed', var(--baraja-display), sans-serif;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.baraja-campaign .baraja-campaign-hero-copy h1 {
+  max-width: 780px;
+  margin: 0;
+  font-size: clamp(3.75rem, 7.6vw, 7.1rem);
+  line-height: 0.87;
+}
+
+.baraja-campaign .baraja-campaign-hero-copy h1 span {
+  display: block;
+  color: var(--bingo-accent);
+}
+
+.baraja-campaign .baraja-lead {
+  max-width: 640px;
+  margin-top: 1.2rem;
+  color: var(--bingo-soft);
+  font-size: clamp(1rem, 1.3vw, 1.08rem);
+  line-height: 1.65;
+}
+
+.baraja-campaign .baraja-actions,
+.baraja-campaign .baraja-creator-bridge-actions,
+.baraja-campaign .baraja-campaign-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.4rem;
+}
+
+.baraja-campaign .baraja-hero-pill-row,
+.baraja-campaign .baraja-final-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 1.25rem;
+}
+
+.baraja-campaign .baraja-hero-pill-row span,
+.baraja-campaign .baraja-final-points span,
+.baraja-campaign .baraja-campaign-song-list span {
+  color: var(--bingo-soft);
+  border: 1px solid var(--bingo-line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 0.78rem;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.baraja-campaign .baraja-hero-pill-row span,
+.baraja-campaign .baraja-final-points span {
+  padding: 0.48rem 0.72rem;
+}
+
+.baraja-campaign .baraja-music-bingo-preview {
+  display: grid;
+  min-width: 0;
+  gap: 1rem;
+  align-self: center;
+  padding: clamp(0.85rem, 1.6vw, 1.05rem);
+  color: var(--bingo-text);
+  border: 1px solid var(--bingo-line);
+  border-radius: 10px;
+  background: linear-gradient(180deg, #242424, #1f1f1f);
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.34);
+}
+
+.baraja-campaign .baraja-music-creator-mini {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  padding: 0.65rem;
+  border-color: var(--bingo-line);
+  border-radius: 8px;
+  background: var(--bingo-bg);
+}
+
+.baraja-campaign .baraja-music-creator-mini div {
+  min-width: 0;
+  padding: 0.65rem;
+  border-color: var(--bingo-line);
+  border-radius: 6px;
+  background: var(--bingo-raised);
+}
+
+.baraja-campaign .baraja-music-creator-mini span {
+  color: var(--bingo-muted);
+  font-size: 0.64rem;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.baraja-campaign .baraja-music-creator-mini strong {
+  color: var(--bingo-accent);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.baraja-campaign .baraja-music-bingo-sheet {
+  gap: 0.85rem;
+  min-height: 0;
+  padding: clamp(0.85rem, 1.8vw, 1.1rem);
+  border-color: var(--bingo-line);
+  border-radius: 8px;
+  background: #121212;
+}
+
+.baraja-campaign .baraja-music-bingo-sheet-head span,
+.baraja-campaign .baraja-music-bingo-sheet-head small,
+.baraja-campaign .baraja-music-bingo-guide span,
+.baraja-campaign .baraja-music-bingo-guide small {
+  color: var(--bingo-muted);
+  font-family: 'Manrope', var(--baraja-body), sans-serif;
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.baraja-campaign .baraja-music-bingo-sheet-head strong,
+.baraja-campaign .baraja-music-bingo-guide strong {
+  color: var(--bingo-text);
+  font-family: 'Barlow Condensed', var(--baraja-display), sans-serif;
+  font-size: clamp(1.45rem, 2.5vw, 2rem);
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.baraja-campaign .baraja-music-bingo-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.baraja-campaign .baraja-music-bingo-grid span {
+  min-width: 0;
+  min-height: 58px;
+  padding: 0.35rem;
+  color: var(--bingo-text);
+  border-color: var(--bingo-line);
+  border-radius: 6px;
+  background: var(--bingo-field);
+  font-size: 0.64rem;
+  font-weight: 800;
+  line-height: 1.12;
+  overflow-wrap: anywhere;
+}
+
+.baraja-campaign .baraja-music-bingo-grid span.is-free {
+  color: var(--bingo-accent-ink);
+  border-color: var(--bingo-accent);
+  background: var(--bingo-accent);
+}
+
+.baraja-campaign .baraja-music-bingo-guide {
+  border-color: var(--bingo-line);
+  border-radius: 8px;
+  background: var(--bingo-raised);
+}
+
+.baraja-campaign .baraja-campaign-section {
+  padding: clamp(4rem, 7vw, 6.4rem) 0;
+}
+
+.baraja-campaign .baraja-creator-bridge {
+  border-top: 1px solid var(--bingo-line);
+  border-bottom: 1px solid var(--bingo-line);
+}
+
+.baraja-campaign .baraja-section-header {
+  max-width: 860px;
+  margin-bottom: 1.5rem;
+}
+
+.baraja-campaign .baraja-section-header p:not(.baraja-kicker),
+.baraja-campaign .baraja-campaign-offer > p,
+.baraja-campaign .baraja-campaign-paths p,
+.baraja-campaign .baraja-campaign-step-grid p,
+.baraja-campaign .baraja-creator-bridge-grid p {
+  color: var(--bingo-soft);
+  line-height: 1.6;
+}
+
+.baraja-campaign .baraja-campaign-section h2 {
+  max-width: 900px;
+  font-size: clamp(2.7rem, 5vw, 5.2rem);
+  line-height: 0.92;
+}
+
+.baraja-campaign .baraja-section-header-centered {
+  margin-inline: auto;
+  text-align: center;
+}
+
+.baraja-campaign .baraja-campaign-offer-grid,
+.baraja-campaign .baraja-campaign-step-grid,
+.baraja-campaign .baraja-creator-bridge-grid {
+  gap: 0.9rem;
+}
+
+.baraja-campaign .baraja-campaign-offer,
+.baraja-campaign .baraja-campaign-paths article,
+.baraja-campaign .baraja-campaign-step-grid article,
+.baraja-campaign .baraja-creator-bridge-grid article {
+  min-width: 0;
+  color: var(--bingo-text);
+  border: 1px solid var(--bingo-line);
+  border-radius: 8px;
+  background: var(--bingo-surface);
+  box-shadow: none;
+}
+
+.baraja-campaign .baraja-campaign-offer {
+  grid-template-rows: auto auto 1fr auto;
+  padding: 1rem;
+}
+
+.baraja-campaign .baraja-campaign-offer > div:first-child {
+  gap: 0.45rem;
+}
+
+.baraja-campaign .baraja-campaign-offer > div:first-child p {
+  color: var(--bingo-accent);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.baraja-campaign .baraja-campaign-offer h3,
+.baraja-campaign .baraja-campaign-paths h2,
+.baraja-campaign .baraja-campaign-step-grid h3,
+.baraja-campaign .baraja-creator-bridge-grid h3 {
+  color: var(--bingo-text);
+  font-family: 'Barlow Condensed', var(--baraja-display), sans-serif;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 0.98;
+  text-transform: uppercase;
+}
+
+.baraja-campaign .baraja-campaign-offer h3 {
+  font-size: clamp(1.7rem, 2.4vw, 2.25rem);
+}
+
+.baraja-campaign .baraja-campaign-offer > div:first-child span,
+.baraja-campaign .baraja-campaign-offer p,
+.baraja-campaign .baraja-campaign-offer span {
+  color: var(--bingo-soft);
+}
+
+.baraja-campaign .baraja-campaign-song-list {
+  align-content: start;
+}
+
+.baraja-campaign .baraja-campaign-song-list span {
+  padding: 0.42rem 0.62rem;
+}
+
+.baraja-campaign .baraja-campaign-offer-actions {
+  display: grid;
+  gap: 0.55rem;
+  align-self: end;
+}
+
+.baraja-campaign .baraja-campaign-offer-actions .baraja-button,
+.baraja-campaign .baraja-campaign-offer .baraja-button {
+  width: 100%;
+}
+
+.baraja-campaign .baraja-campaign-paths {
+  gap: 1rem;
+}
+
+.baraja-campaign .baraja-campaign-paths article,
+.baraja-campaign .baraja-campaign-step-grid article {
+  padding: clamp(1rem, 2vw, 1.25rem);
+}
+
+.baraja-campaign .baraja-campaign-paths h2 {
+  font-size: clamp(2.1rem, 3.8vw, 3.6rem);
+}
+
+.baraja-campaign .baraja-creator-bridge-grid article > span,
+.baraja-campaign .baraja-campaign-step-grid article > span {
+  display: grid;
+  width: 2.35rem;
+  height: 2.35rem;
+  place-items: center;
+  color: var(--bingo-accent-ink);
+  border: 0;
+  border-radius: 999px;
+  background: var(--bingo-accent);
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.baraja-campaign .baraja-music-legal-note {
+  margin-top: 0;
+  padding: clamp(1rem, 2vw, 1.25rem);
+  color: var(--bingo-soft);
+  border: 1px solid var(--bingo-line);
+  border-radius: 8px;
+  background: var(--bingo-surface);
+}
+
+.baraja-campaign .baraja-music-legal-note strong {
+  color: var(--bingo-text);
+}
+
+.baraja-campaign .baraja-music-legal-note p {
+  color: var(--bingo-soft);
+}
+
+.baraja-campaign .baraja-footer {
+  color: var(--bingo-muted);
+  border-top-color: var(--bingo-line);
+}
+
+.baraja-campaign .baraja-footer a {
+  color: var(--bingo-soft);
+}
+
+.baraja-campaign .baraja-footer .baraja-brand {
+  color: var(--bingo-accent);
+}
+
+@media (max-width: 980px) {
+  .baraja-campaign .baraja-campaign-hero {
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .baraja-campaign .baraja-music-bingo-preview {
+    width: min(620px, 100%);
+  }
+
+  .baraja-campaign .baraja-campaign-offer-grid,
+  .baraja-campaign .baraja-campaign-step-grid,
+  .baraja-campaign .baraja-creator-bridge-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .baraja-campaign .baraja-nav {
+    padding-inline: 1rem;
+  }
+
+  .baraja-campaign .baraja-campaign-hero,
+  .baraja-campaign .baraja-campaign-section,
+  .baraja-campaign .baraja-custom-legal-note,
+  .baraja-campaign .baraja-footer {
+    width: min(100% - 1rem, 1180px);
+  }
+
+  .baraja-campaign .baraja-campaign-hero {
+    padding-top: 2.4rem;
+    padding-bottom: 3rem;
+  }
+
+  .baraja-campaign .baraja-campaign-hero-copy h1 {
+    font-size: clamp(3rem, 16vw, 4.35rem);
+    line-height: 0.88;
+  }
+
+  .baraja-campaign .baraja-lead {
+    font-size: 0.98rem;
+  }
+
+  .baraja-campaign .baraja-actions,
+  .baraja-campaign .baraja-creator-bridge-actions,
+  .baraja-campaign .baraja-campaign-inline-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .baraja-campaign .baraja-actions .baraja-button,
+  .baraja-campaign .baraja-creator-bridge-actions .baraja-button,
+  .baraja-campaign .baraja-campaign-inline-actions .baraja-button {
+    width: 100%;
+  }
+
+  .baraja-campaign .baraja-music-creator-mini {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .baraja-campaign .baraja-music-bingo-grid {
+    gap: 0.3rem;
+  }
+
+  .baraja-campaign .baraja-music-bingo-grid span {
+    min-height: 50px;
+    padding: 0.25rem;
+    font-size: 0.58rem;
+  }
+
+  .baraja-campaign .baraja-campaign-section {
+    padding-block: 3.5rem;
+  }
+
+  .baraja-campaign .baraja-campaign-section h2 {
+    font-size: clamp(2.35rem, 12vw, 3.35rem);
+  }
+
+  .baraja-campaign .baraja-campaign-paths {
+    grid-template-columns: 1fr;
+  }
+
+  .baraja-campaign .baraja-footer {
+    display: grid;
+    justify-items: start;
+  }
+
+  .baraja-campaign .baraja-footer div {
+    flex-wrap: wrap;
+  }
+}
+
+/* BMAD spacing pass - music bingo landing + creator */
+html:has(.baraja-campaign),
+body:has(.baraja-campaign),
+#root:has(.baraja-campaign),
+html:has(.baraja-music-creator-app),
+body:has(.baraja-music-creator-app),
+#root:has(.baraja-music-creator-app) {
+  background: #1a1a1a;
+}
+
+@media (min-width: 761px) {
+  .baraja-campaign .baraja-campaign-inline-actions .baraja-button {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .baraja-campaign .baraja-campaign-hero,
+  .baraja-campaign .baraja-campaign-section,
+  .baraja-campaign .baraja-custom-legal-note,
+  .baraja-campaign .baraja-footer {
+    width: min(100% - 2rem, 1180px);
+  }
+
+  .baraja-campaign .baraja-campaign-hero {
+    gap: 1.5rem;
+  }
+
+  .baraja-campaign .baraja-lead {
+    width: 100%;
+    max-width: 100%;
+    margin-inline: 0;
+  }
+
+  .baraja-campaign .baraja-hero-pill-row {
+    width: 100%;
+    justify-content: flex-start;
+    margin-inline: 0;
+  }
+
+  .baraja-campaign .baraja-music-bingo-preview {
+    gap: 0.75rem;
+    padding: 0.72rem;
+  }
+
+  .baraja-campaign .baraja-music-bingo-grid span {
+    min-height: 44px;
+    font-size: 0.55rem;
+  }
+}
+
+@media (min-width: 880px) {
+  .baraja-creator-workspace {
+    gap: 0.85rem;
+  }
+
+  .baraja-creator-workspace-head {
+    padding-top: clamp(1.35rem, 2.4vw, 2rem);
+    padding-bottom: clamp(0.85rem, 1.4vw, 1.15rem);
+  }
+
+  .baraja-creator-trust-badges {
+    margin-top: 0.75rem;
+  }
+
+  .baraja-creator-workspace-shell {
+    gap: clamp(1.5rem, 2.4vw, 2rem);
+  }
+
+  .baraja-creator-preview-order {
+    gap: 0.75rem;
+  }
+
+  .baraja-pdf-body,
+  .baraja-pdf-render,
+  .baraja-pdf-loading {
+    min-height: clamp(280px, 34svh, 320px);
+  }
+
+  .baraja-creator-checkout {
+    padding: 0.85rem;
+  }
+
+  .baraja-creator-checkout > div {
+    padding: 0.55rem 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .baraja-creator-app-nav,
+  .baraja-creator-app-layout {
+    width: min(100% - 1.5rem, 1280px);
+  }
+
+  .baraja-creator-workspace-head {
+    gap: 0.55rem;
+    padding-top: 1rem;
+    padding-bottom: 0.75rem;
+  }
+
+  .baraja-creator-workspace-head h1 {
+    font-size: clamp(2rem, 10vw, 2.65rem);
+    line-height: 0.98;
+  }
+
+  .baraja-creator-workspace-head p:not(.baraja-kicker) {
+    font-size: 0.94rem;
+    line-height: 1.4;
+  }
+
+  .baraja-creator-trust-badges {
+    gap: 0.4rem;
+    margin-top: 0.75rem;
+  }
+
+  .baraja-creator-trust-badges span {
+    min-height: 1.75rem;
+    padding: 0.25rem 0.55rem;
+    font-size: 0.7rem;
+  }
+
+  .baraja-preview-format-controls div[role='group'] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .baraja-preview-format-controls button {
+    min-height: 38px;
+  }
 }

@@ -1,9 +1,10 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Navigate, Routes, Route, useLocation } from 'react-router-dom';
 import AdminAuthGate from './pages/admin/AdminAuthGate';
 import './index.css';
 
 const DynamicEditionLanding = lazy(() => import('./pages/DynamicEditionLanding'));
+const CustomDeckService = lazy(() => import('./pages/digital/CustomDeckService'));
 const DigitalAppAccess = lazy(() => import('./pages/digital/DigitalAppAccess'));
 const DigitalAppCollections = lazy(() => import('./pages/digital/DigitalAppCollections'));
 const DigitalAppDeckDetail = lazy(() => import('./pages/digital/DigitalAppDeckDetail'));
@@ -17,6 +18,15 @@ const DigitalDeckLibrary = lazy(() => import('./pages/digital/DigitalDeckLibrary
 const DigitalDeckSession = lazy(() => import('./pages/digital/DigitalDeckSession'));
 const DigitalPrintGuide = lazy(() => import('./pages/digital/DigitalPrintGuide'));
 const DigitalSavedCards = lazy(() => import('./pages/digital/DigitalSavedCards'));
+const MusicBingoDemo = lazy(() => import('./pages/digital/MusicBingoDemo'));
+const MusicBingoCreator = lazy(() => import('./pages/digital/MusicBingoCreator'));
+const MusicBingoPlayerDemo = lazy(() =>
+  import('./pages/digital/MusicBingoDemo').then((module) => ({
+    default: module.MusicBingoPlayerDemo,
+  }))
+);
+const MusicBingoLanding = lazy(() => import('./pages/digital/MusicBingoLanding'));
+const MusicBingoCheckoutReturn = lazy(() => import('./pages/digital/MusicBingoCheckoutReturn'));
 const AdminApp = lazy(() => import('./pages/admin/AdminApp'));
 
 function getEditionSlug(): string | null {
@@ -167,6 +177,37 @@ export default function App() {
         <Route path="/install" element={
           <Suspense fallback={<LoadingScreen />}>
             <DigitalInstallGuide />
+          </Suspense>
+        } />
+        <Route path="/mazos-personalizados" element={
+          <Suspense fallback={<LoadingScreen />}>
+            <CustomDeckService />
+          </Suspense>
+        } />
+        <Route path="/bingo-musical" element={
+          <Suspense fallback={<LoadingScreen />}>
+            <MusicBingoLanding />
+          </Suspense>
+        } />
+        <Route path="/bingo-musical/crear" element={
+          <Suspense fallback={<LoadingScreen />}>
+            <MusicBingoCreator />
+          </Suspense>
+        } />
+        <Route path="/bingo-musical/pack" element={<Navigate to="/bingo-musical/crear" replace />} />
+        <Route path="/bingo-musical/checkout/return" element={
+          <Suspense fallback={<LoadingScreen />}>
+            <MusicBingoCheckoutReturn />
+          </Suspense>
+        } />
+        <Route path="/bingo-musical/demo-bar" element={
+          <Suspense fallback={<LoadingScreen />}>
+            <MusicBingoDemo />
+          </Suspense>
+        } />
+        <Route path="/bingo-musical/demo-bar/jugar" element={
+          <Suspense fallback={<LoadingScreen />}>
+            <MusicBingoPlayerDemo />
           </Suspense>
         } />
         

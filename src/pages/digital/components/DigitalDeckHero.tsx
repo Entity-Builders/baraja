@@ -132,8 +132,8 @@ export function DigitalDeckHero({
     <section className="baraja-hero">
       <div className="baraja-hero-bloom" aria-hidden="true" />
       <div className="baraja-hero-copy">
-        <p className="baraja-kicker baraja-hero-kicker">Online + PDF imprimible</p>
-        <h1>Mazos digitales en español</h1>
+        <p className="baraja-kicker baraja-hero-kicker">Digital + imprimible + a medida</p>
+        <h1>Barajas para jugar con intención</h1>
         <HeroCategoryTabs
           activeSlotId={selectedSlotId}
           items={visibleHeroItems}
@@ -143,7 +143,7 @@ export function DigitalDeckHero({
           Para {selectedGenre.claim}
         </p>
         <p className="baraja-lead baraja-lead-dynamic">
-          <span className="baraja-lead-static baraja-lead-static--intro">Cartas listas para</span>
+          <span className="baraja-lead-static baraja-lead-static--intro">Elegí cartas para</span>
           <span className="baraja-lead-claim" key={selectedSlotId}>{selectedGenre.claim}</span>
           <span className="baraja-lead-static baraja-lead-static--details">
             Jugá online. Bajá el PDF cuando quieras llevarlas a la mesa.

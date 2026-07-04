@@ -5,6 +5,11 @@
 
 /// <reference types="@cloudflare/workers-types" />
 
+import {
+  formatSpotifyTrackForMusicBingo,
+  resolveSpotifyPlaylist,
+} from '@eb-packages/spotify-service';
+
 interface Env {
   ASSETS: { fetch: typeof fetch };
   DB: D1Database;
@@ -15,6 +20,11 @@ interface Env {
   BARAJA_SUPABASE_SERVICE_KEY?: string;
   SUPABASE_SERVICE_ROLE_KEY?: string;
   SUPABASE_URL?: string;
+  SPOTIFY_ACCESS_TOKEN?: string;
+  SPOTIFY_CLIENT_ID?: string;
+  SPOTIFY_CLIENT_SECRET?: string;
+  SPOTIFY_MARKET?: string;
+  SPOTIFY_REFRESH_TOKEN?: string;
   STRIPE_WEBHOOK_SECRET?: string;
   VITE_SUPABASE_URL?: string;
   VITE_SUPABASE_ANON_KEY?: string;
@@ -198,6 +208,14 @@ async function handleApi(request: Request, url: URL, env: Env): Promise<Response
   // POST /api/webhook/stripe — Stripe payment webhook
   if (pathname === '/api/webhook/stripe' && request.method === 'POST') {
     return handleStripeWebhook(request, env);
+  }
+
+  if (pathname === '/api/spotify/playlist' && request.method === 'POST') {
+    return handleSpotifyPlaylistImport(request, env);
+  }
+
+  if (pathname === '/api/spotify-playlist' && request.method === 'GET') {
+    return handleSpotifyPlaylistPreview(url, env);
   }
 
   return new Response(JSON.stringify({ error: 'Not found' }), {
@@ -704,6 +722,93 @@ async function handleStripeWebhook(request: Request, env: Env): Promise<Response
   // TODO: Phase 2 — verify Stripe signature, create order, trigger PDF generation
   console.log('[/api/webhook/stripe] received — stub, not yet implemented');
   return jsonResponse({ received: true });
+}
+
+// ── Spotify Playlist Import ───────────────────────────────────
+
+async function handleSpotifyPlaylistImport(request: Request, env: Env): Promise<Response> {
+  const payload = await readJsonRecord(request);
+  const playlistUrl = typeof payload?.playlistUrl === 'string' ? payload.playlistUrl : '';
+  const maxTracks = typeof payload?.maxTracks === 'number' ? payload.maxTracks : undefined;
+
+  const result = await resolveSpotifyPlaylist({
+    playlistUrl,
+    maxTracks,
+    market: env.SPOTIFY_MARKET,
+    credentials: spotifyCredentialsFromEnv(env),
+  });
+
+  if (!result.ok) {
+    console.warn('[spotify.playlist.import]', {
+      reason: result.reason,
+      status: result.status,
+      retryAfterSeconds: result.retryAfterSeconds,
+    });
+    return jsonResponse(result);
+  }
+
+  return jsonResponse({
+    ok: true,
+    playlist: result.playlist,
+    musicBingoSongs: result.playlist.tracks.map(formatSpotifyTrackForMusicBingo),
+  });
+}
+
+async function handleSpotifyPlaylistPreview(url: URL, env: Env): Promise<Response> {
+  const playlistUrl = url.searchParams.get('url') || url.searchParams.get('playlistUrl') || '';
+  const maxTracksParam = Number(url.searchParams.get('maxTracks') || '100');
+  const maxTracks = Number.isFinite(maxTracksParam) ? maxTracksParam : 100;
+
+  const result = await resolveSpotifyPlaylist({
+    playlistUrl,
+    maxTracks,
+    market: env.SPOTIFY_MARKET,
+    credentials: spotifyCredentialsFromEnv(env),
+  });
+
+  if (!result.ok) {
+    const status =
+      result.reason === 'invalid_url'
+        ? 400
+        : result.status && result.status >= 400
+          ? result.status
+          : 502;
+    return jsonResponse(
+      {
+        error: result.message,
+        reason: result.reason,
+        status: result.status,
+      },
+      status,
+    );
+  }
+
+  return jsonResponse({
+    id: result.playlist.id,
+    name: result.playlist.name,
+    description: result.playlist.description,
+    coverImageUrl: result.playlist.coverImageUrl,
+    spotifyUrl: result.playlist.spotifyUrl,
+    totalTracks: result.playlist.totalTracks,
+    tracks: result.playlist.tracks.map((track) => ({
+      id: track.id,
+      name: track.title,
+      artist: track.artistDisplayName,
+      artists: track.artists,
+      image: track.imageUrl,
+      durationMs: track.durationMs,
+      spotifyUrl: track.spotifyUrl,
+    })),
+  });
+}
+
+function spotifyCredentialsFromEnv(env: Env) {
+  return {
+    accessToken: env.SPOTIFY_ACCESS_TOKEN,
+    refreshToken: env.SPOTIFY_REFRESH_TOKEN,
+    clientId: env.SPOTIFY_CLIENT_ID,
+    clientSecret: env.SPOTIFY_CLIENT_SECRET,
+  };
 }
 
 // ── Helpers ───────────────────────────────────────────────────
