@@ -1,5 +1,6 @@
 import { Analytics, PostHogProvider } from '@eb-packages/analytics';
 import { getInstallPlatform, getViewportOrientation, isPwaStandalone } from '../lib/pwa';
+import { toBarajaAcquisitionAnalyticsProperties, getBarajaAcquisitionContext } from '../lib/acquisitionAttribution';
 
 const POSTHOG_KEY = import.meta.env.VITE_POSTHOG_KEY || '';
 const POSTHOG_HOST =
@@ -62,6 +63,11 @@ export type BarajaAnalyticsEvent = (typeof BARAJA_ANALYTICS_EVENTS)[number];
 
 const SAFE_PROPERTY_NAMES = new Set([
   'access_state',
+  'acquisition_campaign',
+  'acquisition_content',
+  'acquisition_medium',
+  'acquisition_referrer_host',
+  'acquisition_source',
   'amount_cents',
   'app',
   'board_size',
@@ -176,6 +182,7 @@ export function trackBarajaEvent(
     app: 'baraja',
     event_version: 1,
     ...safeBarajaAnalyticsProperties(properties),
+    ...toBarajaAcquisitionAnalyticsProperties(getBarajaAcquisitionContext()),
   });
 }
 

@@ -10,6 +10,7 @@
     "lint": "eslint .",
     "test:design-pipeline": "tsx scripts/deckDesignPipeline.test.ts",
     "test:music-bingo:creator-flow": "tsx scripts/musicBingoCreatorFlow.test.ts",
+    "test:acquisition-attribution": "tsx scripts/acquisitionAttribution.test.ts",
     "test:spotify-seed": "tsx scripts/spotifySeedPayload.test.ts",
     "check:music-bingo:collections": "tsx scripts/seedMusicBingoCollections.ts --check",
     "clean:spotify-playlist:duplicates": "tsx scripts/cleanSpotifyPlaylistDuplicates.ts",

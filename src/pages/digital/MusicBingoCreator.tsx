@@ -30,6 +30,7 @@ import {
 import { parseSpotifyPlaylistId } from '@eb-packages/spotify-service';
 import { BrandIcon } from '../../components/BrandIcon';
 import { getBarajaInquiryHref } from '../../lib/digitalDeckCatalog';
+import { getBarajaAcquisitionContext } from '../../lib/acquisitionAttribution';
 import { getBarajaAnalyticsDistinctId, trackBarajaEvent } from '../../services/analytics';
 import {
   BarajaMusicBingoCheckoutError,
@@ -1808,6 +1809,7 @@ export default function MusicBingoCreator() {
             : customSpotifyPlaylistId,
         customerEmail: customerEmail.trim(),
         analyticsDistinctId: getBarajaAnalyticsDistinctId(),
+        acquisitionContext: getBarajaAcquisitionContext(),
         packSnapshot: toCheckoutPackSnapshot(printPack),
       });
       saveCheckoutEmail(customerEmail);

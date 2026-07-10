@@ -6,6 +6,7 @@ import type {
   MusicBingoPlaylistFitReport,
   MusicBingoPlaylistReference,
 } from '@eb-packages/deck-engine';
+import type { BarajaAcquisitionContext } from '../lib/acquisitionAttribution';
 
 export type BarajaMusicBingoCheckoutSource =
   | 'curated_spotify'
@@ -26,6 +27,7 @@ export interface StartBarajaMusicBingoCheckoutInput {
   playlistId: string | null;
   customerEmail: string;
   analyticsDistinctId?: string | null;
+  acquisitionContext?: BarajaAcquisitionContext;
   packSnapshot: BarajaMusicBingoCheckoutPackSnapshot;
 }
 
