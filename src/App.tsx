@@ -19,7 +19,9 @@ const DigitalDeckSession = lazy(() => import('./pages/digital/DigitalDeckSession
 const DigitalPrintGuide = lazy(() => import('./pages/digital/DigitalPrintGuide'));
 const DigitalSavedCards = lazy(() => import('./pages/digital/DigitalSavedCards'));
 const MusicBingoDemo = lazy(() => import('./pages/digital/MusicBingoDemo'));
+const MusicBingoCatalog = lazy(() => import('./pages/digital/MusicBingoCatalog'));
 const MusicBingoCreator = lazy(() => import('./pages/digital/MusicBingoCreator'));
+const MusicBingoSpotifySeed = lazy(() => import('./pages/digital/MusicBingoSpotifySeed'));
 const MusicBingoPlayerDemo = lazy(() =>
   import('./pages/digital/MusicBingoDemo').then((module) => ({
     default: module.MusicBingoPlayerDemo,
@@ -194,6 +196,16 @@ export default function App() {
             <MusicBingoCreator />
           </Suspense>
         } />
+        <Route path="/bingo-musical/catalogo" element={
+          <Suspense fallback={<LoadingScreen />}>
+            <MusicBingoCatalog />
+          </Suspense>
+        } />
+        <Route path="/bingo-musical/spotify-seed" element={
+          <Suspense fallback={<LoadingScreen />}>
+            <MusicBingoSpotifySeed />
+          </Suspense>
+        } />
         <Route path="/bingo-musical/pack" element={<Navigate to="/bingo-musical/crear" replace />} />
         <Route path="/bingo-musical/checkout/return" element={
           <Suspense fallback={<LoadingScreen />}>
@@ -210,6 +222,7 @@ export default function App() {
             <MusicBingoPlayerDemo />
           </Suspense>
         } />
+        <Route path="/bingo-musical/:seoSlug" element={<Navigate to="/bingo-musical" replace />} />
         
         {/* Public Marketing/Edition Sites */}
         <Route path="*" element={<PublicApp />} />

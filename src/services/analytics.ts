@@ -17,8 +17,15 @@ export const BARAJA_ANALYTICS_EVENTS = [
   'baraja_music_bingo_preview_generated',
   'baraja_music_bingo_price_viewed',
   'baraja_music_bingo_playlist_opened',
+  'baraja_music_bingo_catalog_viewed',
+  'baraja_music_bingo_catalog_filter_selected',
+  'baraja_music_bingo_catalog_theme_selected',
+  'baraja_music_bingo_seo_page_viewed',
+  'baraja_music_bingo_seo_cta_clicked',
   'baraja_music_bingo_order_started',
   'baraja_music_bingo_checkout_started',
+  'baraja_music_bingo_checkout_completed',
+  'baraja_music_bingo_checkout_failed',
   'baraja_offer_cta_clicked',
   'baraja_deck_library_viewed',
   'baraja_deck_detail_viewed',
@@ -55,6 +62,7 @@ export type BarajaAnalyticsEvent = (typeof BARAJA_ANALYTICS_EVENTS)[number];
 
 const SAFE_PROPERTY_NAMES = new Set([
   'access_state',
+  'amount_cents',
   'app',
   'board_size',
   'card_count',
@@ -64,9 +72,11 @@ const SAFE_PROPERTY_NAMES = new Set([
   'can_preview',
   'category_id',
   'checkout_return_state',
+  'checkout_outcome',
   'collection_id',
   'cta_id',
   'cta_kind',
+  'currency',
   'deck_count',
   'deck_id',
   'deck_slug',
@@ -88,6 +98,7 @@ const SAFE_PROPERTY_NAMES = new Set([
   'offering_id',
   'offer_type',
   'orientation',
+  'order_status',
   'platform',
   'played_count',
   'playlist_provider',
@@ -105,6 +116,8 @@ const SAFE_PROPERTY_NAMES = new Set([
   'route',
   'safe_error_code',
   'session_mode',
+  'seo_intent',
+  'seo_slug',
   'source',
   'source_deck_id',
   'source_deck_slug',
@@ -166,6 +179,15 @@ export function trackBarajaEvent(
   });
 }
 
+/**
+ * Returns only PostHog's default anonymous UUID so a verified provider payment
+ * can be connected back to this browser's analytics funnel.
+ */
+export function getBarajaAnalyticsDistinctId(): string | null {
+  const distinctId = analytics.getDistinctId();
+  return isUuid(distinctId) ? distinctId : null;
+}
+
 export function safeBarajaAnalyticsProperties(
   properties: Record<string, unknown>
 ): Record<string, unknown> {
@@ -186,5 +208,14 @@ function isSafePrimitive(value: unknown): boolean {
     typeof value === 'string' ||
     typeof value === 'number' ||
     typeof value === 'boolean'
+  );
+}
+
+function isUuid(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      value
+    )
   );
 }

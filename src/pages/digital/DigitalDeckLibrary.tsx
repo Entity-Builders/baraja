@@ -35,6 +35,68 @@ const GENERAL_INQUIRY_URL = getBarajaInquiryHref(getBarajaGeneralInquiryMessage(
 const PROFESSIONAL_USE_INQUIRY_URL = getBarajaInquiryHref(
   getBarajaProfessionalUseInquiryMessage()
 );
+const HOME_TITLE = 'Baraja.cards - imprimibles jugables';
+const HOME_DESCRIPTION =
+  'Baraja crea cartas, bingos musicales y juegos a medida en español, listos para descargar, imprimir y jugar.';
+
+const PRODUCT_LINES = [
+  {
+    id: 'music_bingo',
+    title: 'Bingo musical',
+    description:
+      'Convertí tus playlists favoritas en bingos listos para imprimir y jugar.',
+    href: '/bingo-musical',
+    ctaLabel: 'Ver bingos',
+    tone: 'blue',
+    icon: 'music',
+    visual: 'bingo',
+  },
+  {
+    id: 'card_decks',
+    title: 'Mazos de cartas',
+    description:
+      'Mazos temáticos para charlar, conectar, jugar en grupo y descubrir cosas nuevas.',
+    href: '#mazos',
+    ctaLabel: 'Ver mazos',
+    tone: 'coral',
+    icon: 'cards',
+    visual: 'cards',
+  },
+  {
+    id: 'custom_games',
+    title: 'Juegos a medida',
+    description:
+      'Contanos tu idea y creamos un juego personalizado para tu evento, marca o proyecto.',
+    href: '/mazos-personalizados',
+    ctaLabel: 'Saber más',
+    tone: 'blue',
+    icon: 'pencil',
+    visual: 'custom',
+  },
+] as const;
+
+const SERVICE_PROOFS = [
+  {
+    icon: 'print',
+    title: 'Imprimí en casa',
+    text: 'Archivos en alta calidad listos para A4.',
+  },
+  {
+    icon: 'download',
+    title: 'Descarga inmediata',
+    text: 'Recibís tu PDF al instante por email.',
+  },
+  {
+    icon: 'heart',
+    title: 'Hecho con intención',
+    text: 'Diseños propios, probados y jugables.',
+  },
+  {
+    icon: 'help',
+    title: 'Estamos para ayudarte',
+    text: 'Escribinos si tenés dudas.',
+  },
+] as const;
 
 function trackInquiryStart(source: string, ctaId: string, surface = 'landing') {
   trackBarajaEvent('baraja_inquiry_started', {
@@ -51,6 +113,22 @@ function trackPrintableInterest(source: string, surface = 'landing') {
     source,
     surface,
   });
+}
+
+function applyMeta(name: string, content: string, attr: 'name' | 'property' = 'name') {
+  if (typeof document === 'undefined') {
+    return;
+  }
+
+  let tag = document.querySelector<HTMLMetaElement>(`meta[${attr}="${name}"]`);
+
+  if (!tag) {
+    tag = document.createElement('meta');
+    tag.setAttribute(attr, name);
+    document.head.appendChild(tag);
+  }
+
+  tag.setAttribute('content', content);
 }
 
 const FAQS = [
@@ -102,6 +180,14 @@ export default function DigitalDeckLibrary() {
   const featuredDeck = FEATURED_DIGITAL_DECK;
 
   useEffect(() => {
+    document.title = HOME_TITLE;
+    applyMeta('description', HOME_DESCRIPTION);
+    applyMeta('og:title', HOME_TITLE, 'property');
+    applyMeta('og:description', HOME_DESCRIPTION, 'property');
+    applyMeta('twitter:card', 'summary_large_image');
+    applyMeta('twitter:title', HOME_TITLE);
+    applyMeta('twitter:description', HOME_DESCRIPTION);
+
     trackBarajaEvent('baraja_deck_library_viewed', {
       deck_count: DIGITAL_DECKS.length,
       surface: 'landing',
@@ -110,23 +196,19 @@ export default function DigitalDeckLibrary() {
 
   if (!featuredDeck) {
     return (
-      <main className="baraja-landing baraja-centered">
-        <p className="baraja-kicker">Mazos digitales</p>
+      <main className="baraja-landing baraja-editorial-home baraja-centered">
+        <p className="baraja-kicker">Imprimibles jugables</p>
         <h1>Baraja</h1>
-        <p>Todavía no hay mazos publicados.</p>
+        <p>Todavía no hay imprimibles publicados.</p>
       </main>
     );
   }
 
   return (
-    <main className="baraja-landing">
+    <main className="baraja-landing baraja-editorial-home">
       <LandingNav />
-      <DigitalDeckHero
-        decks={DIGITAL_DECKS}
-        featuredDeck={featuredDeck}
-        inquiryUrl={GENERAL_INQUIRY_URL}
-        onInquiryClick={() => trackInquiryStart('hero_consulta', 'hero_consulta')}
-      />
+      <DigitalDeckHero />
+      <ProductLineSection />
       <DeckCatalogSection decks={DIGITAL_DECKS} featuredDeck={featuredDeck} />
       <DigitalPrintable deck={featuredDeck} />
       <FAQ />
@@ -141,23 +223,97 @@ function LandingNav() {
     <nav className="baraja-nav">
       <Link to="/" className="baraja-brand">Baraja</Link>
       <div className="baraja-nav-links">
-        <a href="#mazos">Colección</a>
-        <a href="#pdf" onClick={() => trackPrintableInterest('nav_pdf')}>PDF imprimible</a>
-        <a href="#faq">FAQ</a>
-        <Link to="/app">Abrir app</Link>
+        <a className="baraja-nav-catalog-link" href="#imprimibles">Catálogo</a>
         <Link to="/bingo-musical">Bingo musical</Link>
-        <Link to="/mazos-personalizados">Crear juego</Link>
+        <a href="#mazos">Mazos de cartas</a>
+        <Link to="/mazos-personalizados">A medida</Link>
+        <a href="#pdf" onClick={() => trackPrintableInterest('nav_pdf')}>Cómo funciona</a>
+        <a href="#faq">Sobre Baraja</a>
+      </div>
+      <div className="baraja-nav-actions">
+        <a className="baraja-nav-icon baraja-nav-icon--search" href="#imprimibles" aria-label="Buscar imprimibles" />
+        <a className="baraja-nav-icon baraja-nav-icon--user" href="#faq" aria-label="Mi cuenta" />
+        <a className="baraja-nav-icon baraja-nav-icon--cart" href="#imprimibles" aria-label="Carrito">
+          <span>2</span>
+        </a>
         <EbWhatsAppButton
-          className="baraja-link-button"
+          className="baraja-nav-cta"
           href={GENERAL_INQUIRY_URL}
           showIcon={false}
-          onClick={() => trackInquiryStart('nav_consulta', 'nav_consulta')}
+          onClick={() => trackInquiryStart('nav_custom_game', 'nav_custom_game')}
         >
-          Consulta
+          Armar mi juego
         </EbWhatsAppButton>
-        <a href="#mazos" className="baraja-nav-cta">Ver mazos</a>
       </div>
     </nav>
+  );
+}
+
+function ProductLineSection() {
+  return (
+    <section className="baraja-product-lines" id="imprimibles" aria-label="Catálogo editorial">
+      <div className="baraja-product-line-grid">
+        {PRODUCT_LINES.map((line) => (
+          <ProductLineCard key={line.id} line={line} />
+        ))}
+      </div>
+      <div className="baraja-home-service-strip" aria-label="Servicios incluidos">
+        {SERVICE_PROOFS.map((proof) => (
+          <div className="baraja-home-service-item" key={proof.title}>
+            <span className={`baraja-line-icon baraja-line-icon--${proof.icon}`} aria-hidden="true" />
+            <div>
+              <strong>{proof.title}</strong>
+              <small>{proof.text}</small>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ProductLineCard({ line }: { line: typeof PRODUCT_LINES[number] }) {
+  const trackingProps = {
+    campaign_id: line.id,
+    cta_id: `home_product_line_${line.id}`,
+    offer_id: line.id,
+    offer_type: 'editorial_product_line',
+    source: 'home_product_lines',
+    surface: 'landing',
+  };
+  const content = (
+    <>
+      <span className={`baraja-product-line-icon baraja-product-line-icon--${line.icon}`} aria-hidden="true" />
+      <div className="baraja-product-line-copy">
+        <h3>{line.title}</h3>
+        <p>{line.description}</p>
+        <span className="baraja-product-line-cta">{line.ctaLabel}</span>
+      </div>
+      <span className={`baraja-product-line-visual baraja-product-line-visual--${line.visual}`} aria-hidden="true" />
+    </>
+  );
+  const className = `baraja-product-line-card baraja-product-line-card--${line.tone}`;
+
+  if (line.href.startsWith('#')) {
+    return (
+      <a
+        className={className}
+        href={line.href}
+        onClick={() => trackBarajaEvent('baraja_offer_cta_clicked', trackingProps)}
+      >
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <Link
+      className={className}
+      to={line.href}
+      onClick={() => trackBarajaEvent('baraja_offer_cta_clicked', trackingProps)}
+    >
+      {content}
+    </Link>
   );
 }
 
@@ -219,7 +375,9 @@ function DeckCatalogSection({
     [activeFilter, decks]
   );
   const filterSummaries = useMemo(
-    () => getCatalogFilterSummaries(decks),
+    () => getCatalogFilterSummaries(decks).filter((filter) => (
+      filter.id === 'all' || filter.count > 0
+    )),
     [decks]
   );
 
@@ -227,12 +385,12 @@ function DeckCatalogSection({
     <section className="baraja-catalog-section" id="mazos">
       <div className="baraja-section-header baraja-catalog-intro">
         <div>
-          <p className="baraja-kicker">Colección</p>
-          <h2>Mazos por categoría.</h2>
+          <p className="baraja-kicker">Mazos publicados</p>
+          <h2>Cartas para jugar online o imprimir.</h2>
         </div>
         <p>
-          Filtrá por familia, mirá una carta y escribinos para consultar por
-          una edición.
+          La línea de mazos sigue viva dentro de Baraja: explorá una carta real,
+          probá la experiencia y elegí si querés llevarla también a papel.
         </p>
       </div>
       <DeckCatalogFilterBar
@@ -278,18 +436,18 @@ function DigitalPrintable({ deck }: { deck: DeckSchema }) {
   return (
     <section className="baraja-printable" id="pdf">
       <div>
-        <p className="baraja-kicker">Digital + imprimible</p>
-        <h2>Una versión imprimible para llevar a la mesa.</h2>
+        <p className="baraja-kicker">PDF print-ready</p>
+        <h2>Imprimibles preparados para jugar, no solo para mirar.</h2>
         <p>
-          Cada mazo incluye un PDF descargable preparado para uso personal.
-          El formato final puede variar por baraja y licencia, con guía clara
-          para imprimir, cortar y ordenar las cartas.
+          Cada producto se piensa como una experiencia de mesa: piezas
+          descargables, guía de uso y límites claros para que sepas qué imprimir,
+          cómo prepararlo y qué queda a cargo del organizador.
         </p>
         <div className="baraja-print-list">
-          <span>Sesión digital siempre disponible</span>
+          <span>Cartas, cartones o piezas según el juego</span>
           <span>{printableLabel}</span>
-          <span>Formato preparado según cada mazo</span>
-          <span>Guía de corte, material y terminación</span>
+          <span>Guía de dinámica, corte o preparación</span>
+          <span>Digital opcional cuando suma valor</span>
         </div>
       </div>
       <div className="baraja-print-visual" aria-label="Vista previa del PDF imprimible">
@@ -385,7 +543,7 @@ function FinalCTA() {
   return (
       <section className="baraja-final-cta">
         <p className="baraja-kicker">Juegos y ediciones a medida</p>
-      <h2>Tu idea convertida en un imprimible propio.</h2>
+      <h2>Tu idea convertida en un imprimible jugable.</h2>
       <p>
         Para bingos musicales, fútbol, bares, facilitadores, equipos, marcas,
         comunidades o historias personales: armamos el juego y entregamos
@@ -431,11 +589,12 @@ function LandingFooter() {
   return (
     <footer className="baraja-footer">
       <Link to="/" className="baraja-brand">Baraja</Link>
-      <span>© 2026 Baraja · Barajas digitales, imprimibles y a medida</span>
+      <span>© 2026 Baraja · Imprimibles jugables, cartas y juegos a medida</span>
       <div>
-        <a href="#mazos">Colección</a>
+        <a href="#imprimibles">Imprimibles</a>
+        <a href="#mazos">Mazos</a>
         <Link to="/bingo-musical">Bingo musical</Link>
-        <Link to="/mazos-personalizados">Crear juego</Link>
+        <Link to="/mazos-personalizados">A medida</Link>
         <EbWhatsAppButton
           className="baraja-link-button"
           href={GENERAL_INQUIRY_URL}

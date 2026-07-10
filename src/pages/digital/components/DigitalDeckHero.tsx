@@ -1,364 +1,132 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { EbWhatsAppButton } from '@eb-packages/ui-web';
-import {
-  getPreviewCards,
-  type Card,
-  type DeckSchema,
-} from '@eb-packages/deck-engine';
-import { CardCanvas } from '../../../components/cards/CardCanvas';
-import {
-  FullscreenCardPreview,
-  type FullscreenPreviewMode,
-} from '../../../components/decks/FullscreenCardPreview';
-import {
-  HERO_ROTATION_CONFIG_EVENT,
-  getHeroRotationItems,
-  type HeroRotationItem,
-  type HeroRotationSlot,
-} from '../../../lib/heroRotationConfig';
+import { Link } from 'react-router-dom';
 import { trackBarajaEvent } from '../../../services/analytics';
 
-const HERO_ROTATION_INTERVAL_MS = 6800;
+const BINGO_CELLS = [
+  'De música ligera', 'Claridad', 'Persiana americana', 'Ruta 40', 'Los chicos',
+  'La puerta', 'Ji ji ji', 'Mil horas', 'Signos', 'Cruces',
+  'Tratame suavemente', 'Luna', 'Libre', 'Corazón delator', 'Hasta que ponga el sol',
+  'Yo caníbal', 'Betty boop', 'La excepción', 'Durazno sangrando', 'En la ciudad',
+  'La rubia tarada', 'Barro tal vez', 'Tren al sur', 'Fue amor', 'Mariposa',
+];
 
-interface DigitalDeckHeroProps {
-  decks: DeckSchema[];
-  featuredDeck: DeckSchema;
-  inquiryUrl: string;
-  onInquiryClick?: () => void;
-}
+const HERO_PROOFS = [
+  {
+    icon: 'file',
+    title: 'PDF listo para imprimir',
+    text: 'Descarga e imprimí en casa',
+  },
+  {
+    icon: 'people',
+    title: 'Para todas las ocasiones',
+    text: 'Reuniones, aulas, eventos y más',
+  },
+  {
+    icon: 'shield',
+    title: 'Reglas claras y guía',
+    text: 'Todo lo que necesitás para jugar',
+  },
+] as const;
 
-export function DigitalDeckHero({
-  decks,
-  featuredDeck,
-  inquiryUrl,
-  onInquiryClick,
-}: DigitalDeckHeroProps) {
-  const [heroItems, setHeroItems] = useState(() => getHeroRotationItems(decks));
-  const [selectedSlotId, setSelectedSlotId] = useState(heroItems[0]?.slot.id ?? featuredDeck.id);
-  const [isAutoPaused, setIsAutoPaused] = useState(false);
-  const selectedItem = heroItems.find((item) => item.slot.id === selectedSlotId) ?? heroItems[0];
-  const selectedDeck = selectedItem?.deck ?? featuredDeck;
-  const selectedCard = selectedItem?.card ?? getPreviewCards(selectedDeck, 1)[0] ?? selectedDeck.cards[0] ?? null;
-  const selectedGenre = selectedItem?.slot ?? {
-    label: 'Baraja',
-    claim: 'elegir una carta y dejar que haga su trabajo',
-    tone: 'conversation',
-  };
-
-  useEffect(() => {
-    function refreshHeroItems() {
-      setHeroItems(getHeroRotationItems(decks));
-    }
-
-    refreshHeroItems();
-    window.addEventListener('storage', refreshHeroItems);
-    window.addEventListener(HERO_ROTATION_CONFIG_EVENT, refreshHeroItems);
-
-    return () => {
-      window.removeEventListener('storage', refreshHeroItems);
-      window.removeEventListener(HERO_ROTATION_CONFIG_EVENT, refreshHeroItems);
-    };
-  }, [decks]);
-
-  useEffect(() => {
-    if (heroItems.length > 0 && !heroItems.some((item) => item.slot.id === selectedSlotId)) {
-      const nextSlotId = heroItems[0].slot.id;
-      const frame = window.requestAnimationFrame(() => {
-        setSelectedSlotId(nextSlotId);
-      });
-
-      return () => window.cancelAnimationFrame(frame);
-    }
-
-    return undefined;
-  }, [heroItems, selectedSlotId]);
-
-  const visibleHeroItems: HeroRotationItem[] = useMemo(() => (
-    heroItems.length > 0
-      ? heroItems
-      : selectedCard ? [{
-        slot: {
-          id: selectedSlotId,
-          label: selectedGenre.label,
-          claim: selectedGenre.claim,
-          tone: selectedGenre.tone as HeroRotationSlot['tone'],
-          deckSlug: selectedDeck.slug,
-          enabled: true,
-        },
-        deck: selectedDeck,
-        card: selectedCard,
-      }] : []
-  ), [heroItems, selectedCard, selectedDeck, selectedGenre.claim, selectedGenre.label, selectedGenre.tone, selectedSlotId]);
-
-  const selectedIndex = Math.max(
-    0,
-    visibleHeroItems.findIndex((item) => item.slot.id === selectedSlotId)
-  );
-
-  const selectSlot = useCallback((slotId: string) => {
-    setSelectedSlotId(slotId);
-  }, []);
-
-  const selectRelativeSlot = useCallback((direction: -1 | 1) => {
-    const nextIndex = (selectedIndex + direction + visibleHeroItems.length) % visibleHeroItems.length;
-    const nextSlotId = visibleHeroItems[nextIndex]?.slot.id;
-
-    if (nextSlotId) {
-      selectSlot(nextSlotId);
-    }
-  }, [selectedIndex, selectSlot, visibleHeroItems]);
-
-  useEffect(() => {
-    if (isAutoPaused || visibleHeroItems.length < 2) {
-      return undefined;
-    }
-
-    if (window.matchMedia('(max-width: 680px), (prefers-reduced-motion: reduce)').matches) {
-      return undefined;
-    }
-
-    const timer = window.setTimeout(() => {
-      selectRelativeSlot(1);
-    }, HERO_ROTATION_INTERVAL_MS);
-
-    return () => window.clearTimeout(timer);
-  }, [isAutoPaused, selectRelativeSlot, visibleHeroItems.length]);
-
-  if (!selectedCard) {
-    return null;
-  }
-
+export function DigitalDeckHero() {
   return (
     <section className="baraja-hero">
-      <div className="baraja-hero-bloom" aria-hidden="true" />
       <div className="baraja-hero-copy">
-        <p className="baraja-kicker baraja-hero-kicker">Digital + imprimible + a medida</p>
-        <h1>Barajas para jugar con intención</h1>
-        <HeroCategoryTabs
-          activeSlotId={selectedSlotId}
-          items={visibleHeroItems}
-          onSelect={selectSlot}
-        />
-        <p className="baraja-hero-mobile-summary" key={`mobile-${selectedSlotId}`}>
-          Para {selectedGenre.claim}
-        </p>
-        <p className="baraja-lead baraja-lead-dynamic">
-          <span className="baraja-lead-static baraja-lead-static--intro">Elegí cartas para</span>
-          <span className="baraja-lead-claim" key={selectedSlotId}>{selectedGenre.claim}</span>
-          <span className="baraja-lead-static baraja-lead-static--details">
-            Jugá online. Bajá el PDF cuando quieras llevarlas a la mesa.
-          </span>
+        <p className="baraja-kicker baraja-hero-kicker">Editorial de imprimibles jugables</p>
+        <h1>Juegos para imprimir y jugar hoy</h1>
+        <p className="baraja-lead">
+          Cartas, bingos musicales y juegos a medida con PDF listo,
+          reglas claras y guía para llevar a la mesa.
         </p>
         <div className="baraja-actions baraja-hero-actions">
-          <a href="#mazos" className="baraja-button baraja-button-primary">Ver barajas</a>
-          <EbWhatsAppButton
-            href={inquiryUrl}
+          <a href="#imprimibles" className="baraja-button baraja-button-primary">Ver catálogo</a>
+          <Link
+            to="/mazos-personalizados"
             className="baraja-button baraja-button-outline"
-            onClick={onInquiryClick}
+            onClick={() => trackBarajaEvent('baraja_offer_cta_clicked', {
+              campaign_id: 'custom_games',
+              cta_id: 'hero_custom_game',
+              offer_id: 'custom_games',
+              offer_type: 'custom_printable_game',
+              source: 'home_hero',
+              surface: 'landing',
+            })}
           >
-            Consultar
-          </EbWhatsAppButton>
+            Armar mi juego
+          </Link>
+        </div>
+        <div className="baraja-hero-proof-row" aria-label="Beneficios principales">
+          {HERO_PROOFS.map((proof) => (
+            <div className="baraja-hero-proof" key={proof.title}>
+              <span className={`baraja-line-icon baraja-line-icon--${proof.icon}`} aria-hidden="true" />
+              <div>
+                <strong>{proof.title}</strong>
+                <small>{proof.text}</small>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
-      <HeroCardCarousel
-        activeSlotId={selectedSlotId}
-        isAutoPaused={isAutoPaused}
-        items={visibleHeroItems}
-        onInteractionEnd={() => setIsAutoPaused(false)}
-        onInteractionStart={() => setIsAutoPaused(true)}
-        onNext={() => selectRelativeSlot(1)}
-        onPrevious={() => selectRelativeSlot(-1)}
-      />
+      <HeroProductPreview />
     </section>
   );
 }
 
-function HeroCategoryTabs({
-  activeSlotId,
-  items,
-  onSelect,
-}: {
-  activeSlotId: string;
-  items: HeroRotationItem[];
-  onSelect: (slotId: string) => void;
-}) {
-  if (items.length < 2) {
-    return null;
-  }
-
-  return (
-    <div className="baraja-hero-category-tabs" aria-label="Categorías de mazos">
-      {items.map((item) => {
-        const isActive = item.slot.id === activeSlotId;
-
-        return (
-          <button
-            aria-pressed={isActive}
-            className={`baraja-hero-deck-tab baraja-hero-deck-tab--${item.slot.tone}${
-              isActive ? ' baraja-hero-deck-tab--active' : ''
-            }`}
-            key={item.slot.id}
-            type="button"
-            onClick={() => onSelect(item.slot.id)}
-          >
-            {item.slot.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function HeroCardCarousel({
-  activeSlotId,
-  isAutoPaused,
-  items,
-  onInteractionEnd,
-  onInteractionStart,
-  onNext,
-  onPrevious,
-}: {
-  activeSlotId: string;
-  isAutoPaused: boolean;
-  items: HeroRotationItem[];
-  onInteractionEnd: () => void;
-  onInteractionStart: () => void;
-  onNext: () => void;
-  onPrevious: () => void;
-}) {
-  const activeIndex = Math.max(0, items.findIndex((item) => item.slot.id === activeSlotId));
-  const activeItem = items[activeIndex] ?? items[0];
-
-  if (!activeItem) {
-    return null;
-  }
-
+function HeroProductPreview() {
   return (
     <div
-      className={`baraja-hero-carousel${isAutoPaused ? ' baraja-hero-carousel--paused' : ''}`}
-      aria-label="Carrusel de categorías"
-      onBlur={onInteractionEnd}
-      onFocus={onInteractionStart}
-      onPointerDown={onInteractionStart}
-      onPointerEnter={onInteractionStart}
-      onPointerLeave={onInteractionEnd}
+      className="baraja-hero-product-preview"
+      aria-label="Bingo musical, guía de juego y cartas imprimibles de Baraja"
     >
-      <div className="baraja-hero-carousel-stage" key={activeItem.slot.id}>
-        <HeroCardPreview
-          selectedCard={activeItem.card}
-          selectedDeck={activeItem.deck}
-        />
-      </div>
-      {items.length > 1 && (
-        <div className="baraja-hero-carousel-controls">
-          <button
-            aria-label="Categoría anterior"
-            className="baraja-hero-carousel-arrow"
-            type="button"
-            onClick={onPrevious}
-          >
-            ‹
-          </button>
-          <div className="baraja-hero-carousel-dots" aria-hidden="true">
-            {items.map((item, index) => (
-              <span
-                className={`baraja-hero-carousel-dot${
-                  index === activeIndex ? ' baraja-hero-carousel-dot--active' : ''
-                }`}
-                key={item.slot.id}
-              />
-            ))}
+      <div className="baraja-hero-folder" aria-hidden="true" />
+      <div className="baraja-hero-bingo-document" aria-hidden="true">
+        <div className="baraja-hero-bingo-head">
+          <span className="baraja-hero-bingo-wave" />
+          <div>
+            <strong>Bingo musical</strong>
+            <small>Rock nacional 90s</small>
           </div>
-          <button
-            aria-label="Siguiente categoría"
-            className="baraja-hero-carousel-arrow"
-            type="button"
-            onClick={onNext}
-          >
-            ›
-          </button>
         </div>
-      )}
-    </div>
-  );
-}
-
-function HeroCardPreview({
-  selectedCard,
-  selectedDeck,
-}: {
-  selectedCard: Card;
-  selectedDeck: DeckSchema;
-}) {
-  const [fullscreenPreviewMode, setFullscreenPreviewMode] = useState<FullscreenPreviewMode | null>(null);
-  const openPreview = (face: FullscreenPreviewMode) => {
-    trackBarajaEvent('baraja_preview_opened', {
-      card_id: selectedCard.id,
-      card_number: selectedCard.front.number,
-      deck_id: selectedDeck.id,
-      deck_slug: selectedDeck.slug,
-      face,
-      source: 'hero_card',
-      surface: 'landing_hero',
-    });
-    setFullscreenPreviewMode(face);
-  };
-
-  return (
-    <>
-      <div
-        className="baraja-hero-card-demo baraja-hero-card-demo--clean"
-        id="probar-carta"
-        aria-label={`Frente y reverso de ${selectedCard.front.title}`}
-      >
-        <div className="baraja-hero-card-spread">
-          <figure className="baraja-hero-card-face baraja-hero-card-face--front">
-            <button
-              aria-label={`Ver frente de ${selectedCard.front.title} de ${selectedDeck.name} en pantalla completa`}
-              className="baraja-hero-card-face-button"
-              data-preview-label="Ver frente"
-              type="button"
-              onClick={() => openPreview('front')}
-            >
-              <CardCanvas
-                card={selectedCard}
-                deck={selectedDeck}
-                flipped={false}
-                showInfoRow={false}
-                showQr={false}
-              />
-            </button>
-            <figcaption>Frente</figcaption>
-          </figure>
-          <figure className="baraja-hero-card-face baraja-hero-card-face--back">
-            <button
-              aria-label={`Ver reverso de ${selectedCard.front.title} de ${selectedDeck.name} en pantalla completa`}
-              className="baraja-hero-card-face-button"
-              data-preview-label="Ver reverso"
-              type="button"
-              onClick={() => openPreview('back')}
-            >
-              <CardCanvas
-                card={selectedCard}
-                deck={selectedDeck}
-                flipped
-                showInfoRow={false}
-                showQr={false}
-              />
-            </button>
-            <figcaption>Reverso</figcaption>
-          </figure>
+        <div className="baraja-hero-bingo-grid">
+          {BINGO_CELLS.map((cell) => (
+            <span className={cell === 'Libre' ? 'is-free' : ''} key={cell}>
+              {cell === 'Libre' ? <i aria-hidden="true" /> : cell}
+            </span>
+          ))}
+        </div>
+        <em>www.baraja.cards</em>
+      </div>
+      <div className="baraja-hero-tablet" aria-hidden="true">
+        <div className="baraja-hero-tablet-bar">
+          <span>Bingo Musical - Guía.pdf</span>
+          <small>100%</small>
+        </div>
+        <div className="baraja-hero-guide-page">
+          <strong>Guía para jugar</strong>
+          <span>Preparación</span>
+          <p>Tenés todo listo para imprimir, explicar la dinámica y empezar.</p>
+          <span>Cómo se juega</span>
+          <ol>
+            <li>Elegir un anfitrión.</li>
+            <li>Escuchar la playlist.</li>
+            <li>Marcar las canciones.</li>
+          </ol>
+          <span>Premios</span>
+          <p>Una variante simple para reuniones, aulas y eventos.</p>
+        </div>
+        <div className="baraja-hero-tablet-footer">
+          <strong>Baraja</strong>
+          <small>Editorial de imprimibles jugables</small>
         </div>
       </div>
-      {fullscreenPreviewMode && (
-        <FullscreenCardPreview
-          card={selectedCard}
-          deck={selectedDeck}
-          initialMode={fullscreenPreviewMode}
-          onClose={() => setFullscreenPreviewMode(null)}
-        />
-      )}
-    </>
+      <div className="baraja-hero-red-deck" aria-hidden="true">
+        <span>Baraja</span>
+      </div>
+      <div className="baraja-hero-question-card" aria-hidden="true">
+        <span>Nombrá algo que siempre te da energía cuando más lo necesitás.</span>
+        <small>Conecta</small>
+        <strong>Baraja</strong>
+      </div>
+    </div>
   );
 }

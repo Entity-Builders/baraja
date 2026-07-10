@@ -9,12 +9,19 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test:design-pipeline": "tsx scripts/deckDesignPipeline.test.ts",
+    "test:spotify-seed": "tsx scripts/spotifySeedPayload.test.ts",
+    "check:music-bingo:collections": "tsx scripts/seedMusicBingoCollections.ts --check",
+    "clean:spotify-playlist:duplicates": "tsx scripts/cleanSpotifyPlaylistDuplicates.ts",
+    "seed:music-bingo:collections": "tsx scripts/seedMusicBingoCollections.ts",
+    "sync:music-bingo:catalog": "tsx scripts/seedMusicBingoCollections.ts --sync-catalog --all",
     "preview": "npm run build && wrangler dev",
     "deploy:prod": "npm run build && wrangler deploy --env production",
     "db:migrate": "wrangler d1 execute baraja-db --file=migrations/0001_initial.sql",
     "db:migrate:remote": "wrangler d1 execute baraja-db --remote --file=migrations/0001_initial.sql",
     "db:migrate:catalog": "wrangler d1 execute baraja-db --file=migrations/0002_deck_catalog.sql",
     "db:migrate:catalog:remote": "wrangler d1 execute baraja-db --remote --file=migrations/0002_deck_catalog.sql",
+    "db:migrate:music-bingo-catalog": "wrangler d1 execute baraja-db --file=migrations/0003_music_bingo_collections.sql",
+    "db:migrate:music-bingo-catalog:remote": "wrangler d1 execute baraja-db --remote --file=migrations/0003_music_bingo_collections.sql",
     "db:seed:decks:sql": "tsx scripts/generate_d1_deck_seed.ts",
     "db:seed:supabase": "tsx scripts/seed_decks.ts",
     "db:seed:supabase:prod": "BARAJA_DB_TARGET=production tsx scripts/seed_decks.ts"
@@ -35,7 +42,8 @@
     "qrcode.react": "^4.2.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "react-router-dom": "^7.13.1"
+    "react-router-dom": "^7.13.1",
+    "simple-icons": "^16.25.0"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.28.0",

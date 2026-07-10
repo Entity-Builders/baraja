@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import * as pdfjsLib from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.mjs?url';
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
@@ -10,7 +10,9 @@ import {
   MUSIC_BINGO_CUSTOM_OFFERING,
   MUSIC_BINGO_MVP_THEMES,
   MUSIC_BINGO_PRODUCT,
+  buildMusicBingoPrintPack,
   generateMusicBingoCards,
+  getMusicBingoUsableSongPool,
   getMusicBingoPriceQuote,
   parseMusicBingoManualSongs,
   validateMusicBingoDraftSongs,
@@ -18,50 +20,124 @@ import {
   type MusicBingoBoardSize,
   type MusicBingoCreatorSongSource,
   type MusicBingoCreatorUseContext,
+  type MusicBingoEventRuleProfile,
+  type MusicBingoPlaylistFitReport,
   type MusicBingoPlaylistReference,
+  type MusicBingoPrintPack,
   type MusicBingoSong,
   type MusicBingoTheme,
 } from '@eb-packages/deck-engine';
 import { parseSpotifyPlaylistId } from '@eb-packages/spotify-service';
+import { BrandIcon } from '../../components/BrandIcon';
 import { getBarajaInquiryHref } from '../../lib/digitalDeckCatalog';
-import { trackBarajaEvent } from '../../services/analytics';
+import { getBarajaAnalyticsDistinctId, trackBarajaEvent } from '../../services/analytics';
 import {
   BarajaMusicBingoCheckoutError,
+  createBarajaMusicBingoValidationPdf,
   startBarajaMusicBingoCheckout,
+  type BarajaMusicBingoCheckoutPackSnapshot,
   type BarajaMusicBingoCheckoutSource,
 } from '../../services/musicBingoCheckout';
+import {
+  fetchSyncedMusicBingoCatalog,
+  formatSyncedMusicBingoSongs,
+  getSyncedMusicBingoCollectionSongCounts,
+  type SyncedMusicBingoCatalogCollection,
+  type SyncedMusicBingoCatalogState,
+} from './musicBingoCatalogApi';
 import { createMusicBingoPreviewPdfBlob } from './musicBingoPreviewPdf';
 
+type MapWithInsertHelpers<K, V> = Map<K, V> & {
+  getOrInsert?: (key: K, value: V) => V;
+  getOrInsertComputed?: (key: K, callbackfn: (key: K) => V) => V;
+};
+
+function installPdfJsMapPolyfills() {
+  const mapPrototype = Map.prototype as MapWithInsertHelpers<unknown, unknown>;
+
+  if (!mapPrototype.getOrInsert) {
+    Object.defineProperty(mapPrototype, 'getOrInsert', {
+      configurable: true,
+      value: function getOrInsert<K, V>(this: Map<K, V>, key: K, value: V): V {
+        if (this.has(key)) return this.get(key) as V;
+        this.set(key, value);
+        return value;
+      },
+    });
+  }
+
+  if (!mapPrototype.getOrInsertComputed) {
+    Object.defineProperty(mapPrototype, 'getOrInsertComputed', {
+      configurable: true,
+      value: function getOrInsertComputed<K, V>(
+        this: Map<K, V>,
+        key: K,
+        callbackfn: (key: K) => V
+      ): V {
+        if (this.has(key)) return this.get(key) as V;
+        const value = callbackfn(key);
+        this.set(key, value);
+        return value;
+      },
+    });
+  }
+}
+
+installPdfJsMapPolyfills();
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 const CREATOR_ROUTE = '/bingo-musical/crear';
+const CATALOG_ROUTE = '/bingo-musical/catalogo';
 const CREATOR_SURFACE = 'music_bingo_creator';
 const DEFAULT_THEME = MUSIC_BINGO_MVP_THEMES[0];
 const DEFAULT_USE_CONTEXT: MusicBingoCreatorUseContext = 'private_event';
-const CARD_COUNT_SLIDER_OPTIONS = MUSIC_BINGO_CARD_COUNT_OPTIONS.map((option) => option.cardCount);
 const DEFAULT_CARD_COUNT =
   MUSIC_BINGO_CARD_COUNT_OPTIONS.find((option) => option.cardCount === 30)?.cardCount ??
   MUSIC_BINGO_CARD_COUNT_OPTIONS[0].cardCount;
 const DEFAULT_PLAYLIST_URL = DEFAULT_THEME.playlist?.url ?? '';
+const CHECKOUT_EMAIL_STORAGE_KEY = 'baraja_music_bingo_checkout_email';
+const DEFAULT_CHECKOUT_EMAIL_PLACEHOLDER = 'tu@email.com';
+const SPOTIFY_CACHE_TTL_MS = 10 * 60 * 1000;
+const SPOTIFY_USER_PLAYLISTS_CACHE_KEY = 'baraja_spotify_user_playlists_v1';
+const SPOTIFY_PLAYLIST_IMPORT_CACHE_PREFIX = 'baraja_spotify_playlist_import_v1';
+const SPOTIFY_USER_PLAYLISTS_REQUEST_LIMIT = 250;
+const BARAJA_MUSIC_BINGO_PLAYLIST_MARKERS = [
+  'baraja bingo',
+  'bingo musical baraja',
+  'bingo musical',
+];
 
 const DELIVERABLES = [
   'Cartones imprimibles',
   'Hoja de control',
   'Reglas y variantes',
-  'Guia de impresion',
-  'Guia de dinamica',
+  'Guía de impresión',
+  'Guía de dinámica',
   'QR opcional',
-];
-
-const PACK_TRUST_BADGES = [
-  { code: 'PDF', label: 'PDF listo para imprimir' },
-  { code: 'UNQ', label: 'Cartones unicos' },
-  { code: 'GUIA', label: 'Guia del anfitrion' },
-  { code: 'QR', label: 'QR opcional' },
 ];
 
 function getThemeById(themeId: string): MusicBingoTheme {
   return MUSIC_BINGO_MVP_THEMES.find((theme) => theme.id === themeId) ?? DEFAULT_THEME;
+}
+
+function getExplicitThemeById(themeId: string | null): MusicBingoTheme | undefined {
+  if (!themeId) return undefined;
+  return MUSIC_BINGO_MVP_THEMES.find((theme) => theme.id === themeId);
+}
+
+function getInitialThemeFromSearch(search: string): MusicBingoTheme {
+  const themeId = new URLSearchParams(search).get('tema');
+  return getExplicitThemeById(themeId) ?? DEFAULT_THEME;
+}
+
+function getInitialCardCountFromSearch(search: string): number | undefined {
+  const rawCardCount = new URLSearchParams(search).get('cartones');
+  if (!rawCardCount) return undefined;
+
+  const parsedCardCount = Number(rawCardCount);
+  return MUSIC_BINGO_CARD_COUNT_OPTIONS.some((option) => option.cardCount === parsedCardCount)
+    ? parsedCardCount
+    : undefined;
 }
 
 function getThemeByPlaylistUrl(playlistUrl: string): MusicBingoTheme | undefined {
@@ -96,6 +172,8 @@ function buildOrderMessage(input: {
   boardSize: MusicBingoBoardSize;
   priceLabel: string;
   playlist?: MusicBingoPlaylistReference;
+  playlistFit: MusicBingoPlaylistFitReport;
+  eventRuleProfile: MusicBingoEventRuleProfile;
 }): string {
   const previewSongs = input.songs
     .slice(0, 12)
@@ -110,6 +188,8 @@ function buildOrderMessage(input: {
     `Cartones: ${input.cardCount}`,
     `Grid: ${input.boardSize} x ${input.boardSize}`,
     `Canciones cargadas: ${input.songs.length}`,
+    `Fit playlist: ${input.playlistFit.summary}`,
+    `Regla del juego: ${input.eventRuleProfile.label}`,
     `Casillero libre: ${input.freeSpace ? 'Si' : 'No'}`,
     `Precio/alcance: ${input.priceLabel}`,
     input.playlist
@@ -150,8 +230,25 @@ function trackCreatorEvent(
 type SpotifyImportState =
   | { status: 'idle' }
   | { status: 'loading' }
-  | { status: 'success'; playlist: SpotifyImportedPlaylistPreview; songCount: number }
+  | {
+      status: 'success';
+      authStatus?: SpotifyImportAuthStatus;
+      playlist: SpotifyImportedPlaylistPreview;
+      songCount: number;
+    }
   | { status: 'fallback'; message: string };
+
+type SpotifyConnectionState =
+  | { status: 'checking'; configured: false; connected: false }
+  | { status: 'ready'; configured: boolean; connected: boolean };
+
+type PlaylistModalTab = 'baraja' | 'spotify' | 'url';
+
+type SpotifyUserPlaylistsState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'success'; playlists: SpotifyUserPlaylistPreview[] }
+  | { status: 'error'; message: string };
 
 interface SpotifyImportedTrackPreview {
   id: string | null;
@@ -161,15 +258,30 @@ interface SpotifyImportedTrackPreview {
 }
 
 interface SpotifyImportedPlaylistPreview {
+  id?: string;
   name: string;
+  description?: string | null;
+  ownerDisplayName?: string | null;
+  spotifyUrl?: string;
+  coverImageUrl?: string | null;
   importedTrackCount: number;
   totalTracks: number | null;
+  importSource?: 'web_api' | 'public_page';
+  isPartial?: boolean;
   tracks: SpotifyImportedTrackPreview[];
+}
+
+interface SpotifyImportAuthStatus {
+  connected: boolean;
+  attempted: boolean;
+  fallbackReason?: string;
+  fallbackStatus?: number;
 }
 
 interface SpotifyPlaylistImportSuccess {
   ok: true;
   playlist: SpotifyImportedPlaylistPreview;
+  spotifyAuth?: SpotifyImportAuthStatus;
   musicBingoSongs: string[];
 }
 
@@ -180,6 +292,49 @@ interface SpotifyPlaylistImportFailure {
 }
 
 type SpotifyPlaylistImportResponse = SpotifyPlaylistImportSuccess | SpotifyPlaylistImportFailure;
+
+interface SpotifySessionResponse {
+  configured: boolean;
+  connected: boolean;
+}
+
+interface SpotifyUserPlaylistPreview {
+  id: string;
+  name: string;
+  description: string | null;
+  ownerDisplayName: string | null;
+  spotifyUrl: string;
+  coverImageUrl: string | null;
+  totalTracks: number | null;
+  isCollaborative: boolean;
+  isPublic: boolean | null;
+}
+
+type SpotifyUserPlaylistsResponse =
+  | { ok: true; playlists: SpotifyUserPlaylistPreview[] }
+  | { ok: false; reason: string; message: string };
+
+interface ActivePlaylistSummary {
+  title: string;
+  eyebrow: string;
+  meta: string;
+  coverImageUrl: string | null;
+  fallbackInitials: string;
+}
+
+type PlaylistCatalogPickerItem =
+  | { kind: 'theme'; theme: MusicBingoTheme }
+  | { kind: 'synced_collection'; collection: SyncedMusicBingoCatalogCollection };
+
+interface SpotifyUserPlaylistsCachePayload {
+  cachedAt: number;
+  playlists: SpotifyUserPlaylistPreview[];
+}
+
+interface SpotifyPlaylistImportCachePayload {
+  cachedAt: number;
+  response: SpotifyPlaylistImportSuccess;
+}
 
 async function readSpotifyImportResponse(response: Response): Promise<SpotifyPlaylistImportResponse> {
   try {
@@ -198,6 +353,135 @@ async function readSpotifyImportResponse(response: Response): Promise<SpotifyPla
   };
 }
 
+async function readSpotifyUserPlaylistsResponse(response: Response): Promise<SpotifyUserPlaylistsResponse> {
+  try {
+    const payload = await response.json() as unknown;
+    if (isSpotifyUserPlaylistsResponse(payload)) {
+      return payload;
+    }
+  } catch {
+    // Fall through to safe failure below.
+  }
+
+  return {
+    ok: false,
+    reason: response.ok ? 'spotify_error' : 'network_error',
+    message: 'No pudimos leer tus playlists de Spotify.',
+  };
+}
+
+async function readSpotifySessionResponse(response: Response): Promise<SpotifySessionResponse> {
+  try {
+    const payload = await response.json() as unknown;
+    if (
+      isRecord(payload) &&
+      typeof payload.configured === 'boolean' &&
+      typeof payload.connected === 'boolean'
+    ) {
+      return {
+        configured: payload.configured,
+        connected: payload.connected,
+      };
+    }
+  } catch {
+    // Use a closed state below if the status endpoint is unavailable.
+  }
+
+  return {
+    configured: false,
+    connected: false,
+  };
+}
+
+function readCachedSpotifyUserPlaylists(): SpotifyUserPlaylistPreview[] | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const raw = window.sessionStorage.getItem(SPOTIFY_USER_PLAYLISTS_CACHE_KEY);
+    if (!raw) return null;
+
+    const payload = JSON.parse(raw) as unknown;
+    if (!isSpotifyUserPlaylistsCachePayload(payload)) return null;
+    if (Date.now() - payload.cachedAt > SPOTIFY_CACHE_TTL_MS) {
+      window.sessionStorage.removeItem(SPOTIFY_USER_PLAYLISTS_CACHE_KEY);
+      return null;
+    }
+
+    return payload.playlists;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedSpotifyUserPlaylists(playlists: SpotifyUserPlaylistPreview[]) {
+  if (typeof window === 'undefined') return;
+
+  try {
+    const payload: SpotifyUserPlaylistsCachePayload = {
+      cachedAt: Date.now(),
+      playlists,
+    };
+    window.sessionStorage.setItem(SPOTIFY_USER_PLAYLISTS_CACHE_KEY, JSON.stringify(payload));
+  } catch {
+    // Session cache is only an optimization.
+  }
+}
+
+function clearCachedSpotifyUserPlaylists() {
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.sessionStorage.removeItem(SPOTIFY_USER_PLAYLISTS_CACHE_KEY);
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function readCachedSpotifyPlaylistImport(playlistUrl: string): SpotifyPlaylistImportSuccess | null {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const cacheKey = getSpotifyPlaylistImportCacheKey(playlistUrl);
+    if (!cacheKey) return null;
+
+    const raw = window.sessionStorage.getItem(cacheKey);
+    if (!raw) return null;
+
+    const payload = JSON.parse(raw) as unknown;
+    if (!isSpotifyPlaylistImportCachePayload(payload)) return null;
+    if (Date.now() - payload.cachedAt > SPOTIFY_CACHE_TTL_MS) {
+      window.sessionStorage.removeItem(cacheKey);
+      return null;
+    }
+
+    return payload.response;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedSpotifyPlaylistImport(playlistUrl: string, response: SpotifyPlaylistImportSuccess) {
+  if (typeof window === 'undefined') return;
+
+  try {
+    const cacheKey = getSpotifyPlaylistImportCacheKey(playlistUrl);
+    if (!cacheKey) return;
+
+    const payload: SpotifyPlaylistImportCachePayload = {
+      cachedAt: Date.now(),
+      response,
+    };
+    window.sessionStorage.setItem(cacheKey, JSON.stringify(payload));
+  } catch {
+    // Session cache is only an optimization.
+  }
+}
+
+function getSpotifyPlaylistImportCacheKey(playlistUrl: string): string | null {
+  const playlistId = parseSpotifyPlaylistId(playlistUrl);
+  return playlistId ? `${SPOTIFY_PLAYLIST_IMPORT_CACHE_PREFIX}:${playlistId}` : null;
+}
+
 function isSpotifyImportResponse(value: unknown): value is SpotifyPlaylistImportResponse {
   if (!isRecord(value) || typeof value.ok !== 'boolean') return false;
 
@@ -211,10 +495,72 @@ function isSpotifyImportResponse(value: unknown): value is SpotifyPlaylistImport
     typeof playlist?.name === 'string' &&
     typeof playlist?.importedTrackCount === 'number' &&
     (typeof playlist?.totalTracks === 'number' || playlist?.totalTracks === null) &&
+    (
+      playlist?.importSource === undefined ||
+      playlist.importSource === 'web_api' ||
+      playlist.importSource === 'public_page'
+    ) &&
+    (playlist?.isPartial === undefined || typeof playlist?.isPartial === 'boolean') &&
     Array.isArray(playlist?.tracks) &&
     playlist.tracks.every(isSpotifyImportedTrackPreview) &&
+    (value.spotifyAuth === undefined || isSpotifyImportAuthStatus(value.spotifyAuth)) &&
     Array.isArray(value.musicBingoSongs) &&
     value.musicBingoSongs.every((song) => typeof song === 'string')
+  );
+}
+
+function isSpotifyImportAuthStatus(value: unknown): value is SpotifyImportAuthStatus {
+  if (!isRecord(value)) return false;
+
+  return (
+    typeof value.connected === 'boolean' &&
+    typeof value.attempted === 'boolean' &&
+    (value.fallbackReason === undefined || typeof value.fallbackReason === 'string') &&
+    (value.fallbackStatus === undefined || typeof value.fallbackStatus === 'number')
+  );
+}
+
+function isSpotifyUserPlaylistsResponse(value: unknown): value is SpotifyUserPlaylistsResponse {
+  if (!isRecord(value) || typeof value.ok !== 'boolean') return false;
+
+  if (value.ok === false) {
+    return typeof value.reason === 'string' && typeof value.message === 'string';
+  }
+
+  return Array.isArray(value.playlists) && value.playlists.every(isSpotifyUserPlaylistPreview);
+}
+
+function isSpotifyUserPlaylistPreview(value: unknown): value is SpotifyUserPlaylistPreview {
+  if (!isRecord(value)) return false;
+
+  return (
+    typeof value.id === 'string' &&
+    typeof value.name === 'string' &&
+    (typeof value.description === 'string' || value.description === null) &&
+    (typeof value.ownerDisplayName === 'string' || value.ownerDisplayName === null) &&
+    typeof value.spotifyUrl === 'string' &&
+    (typeof value.coverImageUrl === 'string' || value.coverImageUrl === null) &&
+    (typeof value.totalTracks === 'number' || value.totalTracks === null) &&
+    typeof value.isCollaborative === 'boolean' &&
+    (typeof value.isPublic === 'boolean' || value.isPublic === null)
+  );
+}
+
+function isSpotifyUserPlaylistsCachePayload(value: unknown): value is SpotifyUserPlaylistsCachePayload {
+  return (
+    isRecord(value) &&
+    typeof value.cachedAt === 'number' &&
+    Array.isArray(value.playlists) &&
+    value.playlists.every(isSpotifyUserPlaylistPreview)
+  );
+}
+
+function isSpotifyPlaylistImportCachePayload(value: unknown): value is SpotifyPlaylistImportCachePayload {
+  return (
+    isRecord(value) &&
+    typeof value.cachedAt === 'number' &&
+    isSpotifyImportResponse(value.response) &&
+    value.response.ok === true
   );
 }
 
@@ -254,54 +600,424 @@ function getTrackingSongSource(
   return 'manual_fallback';
 }
 
+function getSelectedSpotifyUserPlaylist(
+  playlistUrl: string,
+  state: SpotifyUserPlaylistsState
+): SpotifyUserPlaylistPreview | null {
+  if (state.status !== 'success') return null;
+
+  const playlistId = parseSpotifyPlaylistId(playlistUrl);
+  if (!playlistId) return null;
+
+  return state.playlists.find((playlist) => playlist.id === playlistId) ?? null;
+}
+
+function getSyncedCollectionById(
+  collections: SyncedMusicBingoCatalogCollection[],
+  collectionId: string | null
+): SyncedMusicBingoCatalogCollection | null {
+  if (!collectionId) return null;
+  return collections.find((collection) => collection.id === collectionId) ?? null;
+}
+
+function getSyncedCollectionByPlaylistUrl(
+  collections: SyncedMusicBingoCatalogCollection[],
+  playlistUrl: string
+): SyncedMusicBingoCatalogCollection | null {
+  const trimmedPlaylistUrl = playlistUrl.trim();
+  if (!trimmedPlaylistUrl) return null;
+
+  const playlistId = parseSpotifyPlaylistId(trimmedPlaylistUrl);
+  return collections.find((collection) => {
+    if (collection.spotifyUrl === trimmedPlaylistUrl) return true;
+    return Boolean(playlistId && collection.spotifyPlaylistId === playlistId);
+  }) ?? null;
+}
+
+function getDefaultSyncedCatalogCollection(
+  collections: SyncedMusicBingoCatalogCollection[]
+): SyncedMusicBingoCatalogCollection | null {
+  return (
+    collections.find(
+      (collection) =>
+        collection.tracks.length > 0 &&
+        collection.songCount >= collection.minimumSongCount
+    ) ??
+    collections.find((collection) => collection.tracks.length > 0) ??
+    null
+  );
+}
+
+function getPlaylistCatalogPickerItems(
+  syncedCollections: SyncedMusicBingoCatalogCollection[]
+): PlaylistCatalogPickerItem[] {
+  if (syncedCollections.length > 0) {
+    return syncedCollections.map((collection) => ({
+      kind: 'synced_collection',
+      collection,
+    }));
+  }
+
+  return MUSIC_BINGO_MVP_THEMES.map((theme) => ({
+    kind: 'theme',
+    theme,
+  }));
+}
+
+function getPickerItemId(item: PlaylistCatalogPickerItem): string {
+  return item.kind === 'theme' ? item.theme.id : item.collection.id;
+}
+
+function formatPlaylistBoardSizes(boardSizes: MusicBingoBoardSize[]): string {
+  return boardSizes.map((boardSize) => `${boardSize}x${boardSize}`).join(' / ');
+}
+
+function getPickerItemSearchText(item: PlaylistCatalogPickerItem): string {
+  if (item.kind === 'theme') {
+    const theme = item.theme;
+    return [
+      theme.title,
+      theme.summary,
+      theme.playlist?.title,
+      theme.catalog.categoryLabel,
+      theme.catalog.genreLabel,
+      theme.catalog.energyLabel,
+      theme.catalog.decadeLabel,
+      theme.catalog.useCaseLabel,
+      theme.catalog.occasionLabels.join(' '),
+      theme.catalog.searchTerms.join(' '),
+      theme.tags.join(' '),
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+  }
+
+  const collection = item.collection;
+  return [
+    collection.title,
+    collection.description,
+    collection.categoryLabel,
+    collection.genreLabel,
+    collection.energyLabel,
+    collection.decadeLabel,
+    collection.useCaseLabel,
+    collection.occasionLabels.join(' '),
+    collection.searchTerms.join(' '),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+}
+
+function buildSpotifyImportStateFromSyncedCollection(
+  collection: SyncedMusicBingoCatalogCollection
+): Extract<SpotifyImportState, { status: 'success' }> {
+  const songCounts = getSyncedMusicBingoCollectionSongCounts(collection);
+  const totalTracks = Math.max(
+    collection.songCount,
+    songCounts.importedSongCount,
+    songCounts.usableSongCount
+  );
+
+  return {
+    status: 'success',
+    playlist: {
+      id: collection.spotifyPlaylistId ?? collection.id,
+      name: collection.title,
+      description: collection.description,
+      ownerDisplayName: 'Baraja',
+      spotifyUrl: collection.spotifyUrl ?? undefined,
+      coverImageUrl: collection.coverImageUrl,
+      importedTrackCount: songCounts.importedSongCount,
+      totalTracks,
+      importSource: 'web_api',
+      isPartial: songCounts.importedSongCount < totalTracks,
+      tracks: collection.tracks.map((track) => ({
+        id: track.id,
+        title: track.title,
+        artistDisplayName: track.artistDisplayName,
+        imageUrl: track.imageUrl,
+      })),
+    },
+    songCount: songCounts.usableSongCount,
+  };
+}
+
+function buildActivePlaylistSummary(input: {
+  playlistUrl: string;
+  source: MusicBingoCreatorSongSource;
+  theme: MusicBingoTheme;
+  spotifyImportState: SpotifyImportState;
+  selectedSpotifyPlaylist: SpotifyUserPlaylistPreview | null;
+  connectionLabel: string;
+}): ActivePlaylistSummary {
+  if (input.source === 'baraja_theme') {
+    const themePlaylist = input.theme.playlist;
+    const usableSongCount = getMusicBingoUsableSongPool(input.theme.songs).usableSongs.length;
+    return {
+      title: themePlaylist?.title ?? input.theme.title,
+      eyebrow: 'Coleccion Baraja',
+      meta: `${usableSongCount} canciones - ${input.connectionLabel}`,
+      coverImageUrl: themePlaylist?.coverImageUrl ?? input.theme.songs[0]?.artworkUrl ?? null,
+      fallbackInitials: getPlaylistInitials(themePlaylist?.title ?? input.theme.title),
+    };
+  }
+
+  if (input.spotifyImportState.status === 'success') {
+    const playlist = input.spotifyImportState.playlist;
+    const usableTrackCount = input.spotifyImportState.songCount;
+    const importedTrackCount = playlist.importedTrackCount;
+    const totalTrackCount = playlist.totalTracks ?? importedTrackCount;
+    const importedLabel = getSpotifyImportedSongCountLabel({
+      usableTrackCount,
+      importedTrackCount,
+      totalTrackCount,
+      isPartial: playlist.isPartial === true,
+    });
+    return {
+      title: playlist.name,
+      eyebrow: playlist.ownerDisplayName ?? 'Playlist de Spotify',
+      meta: `${importedLabel} - ${input.connectionLabel}`,
+      coverImageUrl: playlist.coverImageUrl ?? playlist.tracks[0]?.imageUrl ?? null,
+      fallbackInitials: getPlaylistInitials(playlist.name),
+    };
+  }
+
+  if (input.selectedSpotifyPlaylist) {
+    const playlist = input.selectedSpotifyPlaylist;
+    return {
+      title: playlist.name,
+      eyebrow: playlist.ownerDisplayName ?? 'Tu Spotify',
+      meta: `${playlist.totalTracks ?? '-'} canciones - ${input.connectionLabel}`,
+      coverImageUrl: playlist.coverImageUrl,
+      fallbackInitials: getPlaylistInitials(playlist.name),
+    };
+  }
+
+  const playlistId = parseSpotifyPlaylistId(input.playlistUrl);
+  return {
+    title: playlistId ? 'Playlist de Spotify' : 'Sin playlist seleccionada',
+    eyebrow: playlistId ? 'Importacion pendiente' : 'Elegir repertorio',
+    meta: playlistId
+      ? `Esperando metadata - ${input.connectionLabel}`
+      : 'Elegi una coleccion Baraja o una playlist de Spotify.',
+    coverImageUrl: null,
+    fallbackInitials: playlistId ? 'SP' : 'BM',
+  };
+}
+
+function getSpotifyImportedSongCountLabel(input: {
+  usableTrackCount: number;
+  importedTrackCount: number;
+  totalTrackCount: number;
+  isPartial: boolean;
+}): string {
+  if (input.isPartial) {
+    return `${input.usableTrackCount} canciones únicas (${input.importedTrackCount} importadas de ${input.totalTrackCount})`;
+  }
+
+  if (input.usableTrackCount !== input.importedTrackCount) {
+    return `${input.usableTrackCount} canciones únicas (${input.importedTrackCount} importadas)`;
+  }
+
+  return `${input.usableTrackCount} canciones`;
+}
+
+function getUsableSongLineCount(songLines: string[]): number {
+  return getMusicBingoUsableSongPool(
+    parseMusicBingoManualSongs(songLines.join('\n')).songs
+  ).usableSongs.length;
+}
+
+function getSpotifyConnectionLabel(spotifyConnectionState: SpotifyConnectionState): string {
+  return spotifyConnectionState.status === 'ready' && spotifyConnectionState.connected
+    ? 'Spotify conectado'
+    : 'Spotify opcional';
+}
+
+function getMusicBingoSpotifyPlaylists(playlists: SpotifyUserPlaylistPreview[]): SpotifyUserPlaylistPreview[] {
+  return playlists.filter(isMusicBingoSpotifyPlaylist);
+}
+
+function isMusicBingoSpotifyPlaylist(playlist: SpotifyUserPlaylistPreview): boolean {
+  const text = [
+    playlist.name,
+    playlist.description ?? '',
+  ].join(' ').toLowerCase();
+
+  return BARAJA_MUSIC_BINGO_PLAYLIST_MARKERS.some((marker) => text.includes(marker));
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function getCheckoutUnavailableReason(input: {
   canPreview: boolean;
+  playlistFit: MusicBingoPlaylistFitReport;
   source: MusicBingoCreatorSongSource;
   hasSpotifyPlaylistId: boolean;
   priceMode: string;
+  hasValidEmail: boolean;
 }): string {
-  if (!input.canPreview) return 'Completa canciones suficientes para pagar el pack.';
-  if (input.priceMode !== 'founder_private') return 'Este uso se confirma con propuesta.';
-  if (input.source !== 'baraja_theme' && !input.hasSpotifyPlaylistId) {
-    return 'Para pagar directo necesitamos una playlist publica de Spotify recuperable.';
+  if (!input.canPreview) return 'Faltan canciones para armar el PDF.';
+  if (!input.playlistFit.scenarioReady) {
+	    return `Para ${input.playlistFit.selectedCardCount} cartones, este repertorio necesita ${input.playlistFit.scenarioMinimum} canciones. Sumá ${input.playlistFit.songsNeededForScenario}, bajá cartones o usá un formato más chico.`;
   }
+  if (input.priceMode === 'proposal') return 'Este caso necesita propuesta antes de pagar.';
+  if (input.source !== 'baraja_theme' && !input.hasSpotifyPlaylistId) {
+    return 'Para pagar online necesitamos una playlist de Spotify recuperable.';
+  }
+	  if (!input.hasValidEmail) return 'Dejanos un email válido para enviarte el PDF.';
   return '';
 }
 
+function isValidCheckoutEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+}
+
+function readSavedCheckoutEmail() {
+  if (typeof window === 'undefined') return '';
+
+  try {
+    const savedEmail = window.localStorage.getItem(CHECKOUT_EMAIL_STORAGE_KEY) ?? '';
+    return isValidCheckoutEmail(savedEmail) ? savedEmail.trim() : '';
+  } catch {
+    return '';
+  }
+}
+
+function saveCheckoutEmail(email: string) {
+  const trimmedEmail = email.trim();
+  if (!isValidCheckoutEmail(trimmedEmail) || typeof window === 'undefined') {
+    return '';
+  }
+
+  try {
+    window.localStorage.setItem(CHECKOUT_EMAIL_STORAGE_KEY, trimmedEmail);
+  } catch {
+    return '';
+  }
+
+  return trimmedEmail;
+}
+
+function buildValidationPdfFilename(title: string): string {
+  const slug = title
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64) || 'bingo-musical';
+  return `${slug}-prueba.pdf`;
+}
+
+function toCheckoutPackSnapshot(
+  pack: MusicBingoPrintPack
+): BarajaMusicBingoCheckoutPackSnapshot {
+  return {
+    title: pack.title,
+    subtitle: pack.subtitle,
+    cardCount: pack.cardCount,
+    boardSize: pack.boardSize,
+    songCount: pack.songCount,
+    freeSpace: pack.freeSpace,
+    sourceLabel: pack.sourceLabel,
+    priceLabel: pack.priceLabel,
+    playlist: pack.playlist ?? null,
+    cards: pack.cards,
+    controlSheet: pack.controlSheet,
+    playlistFit: pack.playlistFit,
+    eventRuleProfile: pack.eventRuleProfile,
+    setupSteps: pack.setupSteps,
+    playRules: pack.playRules,
+    printGuide: pack.printGuide,
+    legalSummary: pack.legalSummary,
+  };
+}
+
 export default function MusicBingoCreator() {
-  const [source, setSource] = useState<MusicBingoCreatorSongSource>('baraja_theme');
-  const [themeId, setThemeId] = useState(DEFAULT_THEME.id);
-  const [gameName, setGameName] = useState(DEFAULT_THEME.suggestedGameName);
+		  const location = useLocation();
+		  const initialTheme = getInitialThemeFromSearch(location.search);
+		  const initialCardCount = getInitialCardCountFromSearch(location.search) ?? DEFAULT_CARD_COUNT;
+		  const initialSpotifyPlaylistUrl = new URLSearchParams(location.search).get('spotifyPlaylistUrl') ?? '';
+  const themeParam = useMemo(
+    () => new URLSearchParams(location.search).get('tema') ?? '',
+    [location.search]
+  );
+  const initialCatalogCollectionId = useMemo(
+    () => new URLSearchParams(location.search).get('catalogCollectionId') ?? '',
+    [location.search]
+  );
+  const hasExplicitInitialRepertory = Boolean(
+    initialSpotifyPlaylistUrl || initialCatalogCollectionId || themeParam
+  );
+  const initialPlaylistUrl = initialCatalogCollectionId
+    ? ''
+    : initialSpotifyPlaylistUrl ||
+      (themeParam ? initialTheme.playlist?.url || DEFAULT_PLAYLIST_URL : '');
+  const [source, setSource] = useState<MusicBingoCreatorSongSource>(
+    initialSpotifyPlaylistUrl || initialCatalogCollectionId || !themeParam ? 'manual' : 'baraja_theme'
+  );
+  const [themeId, setThemeId] = useState(initialTheme.id);
+  const [selectedSyncedCollectionId, setSelectedSyncedCollectionId] = useState(initialCatalogCollectionId);
+  const [gameName, setGameName] = useState(
+    themeParam ? initialTheme.suggestedGameName : 'Bingo musical Baraja'
+  );
   const useContext = DEFAULT_USE_CONTEXT;
-  const [playlistUrl, setPlaylistUrl] = useState(DEFAULT_PLAYLIST_URL);
+  const [playlistUrl, setPlaylistUrl] = useState(initialPlaylistUrl);
   const [manualSongs, setManualSongs] = useState('');
   const [spotifyImportState, setSpotifyImportState] = useState<SpotifyImportState>({ status: 'idle' });
-  const [cardCount, setCardCount] = useState(DEFAULT_CARD_COUNT);
+  const [spotifyConnectionState, setSpotifyConnectionState] = useState<SpotifyConnectionState>({
+    status: 'checking',
+    configured: false,
+    connected: false,
+  });
+	  const [cardCount, setCardCount] = useState(initialCardCount);
   const [boardSize, setBoardSize] = useState<MusicBingoBoardSize>(5);
   const [freeSpace, setFreeSpace] = useState(true);
   const [isManualImportOpen, setIsManualImportOpen] = useState(false);
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
+  const [playlistModalTab, setPlaylistModalTab] = useState<PlaylistModalTab>('baraja');
   const [catalogSearch, setCatalogSearch] = useState('');
+  const [playlistUrlDraft, setPlaylistUrlDraft] = useState(initialPlaylistUrl);
+  const [spotifyUserPlaylistsState, setSpotifyUserPlaylistsState] = useState<SpotifyUserPlaylistsState>({ status: 'idle' });
+  const [spotifyUserPlaylistsRetryKey, setSpotifyUserPlaylistsRetryKey] = useState(0);
+  const [syncedCatalogState, setSyncedCatalogState] = useState<SyncedMusicBingoCatalogState>({ status: 'idle' });
+  const [customerEmail, setCustomerEmail] = useState(readSavedCheckoutEmail);
   const [checkoutState, setCheckoutState] = useState<
+    { status: 'idle' | 'loading' | 'error'; message?: string }
+  >({ status: 'idle' });
+  const [validationPdfState, setValidationPdfState] = useState<
     { status: 'idle' | 'loading' | 'error'; message?: string }
   >({ status: 'idle' });
   const creatorStartedTracked = useRef(false);
   const gameNameInputRef = useRef<HTMLInputElement>(null);
   const lastImportedPlaylistUrlRef = useRef('');
+  const hydratedCatalogCollectionRef = useRef('');
+  const spotifyUserPlaylistsLoadRef = useRef<'idle' | 'loading' | 'loaded'>('idle');
 
   const theme = useMemo(() => getThemeById(themeId), [themeId]);
+  const syncedCatalogCollections =
+    syncedCatalogState.status === 'success' ? syncedCatalogState.collections : [];
+  const catalogPickerItems = useMemo(
+    () => getPlaylistCatalogPickerItems(syncedCatalogCollections),
+    [syncedCatalogCollections]
+  );
   const manualParse = useMemo(() => parseMusicBingoManualSongs(manualSongs), [manualSongs]);
   const songs = useMemo(
     () => (source === 'baraja_theme' ? theme.songs : manualParse.songs),
     [manualParse.songs, source, theme.songs]
   );
   const validation = useMemo(
-    () => validateMusicBingoDraftSongs(songs, freeSpace, boardSize),
-    [boardSize, freeSpace, songs]
+    () => validateMusicBingoDraftSongs(songs, freeSpace, boardSize, { cardCount }),
+    [boardSize, cardCount, freeSpace, songs]
+  );
+  const musicBingoSeed = useMemo(
+    () => `${source}:${themeId}:${gameName}:${cardCount}:${boardSize}:${freeSpace}`,
+    [boardSize, cardCount, freeSpace, gameName, source, themeId]
   );
   const generated = useMemo(
     () =>
@@ -311,15 +1027,14 @@ export default function MusicBingoCreator() {
         cardCount,
         boardSize,
         freeSpace,
-        seed: `${source}:${themeId}:${gameName}:${cardCount}:${boardSize}:${freeSpace}`,
+        seed: musicBingoSeed,
       }),
-    [boardSize, cardCount, freeSpace, gameName, songs, source, themeId]
+    [boardSize, cardCount, freeSpace, gameName, musicBingoSeed, songs]
   );
   const priceQuote = useMemo(
-    () => getMusicBingoPriceQuote(cardCount, useContext),
-    [cardCount, useContext]
+    () => getMusicBingoPriceQuote(cardCount, useContext, source),
+    [cardCount, source, useContext]
   );
-  const cardCountSliderIndex = Math.max(0, CARD_COUNT_SLIDER_OPTIONS.indexOf(cardCount));
   const playlistReference = useMemo<MusicBingoPlaylistReference | undefined>(() => {
     const trimmedUrl = playlistUrl.trim();
     if (!trimmedUrl) return undefined;
@@ -328,43 +1043,117 @@ export default function MusicBingoCreator() {
       return theme.playlist;
     }
 
+    if (spotifyImportState.status === 'success') {
+      return {
+        provider: 'spotify',
+        title: spotifyImportState.playlist.name,
+        url: trimmedUrl,
+        note: 'Playlist pública compartida por el organizador. Baraja no vende música ni derechos de reproducción.',
+      };
+    }
+
     return {
       provider: 'spotify',
       title: 'Playlist propia',
       url: trimmedUrl,
-      note: 'Playlist publica compartida por el organizador. Baraja no vende musica ni derechos de reproduccion.',
+      note: 'Playlist pública compartida por el organizador. Baraja no vende música ni derechos de reproducción.',
     };
-  }, [playlistUrl, source, theme.playlist]);
-  const filteredCatalogThemes = useMemo(() => {
+  }, [playlistUrl, source, spotifyImportState, theme.playlist]);
+  const printPack = useMemo(
+    () =>
+      buildMusicBingoPrintPack({
+        title: gameName.trim() || 'Bingo Musical Baraja',
+        songs,
+        cardCount,
+        boardSize,
+        freeSpace,
+        seed: musicBingoSeed,
+        useContext,
+        sourceLabel: getSourceLabel(source, theme),
+        priceLabel: priceQuote.label,
+        playlist: playlistReference,
+      }),
+    [
+      boardSize,
+      cardCount,
+      freeSpace,
+      gameName,
+      musicBingoSeed,
+      playlistReference,
+      priceQuote.label,
+      songs,
+      source,
+      theme,
+      useContext,
+    ]
+  );
+  const filteredCatalogItems = useMemo(() => {
     const query = catalogSearch.trim().toLowerCase();
-    if (!query) return MUSIC_BINGO_MVP_THEMES;
+    if (!query) return catalogPickerItems;
 
-    return MUSIC_BINGO_MVP_THEMES.filter((candidate) =>
-      [
-        candidate.title,
-        candidate.summary,
-        candidate.playlist?.title,
-        candidate.tags.join(' '),
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-        .includes(query)
+    return catalogPickerItems.filter((candidate) =>
+      getPickerItemSearchText(candidate).includes(query)
     );
-  }, [catalogSearch]);
+  }, [catalogPickerItems, catalogSearch]);
+  const selectedCatalogItemId =
+    selectedSyncedCollectionId || (source === 'baraja_theme' ? theme.id : '');
   const customSpotifyPlaylistId = useMemo(() => parseSpotifyPlaylistId(playlistUrl), [playlistUrl]);
+  const spotifyConnectionLabel = getSpotifyConnectionLabel(spotifyConnectionState);
+  const selectedSpotifyUserPlaylist = useMemo(
+    () => getSelectedSpotifyUserPlaylist(playlistUrl, spotifyUserPlaylistsState),
+    [playlistUrl, spotifyUserPlaylistsState]
+  );
+  const activePlaylistSummary = useMemo(
+    () =>
+      buildActivePlaylistSummary({
+        playlistUrl,
+        source,
+        theme,
+        spotifyImportState,
+        selectedSpotifyPlaylist: selectedSpotifyUserPlaylist,
+        connectionLabel: spotifyConnectionLabel,
+      }),
+    [
+      playlistUrl,
+      source,
+      theme,
+      spotifyImportState,
+      selectedSpotifyUserPlaylist,
+      spotifyConnectionLabel,
+    ]
+  );
+  const spotifyConnectHref = useMemo(() => {
+    const returnParams = new URLSearchParams();
+    const trimmedPlaylistUrl = playlistUrl.trim();
+	    if (trimmedPlaylistUrl) {
+	      returnParams.set('spotifyPlaylistUrl', trimmedPlaylistUrl);
+	    }
+	    if (cardCount !== DEFAULT_CARD_COUNT) {
+	      returnParams.set('cartones', String(cardCount));
+	    }
+	    const returnTo = `${CREATOR_ROUTE}${returnParams.toString() ? `?${returnParams.toString()}` : ''}`;
+	    const authParams = new URLSearchParams({ returnTo });
+	    return `/api/spotify/auth/start?${authParams.toString()}`;
+	  }, [cardCount, playlistUrl]);
   const trackingSource = getTrackingSongSource(source, spotifyImportState, Boolean(customSpotifyPlaylistId));
+  const hasValidCheckoutEmail = isValidCheckoutEmail(customerEmail);
   const canUseMercadoPagoCheckout =
     validation.canPreview &&
-    priceQuote.mode === 'founder_private' &&
-    (source === 'baraja_theme' || Boolean(customSpotifyPlaylistId));
+    validation.playlistFit.scenarioReady &&
+    priceQuote.mode !== 'proposal' &&
+    (source === 'baraja_theme' || Boolean(customSpotifyPlaylistId)) &&
+    hasValidCheckoutEmail;
   const checkoutUnavailableReason = getCheckoutUnavailableReason({
     canPreview: validation.canPreview,
+    playlistFit: validation.playlistFit,
     source,
     hasSpotifyPlaylistId: Boolean(customSpotifyPlaylistId),
     priceMode: priceQuote.mode,
+    hasValidEmail: hasValidCheckoutEmail,
   });
   const previewCard = generated.cards[0];
+  const canDownloadValidationPdf =
+    import.meta.env.DEV && validation.canPreview && printPack.cards.length > 0;
   const offeringId = getOfferingId(source, theme, useContext);
   const orderMessage = buildOrderMessage({
     gameName: gameName.trim() || 'Bingo Musical Baraja',
@@ -377,7 +1166,75 @@ export default function MusicBingoCreator() {
     boardSize,
     priceLabel: priceQuote.label,
     playlist: playlistReference,
+    playlistFit: validation.playlistFit,
+    eventRuleProfile: printPack.eventRuleProfile,
   });
+	  useEffect(() => {
+	    const nextTheme = getExplicitThemeById(themeParam);
+	    if (!nextTheme || nextTheme.id === themeId) return;
+
+    setThemeId(nextTheme.id);
+    setSelectedSyncedCollectionId('');
+    setGameName(nextTheme.suggestedGameName);
+    setPlaylistUrl(nextTheme.playlist?.url ?? '');
+    lastImportedPlaylistUrlRef.current = '';
+    setSpotifyImportState({ status: 'idle' });
+    setIsManualImportOpen(false);
+    setIsCatalogOpen(false);
+    if (source !== 'baraja_theme') {
+      setSource('baraja_theme');
+    }
+    trackCreatorEvent('baraja_music_bingo_song_source_selected', {
+      source: 'curated_spotify',
+      use_context: useContext,
+      theme_id: nextTheme.id,
+	    });
+	  }, [source, themeId, themeParam, useContext]);
+
+	  useEffect(() => {
+	    const nextCardCount = getInitialCardCountFromSearch(location.search);
+	    if (!nextCardCount || nextCardCount === cardCount) return;
+	    setCardCount(nextCardCount);
+	  }, [cardCount, location.search]);
+
+	  useEffect(() => {
+    const controller = new AbortController();
+    setSyncedCatalogState({ status: 'loading' });
+
+    void (async () => {
+      try {
+        const collections = await fetchSyncedMusicBingoCatalog(controller.signal);
+        setSyncedCatalogState({ status: 'success', collections });
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setSyncedCatalogState({
+          status: 'error',
+          message: 'No pudimos leer el catalogo sincronizado.',
+        });
+      }
+    })();
+
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const collection = getSyncedCollectionById(syncedCatalogCollections, initialCatalogCollectionId);
+    if (!collection || hydratedCatalogCollectionRef.current === collection.id) return;
+
+    hydratedCatalogCollectionRef.current = collection.id;
+    selectSyncedCatalogCollection(collection);
+  }, [initialCatalogCollectionId, syncedCatalogCollections, source, useContext]);
+
+  useEffect(() => {
+    if (hasExplicitInitialRepertory || hydratedCatalogCollectionRef.current) return;
+
+    const collection = getDefaultSyncedCatalogCollection(syncedCatalogCollections);
+    if (!collection) return;
+
+    hydratedCatalogCollectionRef.current = collection.id;
+    selectSyncedCatalogCollection(collection, { trackSelection: false });
+  }, [hasExplicitInitialRepertory, syncedCatalogCollections]);
+
   useEffect(() => {
     if (creatorStartedTracked.current) return;
     creatorStartedTracked.current = true;
@@ -390,6 +1247,106 @@ export default function MusicBingoCreator() {
       theme_id: theme.id,
     });
   }, [boardSize, cardCount, theme.id, trackingSource, useContext]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const response = await fetch('/api/spotify/session', {
+          credentials: 'include',
+        });
+        const session = await readSpotifySessionResponse(response);
+        if (!cancelled) {
+          if (!session.connected) {
+            clearCachedSpotifyUserPlaylists();
+          }
+          setSpotifyConnectionState({
+            status: 'ready',
+            configured: session.configured,
+            connected: session.connected,
+          });
+        }
+      } catch {
+        if (!cancelled) {
+          clearCachedSpotifyUserPlaylists();
+          setSpotifyConnectionState({
+            status: 'ready',
+            configured: false,
+            connected: false,
+          });
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isCatalogOpen || playlistModalTab !== 'spotify') return;
+    if (spotifyConnectionState.status !== 'ready' || !spotifyConnectionState.connected) return;
+    if (spotifyUserPlaylistsLoadRef.current !== 'idle') return;
+
+    let cancelled = false;
+    const cachedPlaylists = readCachedSpotifyUserPlaylists();
+    if (cachedPlaylists) {
+      spotifyUserPlaylistsLoadRef.current = 'loaded';
+      setSpotifyUserPlaylistsState({
+        status: 'success',
+        playlists: cachedPlaylists,
+      });
+      return;
+    }
+
+    spotifyUserPlaylistsLoadRef.current = 'loading';
+    setSpotifyUserPlaylistsState({ status: 'loading' });
+
+    void (async () => {
+      try {
+        const response = await fetch(`/api/spotify/me/playlists?maxPlaylists=${SPOTIFY_USER_PLAYLISTS_REQUEST_LIMIT}`, {
+          credentials: 'include',
+        });
+        const result = await readSpotifyUserPlaylistsResponse(response);
+        if (cancelled) return;
+        spotifyUserPlaylistsLoadRef.current = 'loaded';
+        if (result.ok) {
+          writeCachedSpotifyUserPlaylists(result.playlists);
+          setSpotifyUserPlaylistsState({
+            status: 'success',
+            playlists: result.playlists,
+          });
+          return;
+        }
+
+        setSpotifyUserPlaylistsState({
+          status: 'error',
+          message: result.message,
+        });
+      } catch (error) {
+        if (cancelled) return;
+        spotifyUserPlaylistsLoadRef.current = 'loaded';
+        setSpotifyUserPlaylistsState({
+          status: 'error',
+          message: 'No pudimos conectar con Spotify para leer tus playlists.',
+        });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (spotifyUserPlaylistsLoadRef.current === 'loading') {
+        spotifyUserPlaylistsLoadRef.current = 'idle';
+      }
+    };
+  }, [
+    isCatalogOpen,
+    playlistModalTab,
+    spotifyConnectionState.connected,
+    spotifyConnectionState.status,
+    spotifyUserPlaylistsRetryKey,
+  ]);
 
   useEffect(() => {
     trackCreatorEvent('baraja_music_bingo_songs_validated', {
@@ -471,26 +1428,44 @@ export default function MusicBingoCreator() {
 
     const controller = new AbortController();
     const timeoutId = window.setTimeout(async () => {
+      const cachedImport = readCachedSpotifyPlaylistImport(trimmedPlaylistUrl);
+      if (cachedImport && cachedImport.musicBingoSongs.length > 0) {
+        const usableSongCount = getUsableSongLineCount(cachedImport.musicBingoSongs);
+        setManualSongs(cachedImport.musicBingoSongs.join('\n'));
+        lastImportedPlaylistUrlRef.current = trimmedPlaylistUrl;
+        setSpotifyImportState({
+          status: 'success',
+          authStatus: cachedImport.spotifyAuth,
+          playlist: cachedImport.playlist,
+          songCount: usableSongCount,
+        });
+        return;
+      }
+
       setSpotifyImportState({ status: 'loading' });
 
       try {
         const response = await fetch('/api/spotify/playlist', {
           method: 'POST',
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ playlistUrl: trimmedPlaylistUrl, maxTracks: 200 }),
+          body: JSON.stringify({ playlistUrl: trimmedPlaylistUrl, maxTracks: 500 }),
           signal: controller.signal,
         });
         const result = await readSpotifyImportResponse(response);
 
         if (result.ok && result.musicBingoSongs.length > 0) {
+          const usableSongCount = getUsableSongLineCount(result.musicBingoSongs);
           setManualSongs(result.musicBingoSongs.join('\n'));
           lastImportedPlaylistUrlRef.current = trimmedPlaylistUrl;
+          writeCachedSpotifyPlaylistImport(trimmedPlaylistUrl, result);
           setSpotifyImportState({
             status: 'success',
+            authStatus: result.spotifyAuth,
             playlist: result.playlist,
-            songCount: result.musicBingoSongs.length,
+            songCount: usableSongCount,
           });
           return;
         }
@@ -518,6 +1493,7 @@ export default function MusicBingoCreator() {
 
   function selectTheme(nextTheme: MusicBingoTheme) {
     setThemeId(nextTheme.id);
+    setSelectedSyncedCollectionId('');
     setGameName(nextTheme.suggestedGameName);
     setPlaylistUrl(nextTheme.playlist?.url ?? '');
     lastImportedPlaylistUrlRef.current = '';
@@ -534,13 +1510,77 @@ export default function MusicBingoCreator() {
     });
   }
 
+  function selectSyncedCatalogCollection(
+    collection: SyncedMusicBingoCatalogCollection,
+    options: { trackSelection?: boolean } = {}
+  ) {
+    const syncedSongs = formatSyncedMusicBingoSongs(collection);
+    const syncedPlaylistUrl = collection.spotifyUrl ?? '';
+
+    setSelectedSyncedCollectionId(collection.id);
+    setThemeId(DEFAULT_THEME.id);
+    setGameName(collection.title);
+    setPlaylistUrl(syncedPlaylistUrl);
+    setPlaylistUrlDraft(syncedPlaylistUrl);
+    setManualSongs(syncedSongs.join('\n'));
+    lastImportedPlaylistUrlRef.current = syncedPlaylistUrl.trim();
+    setSpotifyImportState(buildSpotifyImportStateFromSyncedCollection(collection));
+    setIsManualImportOpen(false);
+    setIsCatalogOpen(false);
+    if (source !== 'manual') {
+      setSource('manual');
+    }
+    if (options.trackSelection === false) return;
+
+    trackCreatorEvent('baraja_music_bingo_song_source_selected', {
+      source: 'curated_spotify',
+      use_context: useContext,
+      theme_id: collection.id,
+      catalog_source: 'd1_sync',
+      song_count: syncedSongs.length,
+    });
+  }
+
+  function openPlaylistModal(tab: PlaylistModalTab = 'baraja') {
+    setCatalogSearch('');
+    setPlaylistUrlDraft(playlistUrl);
+    setPlaylistModalTab(tab);
+    setIsCatalogOpen(true);
+    trackCreatorEvent('baraja_music_bingo_playlist_opened', {
+      source: trackingSource,
+      use_context: useContext,
+      theme_id: source === 'baraja_theme' ? theme.id : 'custom_spotify',
+      tab,
+    });
+  }
+
+  function selectSpotifyUserPlaylist(spotifyPlaylist: SpotifyUserPlaylistPreview) {
+    updatePlaylistUrl(spotifyPlaylist.spotifyUrl);
+    setIsCatalogOpen(false);
+  }
+
+  function usePlaylistUrlDraft() {
+    updatePlaylistUrl(playlistUrlDraft);
+    setIsCatalogOpen(false);
+  }
+
   function updatePlaylistUrl(nextPlaylistUrl: string) {
+    const matchingSyncedCollection = getSyncedCollectionByPlaylistUrl(
+      syncedCatalogCollections,
+      nextPlaylistUrl
+    );
+    if (matchingSyncedCollection) {
+      selectSyncedCatalogCollection(matchingSyncedCollection);
+      return;
+    }
+
     setPlaylistUrl(nextPlaylistUrl);
     lastImportedPlaylistUrlRef.current = '';
 
     const matchingTheme = getThemeByPlaylistUrl(nextPlaylistUrl);
     if (matchingTheme) {
       setThemeId(matchingTheme.id);
+      setSelectedSyncedCollectionId('');
       setGameName(matchingTheme.suggestedGameName);
       setSpotifyImportState({ status: 'idle' });
       setIsManualImportOpen(false);
@@ -548,6 +1588,7 @@ export default function MusicBingoCreator() {
       return;
     }
 
+    setSelectedSyncedCollectionId('');
     setSpotifyImportState({ status: 'idle' });
     setIsManualImportOpen(false);
 
@@ -610,6 +1651,39 @@ export default function MusicBingoCreator() {
     });
   }
 
+  async function handleValidationPdfDownload() {
+    if (!validation.canPreview || printPack.cards.length === 0) {
+      setValidationPdfState({
+        status: 'error',
+        message: 'Genera una preview valida antes de descargar el PDF.',
+      });
+      return;
+    }
+
+    setValidationPdfState({ status: 'loading' });
+
+    try {
+      const blob = await createBarajaMusicBingoValidationPdf(
+        toCheckoutPackSnapshot(printPack)
+      );
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = buildValidationPdfFilename(printPack.title);
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      setValidationPdfState({ status: 'idle' });
+    } catch (error) {
+      const message = error instanceof BarajaMusicBingoCheckoutError
+        ? error.message
+        : 'No pudimos generar el PDF local. Revisa que la funcion local este corriendo.';
+      console.warn('[baraja] Local music bingo PDF validation failed', error);
+      setValidationPdfState({ status: 'error', message });
+    }
+  }
+
   async function handleCheckout() {
     if (!canUseMercadoPagoCheckout) {
       setCheckoutState({
@@ -649,7 +1723,11 @@ export default function MusicBingoCreator() {
           source === 'baraja_theme'
             ? parseSpotifyPlaylistId(theme.playlist?.url ?? '')
             : customSpotifyPlaylistId,
+        customerEmail: customerEmail.trim(),
+        analyticsDistinctId: getBarajaAnalyticsDistinctId(),
+        packSnapshot: toCheckoutPackSnapshot(printPack),
       });
+      saveCheckoutEmail(customerEmail);
 
       trackBarajaEvent('baraja_checkout_started', {
         campaign_id: 'music_bingo',
@@ -700,38 +1778,36 @@ export default function MusicBingoCreator() {
 
       <section className="baraja-creator-app-layout" aria-label="Creador de bingo musical">
         <section className="baraja-creator-workspace">
-          <header className="baraja-creator-workspace-head">
-            <div>
-              <p className="baraja-kicker">Bingo musical</p>
-              <h1>Tene tu noche lista para jugar</h1>
-              <p>
-                Pega una playlist de Spotify, elegi cartones y formato. Baraja arma
-                un pack imprimible con cartones unicos, hoja de control y guia para
-                conducir el juego.
-              </p>
-              <div className="baraja-creator-trust-badges" aria-label="Incluido en el pack">
-                {PACK_TRUST_BADGES.map((badge) => (
-                  <span key={badge.label}>
-                    <b>{badge.code}</b>
-                    {badge.label}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </header>
-
           <section className="baraja-creator-workspace-shell" aria-label="Configuracion del juego">
             <section className="baraja-creator-setup-panel">
-              <section className="baraja-creator-name-field" aria-label="Nombre del juego">
-                <CreatorStepHeading step="1" title="Nombre del juego" />
-                <label className="baraja-field">
-                  <input
-                    ref={gameNameInputRef}
-                    value={gameName}
-                    onChange={(event) => setGameName(event.target.value)}
-                    placeholder="Noche Rock Argentino"
-                  />
-                </label>
+              <section className="baraja-creator-step" id="playlist-catalog" aria-label="Canciones">
+                <CreatorStepHeading step="1" title="Repertorio" />
+
+                <PlaylistUrlReview
+                  activePlaylist={activePlaylistSummary}
+                  onOpenSelector={() => openPlaylistModal('baraja')}
+                />
+
+                {source === 'baraja_theme' ? (
+                  <>
+                    <PlaylistTrackList theme={theme} />
+                  </>
+                ) : (
+                  <section className="baraja-spotify-import-stack">
+                    <SpotifyPlaylistPreviewCard state={spotifyImportState} />
+                    <SpotifyImportNotice
+                      state={spotifyImportState}
+                      spotifyConnectHref={spotifyConnectHref}
+                      spotifyConnectionState={spotifyConnectionState}
+                    />
+                    <ManualImportPanel
+                      isOpen={isManualImportOpen}
+                      songs={manualSongs}
+                      onSongsChange={setManualSongs}
+                      onToggle={() => setIsManualImportOpen((current) => !current)}
+                    />
+                  </section>
+                )}
               </section>
 
               <section className="baraja-creator-step" aria-label="Cartones">
@@ -742,44 +1818,15 @@ export default function MusicBingoCreator() {
                       <strong>{cardCount}</strong>
                       <span>Cartones</span>
                     </div>
-                    <div className="baraja-count-price">
-                      <b>{priceQuote.label}</b>
-                      <small>
-                        {priceQuote.mode === 'founder_private'
-                          ? 'Precio fundador Argentina'
-                          : priceQuote.summary}
-                      </small>
-                    </div>
-                  </div>
-                  <section className="baraja-count-helper" aria-label="Aviso sobre cantidad de cartones">
-                    <p>
-                      Crear varios juegos con la misma playlist puede repetir combinaciones.
-                      Para mas variedad, aumenta la cantidad de cartones.
-                    </p>
-                  </section>
-                  <label className="baraja-count-slider" aria-label="Cantidad de cartones">
-                    <input
-                      type="range"
-                      min={0}
-                      max={CARD_COUNT_SLIDER_OPTIONS.length - 1}
-                      step={1}
-                      value={cardCountSliderIndex}
-                      onChange={(event) => {
-                        const nextCardCount =
-                          CARD_COUNT_SLIDER_OPTIONS[Number(event.target.value)] ??
-                          CARD_COUNT_SLIDER_OPTIONS[0];
-                        selectCardCount(nextCardCount);
-                      }}
-                    />
-                    <span>
-                      {CARD_COUNT_SLIDER_OPTIONS.map((option) => (
-                        <i key={option}>{option}</i>
-                      ))}
-                    </span>
-                  </label>
-                  <label className="baraja-toggle-row baraja-compact-toggle baraja-inline-free-space">
-                    <input
-                      type="checkbox"
+	                    <div className="baraja-count-price">
+	                      <b>{priceQuote.label}</b>
+	                      <small>{priceQuote.summary}</small>
+	                    </div>
+	                  </div>
+	                  <CardCountFitNotice playlistFit={validation.playlistFit} />
+	                  <label className="baraja-toggle-row baraja-compact-toggle baraja-inline-free-space">
+	                    <input
+	                      type="checkbox"
                       checked={freeSpace}
                       onChange={(event) => setFreeSpace(event.target.checked)}
                     />
@@ -789,57 +1836,42 @@ export default function MusicBingoCreator() {
                     </span>
                   </label>
                   <div className="baraja-count-options" aria-label="Cantidad de cartones">
-                    {MUSIC_BINGO_CARD_COUNT_OPTIONS.map((option) => (
-                      <button
-                        key={option.cardCount}
-                        type="button"
-                        className={cardCount === option.cardCount ? 'is-selected' : ''}
-                        onClick={() => selectCardCount(option.cardCount)}
-                      >
-                        {option.cardCount}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </section>
+	                    {MUSIC_BINGO_CARD_COUNT_OPTIONS.map((option) => (
+	                      <button
+	                        key={option.cardCount}
+	                        type="button"
+	                        aria-pressed={cardCount === option.cardCount}
+	                        className={cardCount === option.cardCount ? 'is-selected' : ''}
+	                        onClick={() => selectCardCount(option.cardCount)}
+	                      >
+	                        <strong>{option.cardCount}</strong>
+	                        <span>cartones</span>
+	                      </button>
+	                    ))}
+	                  </div>
+	                </div>
+	              </section>
 
-              <section className="baraja-creator-step" aria-label="Formato del carton">
-                <CreatorStepHeading step="3" title="Formato del carton" />
+	              <section className="baraja-creator-step" aria-label="Formato del carton">
+	                <CreatorStepHeading step="3" title="Formato" />
                 <PreviewFormatControls
                   boardSize={boardSize}
                   requiredSongCount={validation.requiredSongCount}
                   onBoardSizeChange={selectBoardSize}
                 />
+                <PlaylistFitGuidance playlistFit={validation.playlistFit} />
               </section>
 
-              <section className="baraja-creator-step" id="playlist-catalog" aria-label="Canciones">
-                <CreatorStepHeading step="4" title="Playlist de Spotify" />
-
-                <PlaylistUrlReview
-                  playlistUrl={playlistUrl}
-                  onPlaylistUrlChange={updatePlaylistUrl}
-                  onOpenCatalog={() => {
-                    setCatalogSearch('');
-                    setIsCatalogOpen(true);
-                  }}
-                />
-
-                {source === 'baraja_theme' ? (
-                  <>
-                    <PlaylistTrackList theme={theme} />
-                  </>
-                ) : (
-                  <section className="baraja-spotify-import-stack">
-                    <SpotifyPlaylistPreviewCard state={spotifyImportState} />
-                    <SpotifyImportNotice state={spotifyImportState} />
-                    <ManualImportPanel
-                      isOpen={isManualImportOpen}
-                      songs={manualSongs}
-                      onSongsChange={setManualSongs}
-                      onToggle={() => setIsManualImportOpen((current) => !current)}
-                    />
-                  </section>
-                )}
+              <section className="baraja-creator-name-field" aria-label="Nombre del juego">
+                <CreatorStepHeading step="4" title="Nombre del juego" />
+                <label className="baraja-field">
+                  <input
+                    ref={gameNameInputRef}
+                    value={gameName}
+                    onChange={(event) => setGameName(event.target.value)}
+                    placeholder="Noche Rock Argentino"
+                  />
+                </label>
               </section>
 
               <ValidationSummary validation={validation} />
@@ -871,13 +1903,19 @@ export default function MusicBingoCreator() {
                 cardCount={cardCount}
                 songCount={validation.usableSongs.length}
                 boardSize={boardSize}
-                priceLabel={priceQuote.label}
-                canPreview={validation.canPreview}
-                canCheckout={canUseMercadoPagoCheckout}
-                checkoutState={checkoutState}
+	                priceLabel={priceQuote.label}
+	                canPreview={validation.canPreview}
+	                canCheckout={canUseMercadoPagoCheckout}
+	                checkoutState={checkoutState}
                 checkoutUnavailableReason={checkoutUnavailableReason}
+                validationPdfState={validationPdfState}
+                canDownloadValidationPdf={canDownloadValidationPdf}
+                customerEmail={customerEmail}
+                onCustomerEmailChange={setCustomerEmail}
+                customerEmailPlaceholder={DEFAULT_CHECKOUT_EMAIL_PLACEHOLDER}
                 supportHref={getBarajaInquiryHref(orderMessage)}
                 onCheckout={() => void handleCheckout()}
+                onDownloadValidationPdf={() => void handleValidationPdfDownload()}
                 onSupport={trackOrderStart}
               />
 
@@ -888,14 +1926,59 @@ export default function MusicBingoCreator() {
       </section>
       <PlaylistCatalogModal
         isOpen={isCatalogOpen}
+        activeTab={playlistModalTab}
         search={catalogSearch}
-        themes={filteredCatalogThemes}
-        selectedThemeId={theme.id}
+        items={filteredCatalogItems}
+        selectedItemId={selectedCatalogItemId}
+        catalogStatus={syncedCatalogState.status}
+        spotifyConnectHref={spotifyConnectHref}
+        spotifyConnectionState={spotifyConnectionState}
+        spotifyUserPlaylistsState={spotifyUserPlaylistsState}
+        playlistUrlDraft={playlistUrlDraft}
+        onActiveTabChange={setPlaylistModalTab}
         onSearchChange={setCatalogSearch}
-        onSelectTheme={selectTheme}
+        onSelectItem={(item) => {
+          if (item.kind === 'theme') {
+            selectTheme(item.theme);
+            return;
+          }
+          selectSyncedCatalogCollection(item.collection);
+        }}
+        onSelectSpotifyPlaylist={selectSpotifyUserPlaylist}
+        onPlaylistUrlDraftChange={setPlaylistUrlDraft}
+        onUsePlaylistUrl={usePlaylistUrlDraft}
+        onRetrySpotifyPlaylists={() => {
+          clearCachedSpotifyUserPlaylists();
+          spotifyUserPlaylistsLoadRef.current = 'idle';
+          setSpotifyUserPlaylistsState({ status: 'idle' });
+          setSpotifyUserPlaylistsRetryKey((current) => current + 1);
+        }}
         onClose={() => setIsCatalogOpen(false)}
       />
     </main>
+  );
+}
+
+function CardCountFitNotice({
+  playlistFit,
+}: {
+  playlistFit: MusicBingoPlaylistFitReport;
+}) {
+  const className = playlistFit.scenarioReady
+    ? 'baraja-count-helper is-ready'
+    : playlistFit.canFillCard
+      ? 'baraja-count-helper is-warning'
+      : 'baraja-count-helper is-blocked';
+  const message = playlistFit.scenarioReady
+    ? `${playlistFit.usableSongCount} canciones alcanzan para ${playlistFit.selectedCardCount} cartones.`
+    : playlistFit.canFillCard
+      ? `Podes ver preview; para pagar este tamano suma ${playlistFit.songsNeededForScenario} canciones o baja cartones.`
+      : `Este formato necesita ${playlistFit.hardMinimum} canciones distintas.`;
+
+  return (
+    <section className={className} aria-label="Fit entre canciones y cartones">
+      <p>{message}</p>
+    </section>
   );
 }
 
@@ -915,7 +1998,7 @@ function PreviewFormatControls({
           <span>Formato del PDF</span>
           <strong>{boardSize} x {boardSize}</strong>
         </div>
-        <small>{requiredSongCount} canciones por carton</small>
+          <small>{requiredSongCount} canciones por cartón</small>
       </header>
       <div role="group" aria-label="Tamaño de grilla">
         {MUSIC_BINGO_BOARD_SIZE_OPTIONS.map((option) => (
@@ -933,6 +2016,53 @@ function PreviewFormatControls({
   );
 }
 
+function PlaylistFitGuidance({
+  playlistFit,
+}: {
+  playlistFit: MusicBingoPlaylistFitReport;
+}) {
+  const isReady = playlistFit.severity === 'scenario_ready';
+  const className = isReady
+    ? 'baraja-playlist-fit is-ready'
+    : 'baraja-playlist-fit is-warning';
+
+  return (
+    <section className={className} aria-label="Fit de playlist">
+      <header>
+        <div>
+          <span>{playlistFit.scaleBandLabel}</span>
+          <strong>{isReady ? 'Lista para este tamano' : 'Faltan canciones para este tamano'}</strong>
+        </div>
+        <b>
+          {playlistFit.usableSongCount}/{playlistFit.scenarioMinimum}
+        </b>
+      </header>
+      <p>{playlistFit.summary}</p>
+      <div className="baraja-playlist-fit-metrics" aria-label="Metricas de fit">
+        <span>
+          <small>Cartones</small>
+          <b>{playlistFit.selectedCardCount}</b>
+        </span>
+        <span>
+          <small>Casillas</small>
+          <b>{playlistFit.songSlotsPerCard}</b>
+        </span>
+        <span>
+          <small>Se repiten aprox.</small>
+          <b>{playlistFit.expectedSharedSongs ?? '-'}</b>
+        </span>
+      </div>
+      {!isReady ? (
+        <ul>
+          {playlistFit.recommendations.slice(0, 2).map((recommendation) => (
+            <li key={recommendation}>{recommendation}</li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
+
 function CreatorStepHeading({ step, title }: { step: string; title: string }) {
   return (
     <div className="baraja-creator-step-head">
@@ -943,51 +2073,63 @@ function CreatorStepHeading({ step, title }: { step: string; title: string }) {
 }
 
 function PlaylistUrlReview({
-  playlistUrl,
-  onPlaylistUrlChange,
-  onOpenCatalog,
+  activePlaylist,
+  onOpenSelector,
 }: {
-  playlistUrl: string;
-  onPlaylistUrlChange: (playlistUrl: string) => void;
-  onOpenCatalog: () => void;
+  activePlaylist: ActivePlaylistSummary;
+  onOpenSelector: () => void;
 }) {
   return (
-    <section className="baraja-playlist-url-review" aria-label="Playlist de Spotify">
-      <label>
-        <span>URL de Spotify</span>
-        <input
-          value={playlistUrl}
-          onChange={(event) => onPlaylistUrlChange(event.target.value)}
-          placeholder="https://open.spotify.com/playlist/1234567890"
-        />
-      </label>
-      <p>
-        La playlist debe ser publica. Baraja intenta importar las canciones y,
-        si Spotify no las devuelve, podes editar el listado manualmente.
-      </p>
-      <button type="button" onClick={onOpenCatalog}>
-        <SpotifyLogoMark />
-        Ver catalogo de playlists curadas
-        <b aria-hidden="true">&gt;</b>
-      </button>
+    <section className="baraja-playlist-url-review" aria-label="Repertorio del bingo">
+      <div className="baraja-playlist-active-row">
+        <div className="baraja-playlist-active-art" aria-hidden="true">
+          {activePlaylist.coverImageUrl ? (
+            <img src={activePlaylist.coverImageUrl} alt="" loading="eager" decoding="async" />
+          ) : (
+            <i>{activePlaylist.fallbackInitials}</i>
+          )}
+        </div>
+        <div className="baraja-playlist-active-copy">
+          <span>{activePlaylist.eyebrow}</span>
+          <strong>{activePlaylist.title}</strong>
+          <small>{activePlaylist.meta}</small>
+        </div>
+        <button type="button" onClick={onOpenSelector}>
+          <SpotifyLogoMark />
+          Cambiar
+        </button>
+      </div>
+      <p>Usá una colección Baraja, una playlist conectada o una URL de Spotify.</p>
     </section>
   );
 }
 
 function SpotifyLogoMark() {
-  return (
-    <i className="baraja-spotify-logo" aria-hidden="true">
-      <em />
-      <em />
-      <em />
-    </i>
-  );
+  return <BrandIcon name="spotify" className="baraja-spotify-logo" />;
 }
 
-function SpotifyImportNotice({ state }: { state: SpotifyImportState }) {
+function SpotifyImportNotice({
+  state,
+  spotifyConnectHref,
+  spotifyConnectionState,
+}: {
+  state: SpotifyImportState;
+  spotifyConnectHref: string;
+  spotifyConnectionState: SpotifyConnectionState;
+}) {
   if (state.status === 'idle') return null;
 
   const className = `baraja-spotify-import-status is-${state.status}`;
+  const canConnectSpotify =
+    spotifyConnectionState.status === 'ready' &&
+    spotifyConnectionState.configured &&
+    !spotifyConnectionState.connected;
+  const connectedAccountCouldNotReadPlaylist =
+    state.status === 'success' &&
+    state.authStatus?.connected === true &&
+    state.authStatus.attempted === true &&
+    typeof state.authStatus.fallbackReason === 'string' &&
+    state.playlist.importSource === 'public_page';
   if (state.status === 'loading') {
     return (
       <p className={className} role="status">
@@ -997,6 +2139,25 @@ function SpotifyImportNotice({ state }: { state: SpotifyImportState }) {
   }
 
   if (state.status === 'success') {
+    if (state.playlist.isPartial === true) {
+      const totalTrackCount = state.playlist.totalTracks ?? state.songCount;
+      return (
+	      <p className="baraja-spotify-import-status is-partial" role="status">
+	          Importamos {state.songCount} de {totalTrackCount} canciones.
+	          {' '}
+	          {connectedAccountCouldNotReadPlaylist ? (
+	            'Para completar el repertorio, usá una playlist creada por vos o agregate como colaborador.'
+	          ) : canConnectSpotify ? (
+	            <>
+	              <a href={spotifyConnectHref}>Conectá Spotify</a> o pegá las canciones manualmente.
+	            </>
+	          ) : (
+	            'También podés pegar la lista manualmente.'
+	          )}
+	        </p>
+      );
+    }
+
     return (
       <p className="sr-only" role="status">
         Importamos {state.songCount} canciones de {state.playlist.name}.
@@ -1006,7 +2167,14 @@ function SpotifyImportNotice({ state }: { state: SpotifyImportState }) {
 
   return (
     <p className={className} role="status">
-      {state.message} Podes usar la carga manual para continuar.
+      {state.message}{' '}
+      {canConnectSpotify ? (
+        <>
+	          <a href={spotifyConnectHref}>Conectá Spotify</a> o usá la carga manual para continuar.
+	        </>
+	      ) : (
+	        'Podés usar la carga manual para continuar.'
+	      )}
     </p>
   );
 }
@@ -1042,8 +2210,8 @@ function ManualImportPanel({
             rows={6}
           />
           <small>
-            Usa una cancion por linea con formato artista - cancion. El link de
-            Spotify queda guardado en el pedido.
+            Una canción por línea: artista - canción. Si hay URL de Spotify,
+            queda guardada en el pedido.
           </small>
         </label>
       ) : null}
@@ -1056,12 +2224,15 @@ function SpotifyPlaylistPreviewCard({ state }: { state: SpotifyImportState }) {
 
   const { playlist } = state;
   const totalTrackCount = playlist.totalTracks ?? playlist.importedTrackCount;
+  const trackCountLabel = playlist.isPartial === true
+    ? `${playlist.importedTrackCount} de ${totalTrackCount} canciones importadas`
+    : `${playlist.importedTrackCount} canciones importadas`;
 
   return (
     <section className="baraja-spotify-playlist-card" aria-label="Playlist importada">
       <header>
         <h3>{playlist.name}</h3>
-        <span>{totalTrackCount} tracks</span>
+        <span>{trackCountLabel}</span>
       </header>
 
       <div className="baraja-spotify-playlist-scroll">
@@ -1096,30 +2267,58 @@ function getSpotifyTrackInitials(track: SpotifyImportedTrackPreview): string {
 
 function PlaylistCatalogModal({
   isOpen,
+  activeTab,
   search,
-  themes,
-  selectedThemeId,
+  items,
+  selectedItemId,
+  catalogStatus,
+  spotifyConnectHref,
+  spotifyConnectionState,
+  spotifyUserPlaylistsState,
+  playlistUrlDraft,
+  onActiveTabChange,
   onSearchChange,
-  onSelectTheme,
+  onSelectItem,
+  onSelectSpotifyPlaylist,
+  onPlaylistUrlDraftChange,
+  onUsePlaylistUrl,
+  onRetrySpotifyPlaylists,
   onClose,
 }: {
   isOpen: boolean;
+  activeTab: PlaylistModalTab;
   search: string;
-  themes: MusicBingoTheme[];
-  selectedThemeId: string;
+  items: PlaylistCatalogPickerItem[];
+  selectedItemId: string;
+  catalogStatus: SyncedMusicBingoCatalogState['status'];
+  spotifyConnectHref: string;
+  spotifyConnectionState: SpotifyConnectionState;
+  spotifyUserPlaylistsState: SpotifyUserPlaylistsState;
+  playlistUrlDraft: string;
+  onActiveTabChange: (tab: PlaylistModalTab) => void;
   onSearchChange: (search: string) => void;
-  onSelectTheme: (theme: MusicBingoTheme) => void;
+  onSelectItem: (item: PlaylistCatalogPickerItem) => void;
+  onSelectSpotifyPlaylist: (playlist: SpotifyUserPlaylistPreview) => void;
+  onPlaylistUrlDraftChange: (playlistUrl: string) => void;
+  onUsePlaylistUrl: () => void;
+  onRetrySpotifyPlaylists: () => void;
   onClose: () => void;
 }) {
   useEffect(() => {
     if (!isOpen) return;
+
+    const originalBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') onClose();
     }
 
     document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = originalBodyOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
@@ -1130,60 +2329,306 @@ function PlaylistCatalogModal({
         className="baraja-playlist-modal"
         role="dialog"
         aria-modal="true"
-        aria-label="Catalogo de playlists"
+        aria-label="Selector rapido de repertorios"
       >
         <header>
           <div>
-            <h2>Catalogo de playlists</h2>
-            <p>Elegi una playlist curada de Spotify y Baraja completa la URL y las canciones.</p>
+	            <h2>Elegir repertorio</h2>
+	            <p>Elegí una colección Baraja, una playlist de Spotify o una URL.</p>
           </div>
-          <button type="button" aria-label="Cerrar catalogo" onClick={onClose}>
+          <button type="button" aria-label="Cerrar selector" onClick={onClose}>
             x
           </button>
         </header>
 
-        <label className="baraja-playlist-modal-search">
-          <span>Buscar playlist</span>
-          <input
-            value={search}
-            onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Buscar por titulo, descripcion o tema"
-            autoFocus
-          />
-        </label>
-
-        <div className="baraja-playlist-modal-grid">
-          {themes.map((candidate) => (
-            <article
-              className={candidate.id === selectedThemeId ? 'is-selected' : ''}
-              key={candidate.id}
-            >
-              <div className="baraja-playlist-modal-art" aria-hidden="true">
-                {candidate.playlist?.coverImageUrl ? (
-                  <img
-                    src={candidate.playlist.coverImageUrl}
-                    alt=""
-                    loading="lazy"
-                    decoding="async"
-                  />
-                ) : null}
-                <span>{candidate.tags.slice(0, 3).join(' / ')}</span>
-              </div>
-              <div>
-                <strong>{candidate.playlist?.title ?? candidate.title}</strong>
-                <small>{candidate.title}</small>
-                <p>{candidate.summary}</p>
-                <button type="button" onClick={() => onSelectTheme(candidate)}>
-                  Usar playlist
-                  <span aria-hidden="true">&gt;</span>
-                </button>
-              </div>
-            </article>
-          ))}
+        <div className="baraja-playlist-modal-tabs" role="tablist" aria-label="Fuentes de playlist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'baraja'}
+            className={activeTab === 'baraja' ? 'is-selected' : ''}
+            onClick={() => onActiveTabChange('baraja')}
+          >
+	            Colecciones
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'spotify'}
+            className={activeTab === 'spotify' ? 'is-selected' : ''}
+            onClick={() => onActiveTabChange('spotify')}
+          >
+	            Mis playlists
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === 'url'}
+            className={activeTab === 'url' ? 'is-selected' : ''}
+            onClick={() => onActiveTabChange('url')}
+          >
+	            Pegar enlace
+          </button>
         </div>
+
+        {activeTab === 'baraja' ? (
+          <section className="baraja-playlist-modal-pane" role="tabpanel">
+            <label className="baraja-playlist-modal-search">
+              <span>Buscar repertorio</span>
+              <input
+                value={search}
+                onChange={(event) => onSearchChange(event.target.value)}
+                placeholder="Buscar por titulo, ocasion o energia"
+                autoFocus
+              />
+            </label>
+
+            {catalogStatus === 'loading' ? (
+              <p className="baraja-spotify-user-playlists-summary">Actualizando catalogo Baraja...</p>
+            ) : null}
+
+            {items.length > 0 ? (
+              <div className="baraja-playlist-modal-grid">
+                {items.map((candidate) => {
+                  const id = getPickerItemId(candidate);
+                  const isTheme = candidate.kind === 'theme';
+                  const title = isTheme
+                    ? candidate.theme.playlist?.title ?? candidate.theme.title
+                    : candidate.collection.title;
+                  const subtitle = isTheme
+                    ? candidate.theme.title
+                    : candidate.collection.genreLabel;
+                  const summary = isTheme
+                    ? candidate.theme.summary
+                    : candidate.collection.description;
+                  const categoryLabel = isTheme
+                    ? candidate.theme.catalog.categoryLabel
+                    : candidate.collection.categoryLabel;
+                  const energyLabel = isTheme
+                    ? candidate.theme.catalog.energyLabel
+                    : candidate.collection.energyLabel;
+                  const decadeOrGenreLabel = isTheme
+                    ? candidate.theme.catalog.decadeLabel ?? candidate.theme.catalog.genreLabel
+                    : candidate.collection.decadeLabel ?? candidate.collection.genreLabel;
+                  const songCount = isTheme
+                    ? candidate.theme.songs.length
+                    : candidate.collection.songCount;
+                  const boardSizeLabel = formatPlaylistBoardSizes(
+                    isTheme
+                      ? candidate.theme.catalog.supportedBoardSizes
+                      : candidate.collection.supportedBoardSizes
+                  );
+                  const coverImageUrl = isTheme
+                    ? candidate.theme.playlist?.coverImageUrl ?? candidate.theme.songs[0]?.artworkUrl ?? null
+                    : candidate.collection.coverImageUrl ?? candidate.collection.tracks[0]?.imageUrl ?? null;
+
+                  return (
+                    <article
+                      className={id === selectedItemId ? 'is-selected' : ''}
+                      key={`${candidate.kind}:${id}`}
+                    >
+                      <div className="baraja-playlist-modal-art" aria-hidden="true">
+                        {coverImageUrl ? (
+                          <img
+                            src={coverImageUrl}
+                            alt=""
+                            loading="lazy"
+                            decoding="async"
+                          />
+                        ) : null}
+                        <span>{categoryLabel}</span>
+                      </div>
+                      <div>
+                        <div className="baraja-playlist-modal-card-head">
+                          <small>{categoryLabel}</small>
+                          <strong>{title}</strong>
+                          <span>{subtitle}</span>
+                        </div>
+                        <div className="baraja-playlist-modal-statline" aria-label="Resumen del repertorio">
+                          <strong>{songCount}</strong>
+                          <span>canciones</span>
+                          <i aria-hidden="true" />
+                          <span>{boardSizeLabel}</span>
+                        </div>
+                        <div className="baraja-playlist-modal-meta" aria-label="Datos del repertorio">
+                          <span>{energyLabel}</span>
+                          <span>{decadeOrGenreLabel}</span>
+                          <span>{categoryLabel}</span>
+                        </div>
+                        <p>{summary}</p>
+                        <button type="button" onClick={() => onSelectItem(candidate)}>
+                          Usar repertorio
+                          <span aria-hidden="true">&gt;</span>
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : (
+              <section className="baraja-playlist-modal-empty" aria-label="Sin repertorios">
+                <strong>No hay repertorios con esa busqueda.</strong>
+                <p>Proba con rock, cumbia, pop, fiesta o nostalgia.</p>
+              </section>
+            )}
+            <Link className="baraja-playlist-modal-catalog-link" to={CATALOG_ROUTE}>
+              Abrir catalogo completo
+            </Link>
+          </section>
+        ) : null}
+
+        {activeTab === 'spotify' ? (
+          <SpotifyUserPlaylistsPane
+            spotifyConnectHref={spotifyConnectHref}
+            spotifyConnectionState={spotifyConnectionState}
+            state={spotifyUserPlaylistsState}
+            onRetry={onRetrySpotifyPlaylists}
+            onSelectPlaylist={onSelectSpotifyPlaylist}
+          />
+        ) : null}
+
+        {activeTab === 'url' ? (
+          <section className="baraja-playlist-modal-pane baraja-playlist-url-pane" role="tabpanel">
+            <label className="baraja-field">
+	                <span>Enlace de Spotify</span>
+              <input
+                value={playlistUrlDraft}
+                onChange={(event) => onPlaylistUrlDraftChange(event.target.value)}
+                placeholder="https://open.spotify.com/playlist/1234567890"
+              />
+	              <small>Puede ser una playlist propia, colaborativa o pública.</small>
+            </label>
+            <button type="button" onClick={onUsePlaylistUrl}>
+              Usar esta URL
+              <span aria-hidden="true">&gt;</span>
+            </button>
+          </section>
+        ) : null}
       </section>
     </div>
   );
+}
+
+function SpotifyUserPlaylistsPane({
+  spotifyConnectHref,
+  spotifyConnectionState,
+  state,
+  onRetry,
+  onSelectPlaylist,
+}: {
+  spotifyConnectHref: string;
+  spotifyConnectionState: SpotifyConnectionState;
+  state: SpotifyUserPlaylistsState;
+  onRetry: () => void;
+  onSelectPlaylist: (playlist: SpotifyUserPlaylistPreview) => void;
+}) {
+  if (spotifyConnectionState.status === 'checking') {
+    return (
+      <section className="baraja-playlist-modal-empty" role="tabpanel">
+        <strong>Revisando Spotify...</strong>
+      </section>
+    );
+  }
+
+  if (!spotifyConnectionState.configured || !spotifyConnectionState.connected) {
+    return (
+	      <section className="baraja-playlist-modal-empty" role="tabpanel">
+	        <strong>Conectá Spotify para ver tus playlists.</strong>
+	        <p>Baraja va a mostrar playlists propias o colaborativas que tu cuenta puede leer completa.</p>
+        {spotifyConnectionState.configured ? (
+          <a className="baraja-playlist-modal-connect" href={spotifyConnectHref}>
+            <SpotifyLogoMark />
+            Conectar Spotify
+          </a>
+        ) : null}
+      </section>
+    );
+  }
+
+  if (state.status === 'idle' || state.status === 'loading') {
+    return (
+      <section className="baraja-playlist-modal-empty" role="tabpanel">
+	        <strong>Cargando tus playlists...</strong>
+      </section>
+    );
+  }
+
+  if (state.status === 'error') {
+    return (
+      <section className="baraja-playlist-modal-empty" role="tabpanel">
+        <strong>No pudimos leer tus playlists.</strong>
+        <p>{state.message}</p>
+        <button type="button" onClick={onRetry}>Reintentar</button>
+      </section>
+    );
+  }
+
+  if (state.playlists.length === 0) {
+    return (
+      <section className="baraja-playlist-modal-empty" role="tabpanel">
+        <strong>No encontramos playlists en tu cuenta.</strong>
+	        <p>Creá una playlist en Spotify o agregate como colaborador a una existente.</p>
+      </section>
+    );
+  }
+
+  const musicBingoPlaylists = getMusicBingoSpotifyPlaylists(state.playlists);
+  const visiblePlaylists = musicBingoPlaylists.length > 0 ? musicBingoPlaylists : state.playlists;
+  const showingMusicBingoOnly = musicBingoPlaylists.length > 0;
+
+  return (
+    <section className="baraja-playlist-modal-pane" role="tabpanel">
+      <p className="baraja-spotify-user-playlists-summary">
+        {showingMusicBingoOnly
+	          ? `Mostrando ${visiblePlaylists.length} playlists de bingo musical de tu cuenta.`
+	          : 'No encontramos playlists Baraja Bingo; mostramos todas las playlists legibles de tu cuenta.'}
+      </p>
+      <div className="baraja-spotify-user-playlists" aria-label="Tus playlists de Spotify">
+        {visiblePlaylists.map((playlist) => (
+          <article key={playlist.id}>
+            <div className="baraja-spotify-user-playlist-art" aria-hidden="true">
+              {playlist.coverImageUrl ? (
+                <img src={playlist.coverImageUrl} alt="" loading="lazy" decoding="async" />
+              ) : (
+                <i>{getPlaylistInitials(playlist.name)}</i>
+              )}
+            </div>
+            <div className="baraja-spotify-user-playlist-copy">
+              <div className="baraja-playlist-modal-card-head">
+                <strong>{playlist.name}</strong>
+                <small>{playlist.ownerDisplayName ?? 'Tu Spotify'}</small>
+              </div>
+              <div className="baraja-playlist-modal-meta" aria-label="Datos de playlist">
+                <span>{playlist.totalTracks ?? '-'} canciones</span>
+                <span>{playlist.isCollaborative ? 'Colaborativa' : 'Propia'}</span>
+                <span>{playlist.isPublic ? 'Publica' : 'Privada'}</span>
+              </div>
+              {playlist.description ? <p>{truncatePlaylistDescription(stripHtmlText(playlist.description))}</p> : null}
+            </div>
+            <button type="button" onClick={() => onSelectPlaylist(playlist)}>
+              Usar playlist
+              <span aria-hidden="true">&gt;</span>
+            </button>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function stripHtmlText(value: string): string {
+  return value.replace(/<[^>]*>/g, '').trim();
+}
+
+function truncatePlaylistDescription(value: string): string {
+  return value.length > 96 ? `${value.slice(0, 93).trim()}...` : value;
+}
+
+function getPlaylistInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] ?? 'S';
+  const second = parts[1]?.[0] ?? 'P';
+  return `${first}${second}`.toUpperCase();
 }
 
 function PlaylistTrackList({ theme }: { theme: MusicBingoTheme }) {
@@ -1350,6 +2795,7 @@ function PdfCanvasPreview({
     let isCancelled = false;
     let renderTask: RenderTask | null = null;
     let pdfDocument: PDFDocumentProxy | null = null;
+    let renderTimeoutId: number | null = null;
 
     const renderPdfPage = async () => {
       setRenderStatus('loading');
@@ -1401,10 +2847,15 @@ function PdfCanvasPreview({
       }
     };
 
-    void renderPdfPage();
+    renderTimeoutId = window.setTimeout(() => {
+      void renderPdfPage();
+    }, 80);
 
     return () => {
       isCancelled = true;
+      if (renderTimeoutId !== null) {
+        window.clearTimeout(renderTimeoutId);
+      }
       renderTask?.cancel();
       void pdfDocument?.destroy();
     };
@@ -1449,15 +2900,11 @@ function CreatorInstructions() {
   return (
     <section className="baraja-creator-instructions" aria-label="Instrucciones">
       <div className="baraja-creator-instruction-box">
-        <h2>Antes de pedir</h2>
+        <h2>Nota rapida</h2>
         <p>
-          Revisa canciones, cantidad de cartones y vista previa. El pack incluye
-          materiales para imprimir y conducir la dinamica.
+          El pack es un PDF imprimible con cartones, hoja de control y guía.
+          La música, impresión y permisos quedan a cargo del organizador.
         </p>
-      </div>
-      <div className="baraja-creator-warning-box">
-        Baraja entrega los materiales del juego; no incluye musica, derechos,
-        impresion fisica ni envio.
       </div>
     </section>
   );
@@ -1472,8 +2919,14 @@ function CheckoutReview({
   canCheckout,
   checkoutState,
   checkoutUnavailableReason,
+  validationPdfState,
+  canDownloadValidationPdf,
+  customerEmail,
+  customerEmailPlaceholder,
+  onCustomerEmailChange,
   supportHref,
   onCheckout,
+  onDownloadValidationPdf,
   onSupport,
 }: {
   cardCount: number;
@@ -1484,16 +2937,24 @@ function CheckoutReview({
   canCheckout: boolean;
   checkoutState: { status: 'idle' | 'loading' | 'error'; message?: string };
   checkoutUnavailableReason: string;
+  validationPdfState: { status: 'idle' | 'loading' | 'error'; message?: string };
+  canDownloadValidationPdf: boolean;
+  customerEmail: string;
+  customerEmailPlaceholder: string;
+  onCustomerEmailChange: (email: string) => void;
   supportHref: string;
   onCheckout: () => void;
+  onDownloadValidationPdf: () => void;
   onSupport: () => void;
 }) {
   const checkoutDisabled = !canCheckout || checkoutState.status === 'loading';
-  const checkoutMessage = checkoutState.status === 'error'
-    ? checkoutState.message
-    : !canCheckout
-      ? checkoutUnavailableReason
-      : '';
+  const validationPdfDisabled = !canDownloadValidationPdf || validationPdfState.status === 'loading';
+	  const checkoutMessage = checkoutState.status === 'error'
+	    ? checkoutState.message
+	    : !canCheckout
+	      ? checkoutUnavailableReason
+	      : '';
+	  const checkoutMessagePrefix = checkoutState.status === 'error' ? '' : 'Falta: ';
 
   return (
     <section className="baraja-creator-checkout" aria-label="Resumen del pedido">
@@ -1513,6 +2974,27 @@ function CheckoutReview({
         <span>Precio:</span>
         <strong>{priceLabel}</strong>
       </div>
+      <label className="baraja-checkout-email">
+        <span>Email de entrega</span>
+        <input
+          type="email"
+          id="baraja-checkout-email"
+          name="email"
+          value={customerEmail}
+          onChange={(event) => onCustomerEmailChange(event.target.value)}
+          placeholder={customerEmailPlaceholder}
+          autoComplete="email"
+          inputMode="email"
+          autoCapitalize="none"
+          spellCheck={false}
+        />
+        <small>Te enviamos el PDF a este email.</small>
+      </label>
+	      {checkoutMessage ? (
+	        <p className="baraja-checkout-message" role="status">
+	          {checkoutMessagePrefix}{checkoutMessage}
+	        </p>
+	      ) : null}
       <footer>
         <Link to="/bingo-musical" className="baraja-checkout-cancel">Volver</Link>
         <button
@@ -1520,18 +3002,36 @@ function CheckoutReview({
           className="baraja-checkout-proceed"
           disabled={checkoutDisabled}
           onClick={onCheckout}
+          aria-label={checkoutState.status === 'loading' ? 'Abriendo Mercado Pago' : 'Continuar con Mercado Pago'}
         >
-          {checkoutState.status === 'loading' ? 'Abriendo Mercado Pago...' : 'Pagar con Mercado Pago'}
+          <BrandIcon name="mercadoPago" className="baraja-checkout-provider-icon" />
+          {checkoutState.status === 'loading'
+            ? 'Abriendo Mercado Pago...'
+            : 'Continuar a Mercado Pago'}
         </button>
+        {canDownloadValidationPdf ? (
+          <button
+            type="button"
+            className="baraja-checkout-local-pdf"
+            disabled={validationPdfDisabled}
+            onClick={onDownloadValidationPdf}
+          >
+            {validationPdfState.status === 'loading'
+              ? 'Generando PDF...'
+              : 'Descargar PDF de prueba'}
+          </button>
+        ) : null}
+        <span className="baraja-mercado-pago-value">Se abre el checkout seguro de Mercado Pago.</span>
       </footer>
-      {checkoutMessage ? (
+      {validationPdfState.status === 'error' && validationPdfState.message ? (
         <p className="baraja-checkout-message" role="status">
-          {checkoutMessage}
+          {validationPdfState.message}
         </p>
       ) : null}
       {canPreview ? (
         <a href={supportHref} className="baraja-checkout-support" onClick={onSupport}>
-          Necesito ayuda por WhatsApp
+          <BrandIcon name="whatsapp" className="baraja-support-provider-icon" />
+          Hablar por WhatsApp
         </a>
       ) : null}
     </section>
@@ -1543,7 +3043,7 @@ function CreatorNav() {
     <nav className="baraja-nav baraja-creator-app-nav">
       <Link to="/" className="baraja-brand">Baraja</Link>
       <div className="baraja-nav-links">
-        <a href="#playlist-catalog">Colecciones</a>
+        <Link to={CATALOG_ROUTE}>Catálogo</Link>
         <Link to="/bingo-musical">Bingo musical</Link>
       </div>
     </nav>
@@ -1555,13 +3055,20 @@ function ValidationSummary({
 }: {
   validation: ReturnType<typeof validateMusicBingoDraftSongs>;
 }) {
+  const className = !validation.canPreview
+    ? 'baraja-validation'
+    : validation.playlistFit.scenarioReady
+      ? 'baraja-validation is-ready'
+      : 'baraja-validation is-warning';
+  const title = !validation.canPreview
+    ? validation.errors[0]
+    : validation.playlistFit.scenarioReady
+      ? `Listo para pedir: ${validation.usableSongs.length} canciones alcanzan`
+      : `Preview listo: suma ${validation.playlistFit.songsNeededForScenario} canciones o baja cartones para pagar online`;
+
   return (
-    <div className={validation.canPreview ? 'baraja-validation is-ready' : 'baraja-validation'}>
-      <strong>
-        {validation.canPreview
-          ? `Listo: ${validation.usableSongs.length} canciones disponibles`
-          : validation.errors[0]}
-      </strong>
+    <div className={className}>
+      <strong>{title}</strong>
       {validation.warnings.map((warning) => (
         <span key={warning}>{warning}</span>
       ))}
