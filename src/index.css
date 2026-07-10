@@ -19027,6 +19027,14 @@ body::before {
   letter-spacing: 0;
 }
 
+.baraja-campaign .baraja-hero-price-note {
+  margin: 0.7rem 0 0;
+  color: var(--bingo-muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1.4;
+}
+
 .baraja-campaign .baraja-music-bingo-preview {
   display: grid;
   min-width: 0;

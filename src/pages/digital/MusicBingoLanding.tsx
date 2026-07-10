@@ -17,9 +17,9 @@ const CREATOR_ROUTE = '/bingo-musical/crear';
 const CATALOG_ROUTE = '/bingo-musical/catalogo';
 const CREATOR_OFFER_ID = `${MUSIC_BINGO_PRODUCT.id}_creator`;
 const CREATOR_OFFER_TYPE = 'music_bingo_creator';
-const LANDING_TITLE = 'Bingo musical imprimible para fiestas | Baraja';
+const LANDING_TITLE = 'Bingo musical para imprimir en tu fiesta | Baraja';
 const LANDING_DESCRIPTION =
-  'Creá un bingo musical imprimible con playlist de Spotify, cartones únicos, hoja de control y guía para conducir la dinámica.';
+  'Elegí un tema o usá tu playlist y recibí un bingo musical listo para imprimir y jugar.';
 const LANDING_URL = 'https://baraja.cards/bingo-musical';
 const OFFER_COLLECTION_IDS: Record<string, string> = {
   'rock-argentino-prebuilt': 'rock-argentino-esenciales',
@@ -27,6 +27,7 @@ const OFFER_COLLECTION_IDS: Record<string, string> = {
   'hits-2000-prebuilt': 'pop-latino-2000s',
 };
 const PREBUILT_STARTING_PRICE = getMusicBingoSelfServePriceQuote(15, 'prebuilt');
+const PREBUILT_PARTY_PRICE = getMusicBingoSelfServePriceQuote(30, 'prebuilt');
 const PLAYLIST_STARTING_PRICE = getMusicBingoSelfServePriceQuote(15, 'playlist_own');
 
 function applyMeta(name: string, content: string, attr: 'name' | 'property' = 'name') {
@@ -124,11 +125,11 @@ export default function MusicBingoLanding() {
         <div className="baraja-campaign-hero-copy">
           <p className="baraja-kicker">Bingo musical</p>
           <h1>
-            Armá un <span>bingo musical</span> listo para imprimir.
+            Una ronda para <span>poner a todos a jugar.</span>
           </h1>
           <p className="baraja-lead">
-            Elegí una colección Baraja o armalo con tu playlist. Revisás el
-            PDF antes de pagar; vos imprimís, ponés la música y jugás.
+            Elegí la música y prepará una ronda para compartir con tu gente.
+            Recibís un juego listo para imprimir.
           </p>
           <div className="baraja-actions">
             <a
@@ -142,7 +143,7 @@ export default function MusicBingoLanding() {
                 )
               }
             >
-              Elegir una colección
+              Elegir un tema
             </a>
             <Link
               to={CREATOR_ROUTE}
@@ -152,22 +153,26 @@ export default function MusicBingoLanding() {
               Usar mi playlist
             </Link>
           </div>
-          <div className="baraja-hero-price-grid" aria-label="Precios desde">
+          <div className="baraja-hero-price-grid" aria-label="Precios con una colección Baraja">
             <article>
-              <span>Colección Baraja</span>
+              <span>Para probar</span>
               <strong>Desde {PREBUILT_STARTING_PRICE?.label ?? 'consultar'}</strong>
-              <small>15 cartones prearmados</small>
+              <small>15 cartones con una colección</small>
             </article>
             <article>
-              <span>Tu playlist</span>
-              <strong>Desde {PLAYLIST_STARTING_PRICE?.label ?? 'consultar'}</strong>
-              <small>15 cartones con tu música</small>
+              <span>Para una fiesta</span>
+              <strong>Desde {PREBUILT_PARTY_PRICE?.label ?? 'consultar'}</strong>
+              <small>30 cartones con una colección</small>
             </article>
           </div>
+          <p className="baraja-hero-price-note">
+            Con una playlist de Spotify, desde{' '}
+            {PLAYLIST_STARTING_PRICE?.label ?? 'consultar'} por 15 cartones.
+          </p>
           <div className="baraja-hero-pill-row" aria-label="Incluye">
-            <span>Preview antes de pagar</span>
-            <span>PDF imprimible</span>
-            <span>Hoja de control y guía</span>
+            <span>Ves cómo queda antes de pagar</span>
+            <span>Elegís cuántos cartones</span>
+            <span>PDF listo para imprimir</span>
           </div>
         </div>
         <MusicBingoPreview />
@@ -176,35 +181,32 @@ export default function MusicBingoLanding() {
       <section className="baraja-campaign-section baraja-campaign-steps" id="como-funciona">
         <div className="baraja-section-header baraja-section-header-centered">
           <p className="baraja-kicker">Cómo funciona</p>
-          <h2>Del repertorio al PDF en tres pasos.</h2>
+          <h2>Un juego listo para imprimir.</h2>
         </div>
-        <div className="baraja-campaign-step-grid" aria-label="Pasos para crear un bingo musical">
+        <div className="baraja-campaign-step-grid" aria-label="Pasos para jugar al bingo musical">
           <article>
             <span>1</span>
             <h3>Elegí la música</h3>
-            <p>Partí de una colección Baraja o pegá una playlist pública de Spotify.</p>
+            <p>Un tema que tu gente conozca o tu propia playlist.</p>
           </article>
           <article>
             <span>2</span>
-            <h3>Revisá el pack</h3>
-            <p>Ajustá cartones y formato, y comprobá que el repertorio alcanza para jugar.</p>
+            <h3>Mirá tu bingo</h3>
+            <p>Antes de pagar, ves cómo queda el PDF con tus cartones.</p>
           </article>
           <article>
             <span>3</span>
             <h3>Pagá e imprimí</h3>
-            <p>Con el pago confirmado recibís el PDF con cartones, control y guía.</p>
+            <p>Con el pago confirmado recibís el juego listo para conducir la ronda.</p>
           </article>
         </div>
       </section>
 
       <section className="baraja-campaign-section" id="colecciones">
         <div className="baraja-section-header">
-          <p className="baraja-kicker">Colecciones Baraja</p>
-          <h2>Elegí una colección y abrila en el creador.</h2>
-          <p>
-            Repertorios curados para empezar rápido. Se abren con las canciones
-            cargadas para que revises el PDF antes de pagar.
-          </p>
+          <p className="baraja-kicker">Elegí por la música</p>
+          <h2>Un tema que tu gente conozca.</h2>
+          <p>Colecciones listas para armar la ronda sin preparar una playlist.</p>
         </div>
         <div className="baraja-campaign-offer-grid">
           {PREBUILT_BINGOS.map((offer) => (
@@ -232,7 +234,7 @@ export default function MusicBingoLanding() {
                     )
                   }
                 >
-                  Abrir colección
+                  Abrir y revisar
                 </Link>
               </div>
             </article>
@@ -243,15 +245,14 @@ export default function MusicBingoLanding() {
       <section className="baraja-campaign-section baraja-campaign-paths" id="playlist">
         <article>
           <p className="baraja-kicker">Con tu música</p>
-          <h2>Tu playlist, tu fiesta.</h2>
+          <h2>Tu playlist, una ronda lista.</h2>
           <p>
-            Pegá una playlist pública de Spotify, elegí la cantidad de cartones
-            y revisá cómo queda antes de abrir Mercado Pago.
+            Usá una playlist pública y accesible de Spotify para preparar el juego.
           </p>
           <div className="baraja-final-points">
-            <span>Cartones únicos</span>
-            <span>Validación del repertorio</span>
-            <span>Precio desde {PLAYLIST_STARTING_PRICE?.label ?? 'consultar'}</span>
+            <span>Elegís cuántos cartones</span>
+            <span>Ves cómo queda antes de pagar</span>
+            <span>Desde {PLAYLIST_STARTING_PRICE?.label ?? 'consultar'} por 15 cartones</span>
           </div>
           <div className="baraja-campaign-inline-actions">
             <Link
@@ -259,64 +260,61 @@ export default function MusicBingoLanding() {
               className="baraja-button baraja-button-primary"
               onClick={() => trackCreatorPath('playlist_section')}
             >
-              Crear con mi playlist
+              Usar mi playlist
             </Link>
           </div>
         </article>
         <article>
-          <p className="baraja-kicker">El pack</p>
-          <h2>Lo necesario para conducir la ronda.</h2>
+          <p className="baraja-kicker">Qué recibís</p>
+          <h2>Un juego listo para imprimir.</h2>
           <p>
-            El PDF deja listos los cartones, la hoja de control y las reglas
-            para que puedas concentrarte en la música y en la mesa.
+            Cartones únicos, control de canciones, reglas y una guía breve para conducir la ronda.
           </p>
           <div className="baraja-final-points">
-            <span>PDF para imprimir</span>
-            <span>Hoja de control</span>
-            <span>Reglas y guía de dinámica</span>
+            <span>PDF listo para imprimir</span>
+            <span>Control de canciones</span>
+            <span>Reglas y guía de juego</span>
           </div>
         </article>
       </section>
 
       <section className="baraja-campaign-section baraja-campaign-faq" id="preguntas">
         <div className="baraja-section-header">
-          <p className="baraja-kicker">Preguntas prácticas</p>
-          <h2>Antes de abrir el creador.</h2>
+          <p className="baraja-kicker">Antes de comprar</p>
+          <h2>Lo que necesitás saber.</h2>
         </div>
         <div className="baraja-campaign-faq-list">
           <details open>
             <summary>¿Qué incluye el pack?</summary>
-            <p>Cartones únicos en PDF, hoja de control, reglas y guía para llevar la dinámica.</p>
+            <p>
+              Cartones únicos en PDF, control de canciones, reglas y una guía para la ronda.
+            </p>
           </details>
           <details>
-            <summary>¿Necesito una playlist de Spotify?</summary>
+            <summary>¿Puedo usar mi playlist?</summary>
             <p>
-              Para cobrar online con playlist propia necesitamos una URL pública y recuperable. Las
-              colecciones Baraja ya vienen listas para revisar.
+              Sí. Usá una playlist pública y accesible de Spotify. Las colecciones ya están listas.
             </p>
           </details>
           <details>
             <summary>¿La música y la impresión están incluidas?</summary>
             <p>
-              No. Baraja vende el juego y sus materiales; quien organiza aporta la reproducción,
-              impresión y permisos que correspondan.
+              No. La música, la impresión y los permisos que correspondan los resolvés vos; Baraja
+              te entrega el juego y sus materiales.
             </p>
           </details>
           <details>
             <summary>¿Es para un bar, equipo o evento comercial?</summary>
-            <p>Ese alcance se conversa antes de producir para definir condiciones y dinámica.</p>
+            <p>Escribinos antes de comprar para ver el alcance de la ronda.</p>
           </details>
         </div>
       </section>
 
       <section className="baraja-campaign-section baraja-campaign-support" aria-labelledby="baraja-support-title">
         <div>
-          <p className="baraja-kicker">Fuera de autoservicio</p>
-          <h2 id="baraja-support-title">¿Necesitás algo para un equipo, bar o evento?</h2>
-          <p>
-            Para una dinámica comercial, una cantidad especial de cartones o un formato acompañado,
-            definimos el alcance antes de armarlo.
-          </p>
+          <p className="baraja-kicker">Para grupos grandes y eventos</p>
+          <h2 id="baraja-support-title">¿Es para un evento, bar o equipo?</h2>
+          <p>Contanos cuánta gente participa y qué tipo de ronda querés armar.</p>
         </div>
         <a
           href={getBarajaInquiryHref(buildOfferingMessage(MUSIC_BINGO_BAR_EVENT_OFFERING))}
@@ -370,7 +368,7 @@ function MusicBingoNav() {
           className="baraja-nav-cta"
           onClick={() => trackCreatorPath('nav_creator')}
         >
-          Crear bingo
+          Armar mi bingo
         </Link>
       </div>
     </nav>
@@ -410,7 +408,7 @@ function MusicBingoPreview() {
     <div className="baraja-music-bingo-preview" aria-label="Vista previa de bingo musical imprimible">
       <div className="baraja-music-creator-mini">
         <div>
-          <span>Nombre del juego</span>
+          <span>Tu bingo</span>
           <strong>Noche Rock Argentino</strong>
         </div>
         <div>
