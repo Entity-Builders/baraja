@@ -21690,6 +21690,171 @@ body:has(.baraja-editorial-home),
   color: var(--creator-accent);
 }
 
+/* Music bingo progressive checkout */
+.baraja-creator-step.is-complete {
+  gap: 0;
+}
+
+.baraja-creator-step-head {
+  min-width: 0;
+}
+
+.baraja-creator-step-head > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.16rem;
+}
+
+.baraja-creator-step-head > div small {
+  overflow: hidden;
+  color: var(--creator-muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.baraja-creator-step-head > button {
+  min-height: 38px;
+  margin-left: auto;
+  border: 1px solid var(--creator-line);
+  border-radius: 6px;
+  color: var(--creator-accent);
+  background: transparent;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 900;
+  padding: 0 0.7rem;
+  cursor: pointer;
+  transition: border-color 160ms ease, color 160ms ease, background 160ms ease;
+}
+
+.baraja-creator-step-head > button:hover {
+  border-color: rgba(176, 240, 0, 0.52);
+  color: var(--creator-ink);
+  background: rgba(176, 240, 0, 0.08);
+}
+
+.baraja-wizard-continue {
+  min-height: 46px;
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  color: var(--creator-accent-ink);
+  background: var(--creator-accent);
+  font: inherit;
+  font-size: 0.94rem;
+  font-weight: 950;
+  cursor: pointer;
+  transition: filter 160ms ease, transform 160ms ease;
+}
+
+.baraja-wizard-continue:hover:not(:disabled) {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+
+.baraja-wizard-continue:disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
+}
+
+.baraja-creator-checkout-pending {
+  min-height: 148px;
+  display: grid;
+  align-content: center;
+  gap: 0.45rem;
+  padding: 1rem;
+  border: 1px solid var(--creator-line);
+  border-radius: 8px;
+  color: var(--creator-muted);
+  background: var(--creator-surface);
+}
+
+.baraja-creator-checkout-pending > span {
+  color: var(--creator-accent);
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.baraja-creator-checkout-pending > strong {
+  color: var(--creator-ink);
+  font-size: 1.05rem;
+  line-height: 1.25;
+}
+
+/* Spotify playback is opt-in: no iframe is mounted before the buyer requests it. */
+.baraja-playlist-modal-card-actions,
+.baraja-spotify-user-playlist-actions,
+.baraja-playlist-url-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.baraja-playlist-modal-grid article .baraja-playlist-modal-card-actions button,
+.baraja-spotify-user-playlist-actions button,
+.baraja-playlist-url-actions button {
+  width: auto;
+  min-height: 38px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--creator-accent-ink);
+  background: var(--creator-accent);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  padding: 0 0.72rem;
+  cursor: pointer;
+  transition: filter 160ms ease, transform 160ms ease;
+}
+
+.baraja-playlist-modal-grid article .baraja-playlist-modal-card-actions button:hover,
+.baraja-spotify-user-playlist-actions button:hover,
+.baraja-playlist-url-actions button:hover {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+
+.baraja-playlist-modal-grid article .baraja-playlist-modal-card-actions .baraja-playlist-listen,
+.baraja-spotify-user-playlist-actions .baraja-playlist-listen,
+.baraja-playlist-url-actions .baraja-playlist-listen {
+  border: 1px solid var(--creator-line);
+  color: var(--creator-ink);
+  background: var(--creator-secondary);
+}
+
+.baraja-playlist-modal-grid article .baraja-spotify-playlist-embed {
+  grid-column: 1 / -1;
+  margin: 0 0.76rem 0.76rem;
+}
+
+.baraja-spotify-user-playlist-actions {
+  justify-content: flex-end;
+}
+
+.baraja-spotify-user-playlists article .baraja-spotify-playlist-embed {
+  grid-column: 1 / -1;
+}
+
+.baraja-spotify-playlist-embed {
+  overflow: hidden;
+  border: 1px solid var(--creator-line);
+  border-radius: 8px;
+  background: #121212;
+}
+
+.baraja-spotify-playlist-embed iframe {
+  width: 100%;
+  height: 152px;
+  display: block;
+  border: 0;
+}
+
 @media (max-width: 640px) {
   .baraja-music-creator-app .baraja-count-options {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -21699,5 +21864,18 @@ body:has(.baraja-editorial-home),
     align-items: start;
     flex-direction: column;
     gap: 0.2rem;
+  }
+
+  .baraja-creator-step-head > button {
+    min-height: 36px;
+  }
+
+  .baraja-spotify-user-playlist-actions {
+    grid-column: 1 / -1;
+    justify-content: stretch;
+  }
+
+  .baraja-spotify-user-playlist-actions button {
+    flex: 1 1 8rem;
   }
 }

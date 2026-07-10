@@ -261,6 +261,7 @@ type SpotifyConnectionState =
   | { status: 'ready'; configured: boolean; connected: boolean };
 
 type PlaylistModalTab = 'baraja' | 'spotify' | 'url';
+type CreatorWizardStep = 1 | 2 | 3;
 
 type SpotifyUserPlaylistsState =
   | { status: 'idle' }
@@ -969,6 +970,9 @@ export default function MusicBingoCreator() {
   const [source, setSource] = useState<MusicBingoCreatorSongSource>(
     initialSpotifyPlaylistUrl || initialCatalogCollectionId || !themeParam ? 'manual' : 'baraja_theme'
   );
+  const [wizardStep, setWizardStep] = useState<CreatorWizardStep>(
+    themeParam && !initialSpotifyPlaylistUrl && !initialCatalogCollectionId ? 2 : 1
+  );
   const [themeId, setThemeId] = useState(initialTheme.id);
   const [selectedSyncedCollectionId, setSelectedSyncedCollectionId] = useState(initialCatalogCollectionId);
   const [gameName, setGameName] = useState(
@@ -1048,6 +1052,8 @@ export default function MusicBingoCreator() {
     [boardSize, cardCount, freeSpace, gameName, musicBingoSeed, songs]
   );
   const isCuratedSelection = isCuratedMusicBingoSelection(source, selectedSyncedCollectionId);
+  const hasSelectedRepertoire =
+    isCuratedSelection || spotifyImportState.status === 'success';
   const pricingSongSource = getMusicBingoPricingSongSource({
     source,
     selectedSyncedCollectionId,
@@ -1455,6 +1461,7 @@ export default function MusicBingoCreator() {
           playlist: cachedImport.playlist,
           songCount: usableSongCount,
         });
+        setWizardStep(2);
         return;
       }
 
@@ -1483,6 +1490,7 @@ export default function MusicBingoCreator() {
             playlist: result.playlist,
             songCount: usableSongCount,
           });
+          setWizardStep(2);
           return;
         }
 
@@ -1515,6 +1523,7 @@ export default function MusicBingoCreator() {
     lastImportedPlaylistUrlRef.current = '';
     setSpotifyImportState({ status: 'idle' });
     setIsCatalogOpen(false);
+    setWizardStep(2);
     if (source !== 'baraja_theme') {
       setSource('baraja_theme');
     }
@@ -1541,6 +1550,7 @@ export default function MusicBingoCreator() {
     lastImportedPlaylistUrlRef.current = syncedPlaylistUrl.trim();
     setSpotifyImportState(buildSpotifyImportStateFromSyncedCollection(collection));
     setIsCatalogOpen(false);
+    setWizardStep(2);
     if (source !== 'manual') {
       setSource('manual');
     }
@@ -1597,6 +1607,7 @@ export default function MusicBingoCreator() {
       setSelectedSyncedCollectionId('');
       setGameName(matchingTheme.suggestedGameName);
       setSpotifyImportState({ status: 'idle' });
+      setWizardStep(2);
       if (source !== 'baraja_theme') setSource('baraja_theme');
       return;
     }
@@ -1649,6 +1660,27 @@ export default function MusicBingoCreator() {
       card_count: nextCardCount,
       board_size: boardSize,
       has_free_space: freeSpace,
+    });
+  }
+
+  function reopenRepertoireStep() {
+    setWizardStep(1);
+    openPlaylistModal('baraja');
+  }
+
+  function reopenCardCountStep() {
+    setWizardStep(2);
+  }
+
+  function advanceToPreviewAndCheckout() {
+    if (!validation.canPreview) return;
+
+    setWizardStep(3);
+    window.requestAnimationFrame(() => {
+      document.getElementById('music-bingo-preview-checkout')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
     });
   }
 
@@ -1819,149 +1851,206 @@ export default function MusicBingoCreator() {
         <section className="baraja-creator-workspace">
           <section className="baraja-creator-workspace-shell" aria-label="Configuracion del juego">
             <section className="baraja-creator-setup-panel">
-              <section className="baraja-creator-step" id="playlist-catalog" aria-label="Canciones">
-                <CreatorStepHeading step="1" title="Repertorio" />
-
-                <PlaylistUrlReview
-                  activePlaylist={activePlaylistSummary}
-                  onOpenSelector={() => openPlaylistModal('baraja')}
+              <section
+                className={`baraja-creator-step ${wizardStep > 1 ? 'is-complete' : 'is-active'}`}
+                id="playlist-catalog"
+                aria-label="Repertorio"
+              >
+                <CreatorStepHeading
+                  step="1"
+                  title="Repertorio"
+                  summary={wizardStep > 1 ? activePlaylistSummary.title : undefined}
+                  onEdit={wizardStep > 1 ? reopenRepertoireStep : undefined}
                 />
 
-                {source === 'baraja_theme' ? (
-                  <PlaylistTrackList theme={theme} />
-                ) : (
-                  <section className="baraja-spotify-import-stack">
-                    <SpotifyPlaylistPreviewCard state={spotifyImportState} />
-                    <SpotifyImportNotice
-                      state={spotifyImportState}
-                      spotifyConnectHref={spotifyConnectHref}
-                      spotifyConnectionState={spotifyConnectionState}
+                {wizardStep === 1 ? (
+                  <>
+                    <PlaylistUrlReview
+                      activePlaylist={activePlaylistSummary}
+                      onOpenSelector={() => openPlaylistModal('baraja')}
                     />
-                    <ManualImportPanel
-                      songs={manualSongs}
-                      onSongsChange={updateManualSongs}
-                    />
-                  </section>
-                )}
+
+                    {source === 'baraja_theme' ? (
+                      <PlaylistTrackList theme={theme} />
+                    ) : (
+                      <section className="baraja-spotify-import-stack">
+                        <SpotifyPlaylistPreviewCard state={spotifyImportState} />
+                        <SpotifyImportNotice
+                          state={spotifyImportState}
+                          spotifyConnectHref={spotifyConnectHref}
+                          spotifyConnectionState={spotifyConnectionState}
+                        />
+                        <ManualImportPanel
+                          songs={manualSongs}
+                          onSongsChange={updateManualSongs}
+                        />
+                      </section>
+                    )}
+                    {hasSelectedRepertoire ? (
+                      <button
+                        type="button"
+                        className="baraja-wizard-continue"
+                        onClick={() => setWizardStep(2)}
+                      >
+                        Continuar con este repertorio
+                      </button>
+                    ) : null}
+                  </>
+                ) : null}
               </section>
 
-              <section className="baraja-creator-step" aria-label="Cartones">
-                <CreatorStepHeading step="2" title="Cartones" />
-                <div className="baraja-count-editor">
-                  <div className="baraja-count-readout">
-                    <div>
-                      <strong>{cardCount}</strong>
-                      <span>Cartones</span>
-                    </div>
-	                    <div className="baraja-count-price">
-	                      <b>{priceQuote.label}</b>
-	                      <small>{priceQuote.summary}</small>
-	                    </div>
-	                  </div>
-                  <CardCountFitNotice playlistFit={validation.playlistFit} />
-                  <div className="baraja-count-options" aria-label="Cantidad de cartones">
-	                    {(showAllCardCounts
-                      ? MUSIC_BINGO_CARD_COUNT_OPTIONS
-                      : MUSIC_BINGO_CARD_COUNT_OPTIONS.filter((option) =>
-                          MUSIC_BINGO_PRIMARY_CARD_COUNTS.includes(
-                            option.cardCount as (typeof MUSIC_BINGO_PRIMARY_CARD_COUNTS)[number]
-                          )
-                        )
-                    ).map((option) => (
-	                      <button
-	                        key={option.cardCount}
-	                        type="button"
-	                        aria-pressed={cardCount === option.cardCount}
-	                        className={cardCount === option.cardCount ? 'is-selected' : ''}
-	                        onClick={() => selectCardCount(option.cardCount)}
-	                      >
-	                        <strong>{option.cardCount}</strong>
-	                        <span>cartones</span>
-	                      </button>
-	                    ))}
-	                  </div>
-                  <button
-                    type="button"
-                    className="baraja-card-count-more"
-                    aria-expanded={showAllCardCounts}
-                    onClick={() => setShowAllCardCounts((current) => !current)}
-                  >
-                    {showAllCardCounts ? 'Ver opciones comunes' : 'Más cantidad'}
-                  </button>
-	                </div>
-	              </section>
-
-              <details className="baraja-creator-personalization">
-                <summary>Personalizar</summary>
-                <div>
-                  <label className="baraja-toggle-row baraja-compact-toggle baraja-inline-free-space">
-                    <input
-                      type="checkbox"
-                      checked={freeSpace}
-                      onChange={(event) => setFreeSpace(event.target.checked)}
-                    />
-                    <span>
-                      <strong>Casillero libre</strong>
-                      <small>Centro Baraja activado</small>
-                    </span>
-                  </label>
-                  <PreviewFormatControls
-                    boardSize={boardSize}
-                    requiredSongCount={validation.requiredSongCount}
-                    onBoardSizeChange={selectBoardSize}
+              {wizardStep > 1 ? (
+                <section
+                  className={`baraja-creator-step ${wizardStep > 2 ? 'is-complete' : 'is-active'}`}
+                  aria-label="Cartones"
+                >
+                  <CreatorStepHeading
+                    step="2"
+                    title="Cartones"
+                    summary={wizardStep > 2 ? `${cardCount} cartones - ${priceQuote.label}` : undefined}
+                    onEdit={wizardStep > 2 ? reopenCardCountStep : undefined}
                   />
-                  <label className="baraja-field" aria-label="Nombre del juego">
-                    <span>Nombre del juego</span>
-                    <input
-                      ref={gameNameInputRef}
-                      value={gameName}
-                      onChange={(event) => setGameName(event.target.value)}
-                      placeholder="Noche Rock Argentino"
+
+                  {wizardStep === 2 ? (
+                    <>
+                      <div className="baraja-count-editor">
+                        <div className="baraja-count-readout">
+                          <div>
+                            <strong>{cardCount}</strong>
+                            <span>Cartones</span>
+                          </div>
+                          <div className="baraja-count-price">
+                            <b>{priceQuote.label}</b>
+                            <small>{priceQuote.summary}</small>
+                          </div>
+                        </div>
+                        <CardCountFitNotice playlistFit={validation.playlistFit} />
+                        <div className="baraja-count-options" aria-label="Cantidad de cartones">
+                          {(showAllCardCounts
+                            ? MUSIC_BINGO_CARD_COUNT_OPTIONS
+                            : MUSIC_BINGO_CARD_COUNT_OPTIONS.filter((option) =>
+                                MUSIC_BINGO_PRIMARY_CARD_COUNTS.includes(
+                                  option.cardCount as (typeof MUSIC_BINGO_PRIMARY_CARD_COUNTS)[number]
+                                )
+                              )
+                          ).map((option) => (
+                            <button
+                              key={option.cardCount}
+                              type="button"
+                              aria-pressed={cardCount === option.cardCount}
+                              className={cardCount === option.cardCount ? 'is-selected' : ''}
+                              onClick={() => selectCardCount(option.cardCount)}
+                            >
+                              <strong>{option.cardCount}</strong>
+                              <span>cartones</span>
+                            </button>
+                          ))}
+                        </div>
+                        <button
+                          type="button"
+                          className="baraja-card-count-more"
+                          aria-expanded={showAllCardCounts}
+                          onClick={() => setShowAllCardCounts((current) => !current)}
+                        >
+                          {showAllCardCounts ? 'Ver opciones comunes' : 'Más cantidad'}
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        className="baraja-wizard-continue"
+                        disabled={!validation.canPreview}
+                        onClick={advanceToPreviewAndCheckout}
+                      >
+                        Ver preview y comprar
+                      </button>
+                    </>
+                  ) : null}
+                </section>
+              ) : null}
+
+              {wizardStep > 1 ? (
+                <details className="baraja-creator-personalization">
+                  <summary>Personalizar</summary>
+                  <div>
+                    <label className="baraja-toggle-row baraja-compact-toggle baraja-inline-free-space">
+                      <input
+                        type="checkbox"
+                        checked={freeSpace}
+                        onChange={(event) => setFreeSpace(event.target.checked)}
+                      />
+                      <span>
+                        <strong>Casillero libre</strong>
+                        <small>Centro Baraja activado</small>
+                      </span>
+                    </label>
+                    <PreviewFormatControls
+                      boardSize={boardSize}
+                      requiredSongCount={validation.requiredSongCount}
+                      onBoardSizeChange={selectBoardSize}
                     />
-                  </label>
-                </div>
-              </details>
+                    <label className="baraja-field" aria-label="Nombre del juego">
+                      <span>Nombre del juego</span>
+                      <input
+                        ref={gameNameInputRef}
+                        value={gameName}
+                        onChange={(event) => setGameName(event.target.value)}
+                        placeholder="Noche Rock Argentino"
+                      />
+                    </label>
+                  </div>
+                </details>
+              ) : null}
             </section>
 
-            <aside className="baraja-creator-preview-order" aria-label="Vista previa y pedido">
-              <section className="baraja-creator-preview-stage" aria-label="Vista previa del pack">
-                <div className="baraja-creator-preview-head">
-                  <div>
-                    <p className="baraja-kicker">Vista previa</p>
-                    <h2>{gameName || 'Bingo Musical Baraja'}</h2>
-                  </div>
-                  <span>
-                    {validation.usableSongs.length} canciones / {cardCount} cartones
-                  </span>
-                </div>
+            <aside
+              className="baraja-creator-preview-order"
+              id="music-bingo-preview-checkout"
+              aria-label="Vista previa y pedido"
+            >
+              {wizardStep === 3 ? (
+                <>
+                  <section className="baraja-creator-preview-stage" aria-label="Vista previa del pack">
+                    <div className="baraja-creator-preview-head">
+                      <div>
+                        <p className="baraja-kicker">Vista previa</p>
+                        <h2>{gameName || 'Bingo Musical Baraja'}</h2>
+                      </div>
+                      <span>
+                        {validation.usableSongs.length} canciones / {cardCount} cartones
+                      </span>
+                    </div>
 
-                {validation.canPreview && previewCard ? (
-                  <PdfPreview key={getPreviewCardKey(previewCard)} card={previewCard} />
-                ) : (
-                  <div className="baraja-preview-empty">
-                    <strong>Faltan canciones para generar preview.</strong>
-                    <span>{validation.errors[0] ?? 'Completa la lista o elegi una tematica Baraja.'}</span>
-                  </div>
-                )}
-              </section>
+                    {validation.canPreview && previewCard ? (
+                      <PdfPreview key={getPreviewCardKey(previewCard)} card={previewCard} />
+                    ) : (
+                      <div className="baraja-preview-empty">
+                        <strong>Faltan canciones para generar preview.</strong>
+                        <span>{validation.errors[0] ?? 'Completa la lista o elegi una tematica Baraja.'}</span>
+                      </div>
+                    )}
+                  </section>
 
-              <CheckoutReview
-                cardCount={cardCount}
-	                priceLabel={priceQuote.label}
-	                canPreview={validation.canPreview}
-	                canCheckout={canUseMercadoPagoCheckout}
-	                checkoutState={checkoutState}
-                checkoutUnavailableReason={checkoutUnavailableReason}
-                validationPdfState={validationPdfState}
-                canDownloadValidationPdf={canDownloadValidationPdf}
-                customerEmail={customerEmail}
-                onCustomerEmailChange={setCustomerEmail}
-                customerEmailPlaceholder={DEFAULT_CHECKOUT_EMAIL_PLACEHOLDER}
-                supportHref={getBarajaInquiryHref(orderMessage)}
-                onCheckout={() => void handleCheckout()}
-                onDownloadValidationPdf={() => void handleValidationPdfDownload()}
-                onSupport={trackOrderStart}
-              />
+                  <CheckoutReview
+                    cardCount={cardCount}
+                    priceLabel={priceQuote.label}
+                    canPreview={validation.canPreview}
+                    canCheckout={canUseMercadoPagoCheckout}
+                    checkoutState={checkoutState}
+                    checkoutUnavailableReason={checkoutUnavailableReason}
+                    validationPdfState={validationPdfState}
+                    canDownloadValidationPdf={canDownloadValidationPdf}
+                    customerEmail={customerEmail}
+                    onCustomerEmailChange={setCustomerEmail}
+                    customerEmailPlaceholder={DEFAULT_CHECKOUT_EMAIL_PLACEHOLDER}
+                    supportHref={getBarajaInquiryHref(orderMessage)}
+                    onCheckout={() => void handleCheckout()}
+                    onDownloadValidationPdf={() => void handleValidationPdfDownload()}
+                    onSupport={trackOrderStart}
+                  />
+                </>
+              ) : (
+                <CreatorCheckoutPending step={wizardStep} />
+              )}
             </aside>
           </section>
         </section>
@@ -2058,11 +2147,42 @@ function PreviewFormatControls({
   );
 }
 
-function CreatorStepHeading({ step, title }: { step: string; title: string }) {
+function CreatorCheckoutPending({ step }: { step: CreatorWizardStep }) {
+  const message = step === 1
+    ? 'Elegí el repertorio para continuar.'
+    : 'Confirmá la cantidad para ver tu bingo.';
+
+  return (
+    <section className="baraja-creator-checkout-pending" aria-live="polite">
+      <span>Paso 3</span>
+      <strong>{message}</strong>
+    </section>
+  );
+}
+
+function CreatorStepHeading({
+  step,
+  title,
+  summary,
+  onEdit,
+}: {
+  step: string;
+  title: string;
+  summary?: string;
+  onEdit?: () => void;
+}) {
   return (
     <div className="baraja-creator-step-head">
       <span>{step}</span>
-      <h2>{title}</h2>
+      <div>
+        <h2>{title}</h2>
+        {summary ? <small>{summary}</small> : null}
+      </div>
+      {onEdit ? (
+        <button type="button" onClick={onEdit}>
+          Editar
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -2101,6 +2221,29 @@ function PlaylistUrlReview({
 
 function SpotifyLogoMark() {
   return <BrandIcon name="spotify" className="baraja-spotify-logo" />;
+}
+
+function SpotifyPlaylistEmbed({
+  playlistUrl,
+  playlistName,
+}: {
+  playlistUrl: string;
+  playlistName: string;
+}) {
+  const playlistId = parseSpotifyPlaylistId(playlistUrl);
+  if (!playlistId) return null;
+
+  return (
+    <div className="baraja-spotify-playlist-embed">
+      <iframe
+        title={`Escuchar ${playlistName} en Spotify`}
+        src={`https://open.spotify.com/embed/playlist/${encodeURIComponent(playlistId)}?utm_source=generator`}
+        loading="lazy"
+        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+        referrerPolicy="strict-origin-when-cross-origin"
+      />
+    </div>
+  );
 }
 
 function SpotifyImportNotice({
@@ -2284,6 +2427,9 @@ function PlaylistCatalogModal({
   onRetrySpotifyPlaylists: () => void;
   onClose: () => void;
 }) {
+  const [previewedPlaylistUrl, setPreviewedPlaylistUrl] = useState<string | null>(null);
+  const canPreviewDraftPlaylist = Boolean(parseSpotifyPlaylistId(playlistUrlDraft));
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -2401,6 +2547,10 @@ function PlaylistCatalogModal({
                   const coverImageUrl = isTheme
                     ? candidate.theme.playlist?.coverImageUrl ?? candidate.theme.songs[0]?.artworkUrl ?? null
                     : candidate.collection.coverImageUrl ?? candidate.collection.tracks[0]?.imageUrl ?? null;
+                  const playlistUrl = isTheme
+                    ? candidate.theme.playlist?.url ?? ''
+                    : candidate.collection.spotifyUrl ?? '';
+                  const canPreviewPlaylist = Boolean(parseSpotifyPlaylistId(playlistUrl));
 
                   return (
                     <article
@@ -2436,11 +2586,28 @@ function PlaylistCatalogModal({
                           <span>{categoryLabel}</span>
                         </div>
                         <p>{summary}</p>
-                        <button type="button" onClick={() => onSelectItem(candidate)}>
-                          Usar repertorio
-                          <span aria-hidden="true">&gt;</span>
-                        </button>
+                        <div className="baraja-playlist-modal-card-actions">
+                          {canPreviewPlaylist ? (
+                            <button
+                              type="button"
+                              className="baraja-playlist-listen"
+                              aria-pressed={previewedPlaylistUrl === playlistUrl}
+                              onClick={() => setPreviewedPlaylistUrl((current) => (
+                                current === playlistUrl ? null : playlistUrl
+                              ))}
+                            >
+                              {previewedPlaylistUrl === playlistUrl ? 'Ocultar escucha' : 'Escuchar'}
+                            </button>
+                          ) : null}
+                          <button type="button" onClick={() => onSelectItem(candidate)}>
+                            Usar repertorio
+                            <span aria-hidden="true">&gt;</span>
+                          </button>
+                        </div>
                       </div>
+                      {canPreviewPlaylist && previewedPlaylistUrl === playlistUrl ? (
+                        <SpotifyPlaylistEmbed playlistUrl={playlistUrl} playlistName={title} />
+                      ) : null}
                     </article>
                   );
                 })}
@@ -2464,6 +2631,10 @@ function PlaylistCatalogModal({
             state={spotifyUserPlaylistsState}
             onRetry={onRetrySpotifyPlaylists}
             onSelectPlaylist={onSelectSpotifyPlaylist}
+            previewedPlaylistUrl={previewedPlaylistUrl}
+            onTogglePreview={(playlistUrl) => setPreviewedPlaylistUrl((current) => (
+              current === playlistUrl ? null : playlistUrl
+            ))}
           />
         ) : null}
 
@@ -2478,10 +2649,27 @@ function PlaylistCatalogModal({
               />
 	              <small>Puede ser una playlist propia, colaborativa o pública.</small>
             </label>
-            <button type="button" onClick={onUsePlaylistUrl}>
-              Usar esta URL
-              <span aria-hidden="true">&gt;</span>
-            </button>
+            <div className="baraja-playlist-url-actions">
+              {canPreviewDraftPlaylist ? (
+                <button
+                  type="button"
+                  className="baraja-playlist-listen"
+                  aria-pressed={previewedPlaylistUrl === playlistUrlDraft}
+                  onClick={() => setPreviewedPlaylistUrl((current) => (
+                    current === playlistUrlDraft ? null : playlistUrlDraft
+                  ))}
+                >
+                  {previewedPlaylistUrl === playlistUrlDraft ? 'Ocultar escucha' : 'Escuchar'}
+                </button>
+              ) : null}
+              <button type="button" onClick={onUsePlaylistUrl}>
+                Usar esta URL
+                <span aria-hidden="true">&gt;</span>
+              </button>
+            </div>
+            {canPreviewDraftPlaylist && previewedPlaylistUrl === playlistUrlDraft ? (
+              <SpotifyPlaylistEmbed playlistUrl={playlistUrlDraft} playlistName="esta playlist" />
+            ) : null}
           </section>
         ) : null}
       </section>
@@ -2495,12 +2683,16 @@ function SpotifyUserPlaylistsPane({
   state,
   onRetry,
   onSelectPlaylist,
+  previewedPlaylistUrl,
+  onTogglePreview,
 }: {
   spotifyConnectHref: string;
   spotifyConnectionState: SpotifyConnectionState;
   state: SpotifyUserPlaylistsState;
   onRetry: () => void;
   onSelectPlaylist: (playlist: SpotifyUserPlaylistPreview) => void;
+  previewedPlaylistUrl: string | null;
+  onTogglePreview: (playlistUrl: string) => void;
 }) {
   if (spotifyConnectionState.status === 'checking') {
     return (
@@ -2564,7 +2756,10 @@ function SpotifyUserPlaylistsPane({
 	          : 'No encontramos playlists Baraja Bingo; mostramos todas las playlists legibles de tu cuenta.'}
       </p>
       <div className="baraja-spotify-user-playlists" aria-label="Tus playlists de Spotify">
-        {visiblePlaylists.map((playlist) => (
+        {visiblePlaylists.map((playlist) => {
+          const canPreviewPlaylist = playlist.isPublic === true && Boolean(parseSpotifyPlaylistId(playlist.spotifyUrl));
+
+          return (
           <article key={playlist.id}>
             <div className="baraja-spotify-user-playlist-art" aria-hidden="true">
               {playlist.coverImageUrl ? (
@@ -2585,12 +2780,28 @@ function SpotifyUserPlaylistsPane({
               </div>
               {playlist.description ? <p>{truncatePlaylistDescription(stripHtmlText(playlist.description))}</p> : null}
             </div>
-            <button type="button" onClick={() => onSelectPlaylist(playlist)}>
-              Usar playlist
-              <span aria-hidden="true">&gt;</span>
-            </button>
+            <div className="baraja-spotify-user-playlist-actions">
+              {canPreviewPlaylist ? (
+                <button
+                  type="button"
+                  className="baraja-playlist-listen"
+                  aria-pressed={previewedPlaylistUrl === playlist.spotifyUrl}
+                  onClick={() => onTogglePreview(playlist.spotifyUrl)}
+                >
+                  {previewedPlaylistUrl === playlist.spotifyUrl ? 'Ocultar escucha' : 'Escuchar'}
+                </button>
+              ) : null}
+              <button type="button" onClick={() => onSelectPlaylist(playlist)}>
+                Usar playlist
+                <span aria-hidden="true">&gt;</span>
+              </button>
+            </div>
+            {canPreviewPlaylist && previewedPlaylistUrl === playlist.spotifyUrl ? (
+              <SpotifyPlaylistEmbed playlistUrl={playlist.spotifyUrl} playlistName={playlist.name} />
+            ) : null}
           </article>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
