@@ -48,11 +48,11 @@ interface MusicBingoCatalogItem {
 }
 
 function getThemeCreatorUrl(theme: MusicBingoTheme): string {
-  return `${CREATOR_ROUTE}?tema=${encodeURIComponent(theme.id)}`;
+  return `${CREATOR_ROUTE}?entry=collection&tema=${encodeURIComponent(theme.id)}`;
 }
 
 function getSyncedCollectionCreatorUrl(collection: SyncedMusicBingoCatalogCollection): string {
-  return `${CREATOR_ROUTE}?catalogCollectionId=${encodeURIComponent(collection.id)}`;
+  return `${CREATOR_ROUTE}?entry=collection&catalogCollectionId=${encodeURIComponent(collection.id)}`;
 }
 
 function themeToCatalogItem(theme: MusicBingoTheme): MusicBingoCatalogItem {

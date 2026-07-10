@@ -14,6 +14,7 @@ import { trackBarajaEvent } from '../../services/analytics';
 const CAMPAIGN_ID = MUSIC_BINGO_CAMPAIGN_LANDING.id;
 const PREBUILT_BINGOS = MUSIC_BINGO_PREBUILT_OFFERINGS;
 const CREATOR_ROUTE = '/bingo-musical/crear';
+const PLAYLIST_CREATOR_ROUTE = `${CREATOR_ROUTE}?entry=playlist`;
 const CATALOG_ROUTE = '/bingo-musical/catalogo';
 const CREATOR_OFFER_ID = `${MUSIC_BINGO_PRODUCT.id}_creator`;
 const CREATOR_OFFER_TYPE = 'music_bingo_creator';
@@ -63,7 +64,7 @@ function buildOfferingMessage(offer: ProductOffering): string {
 function getCreatorRouteForOffering(offer: ProductOffering): string {
   const collectionId = OFFER_COLLECTION_IDS[offer.id];
   return collectionId
-    ? `${CREATOR_ROUTE}?catalogCollectionId=${encodeURIComponent(collectionId)}`
+    ? `${CREATOR_ROUTE}?entry=collection&catalogCollectionId=${encodeURIComponent(collectionId)}`
     : CREATOR_ROUTE;
 }
 
@@ -146,7 +147,7 @@ export default function MusicBingoLanding() {
               Elegir un tema
             </a>
             <Link
-              to={CREATOR_ROUTE}
+              to={PLAYLIST_CREATOR_ROUTE}
               className="baraja-button baraja-button-outline"
               onClick={() => trackCreatorPath('hero_playlist')}
             >
@@ -256,7 +257,7 @@ export default function MusicBingoLanding() {
           </div>
           <div className="baraja-campaign-inline-actions">
             <Link
-              to={CREATOR_ROUTE}
+              to={PLAYLIST_CREATOR_ROUTE}
               className="baraja-button baraja-button-primary"
               onClick={() => trackCreatorPath('playlist_section')}
             >

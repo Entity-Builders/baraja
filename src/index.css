@@ -21608,3 +21608,96 @@ body:has(.baraja-editorial-home),
     opacity: 0.72;
   }
 }
+
+/* Music bingo creator purchase focus */
+.baraja-music-creator-app .baraja-count-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.baraja-card-count-more {
+  justify-self: start;
+  border: 0;
+  color: var(--creator-accent);
+  background: transparent;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 900;
+  padding: 0.2rem 0;
+  cursor: pointer;
+}
+
+.baraja-card-count-more:hover {
+  color: var(--creator-ink);
+}
+
+.baraja-creator-personalization {
+  display: grid;
+  gap: 0.9rem;
+  padding: clamp(1rem, 2vw, 1.25rem);
+  border-bottom: 1px solid var(--creator-line);
+}
+
+.baraja-creator-personalization > summary,
+.baraja-playlist-detail > summary,
+.baraja-spotify-playlist-details > summary {
+  color: var(--creator-muted);
+  font-size: 0.88rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.baraja-creator-personalization > summary {
+  color: var(--creator-accent);
+}
+
+.baraja-creator-personalization > div {
+  display: grid;
+  gap: 0.9rem;
+  padding-top: 0.15rem;
+}
+
+.baraja-creator-personalization .baraja-field {
+  gap: 0.45rem;
+}
+
+.baraja-creator-personalization .baraja-field > span {
+  color: var(--creator-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.baraja-playlist-detail > summary {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.8rem 0;
+}
+
+.baraja-playlist-detail > summary small {
+  color: var(--creator-muted);
+  font-size: 0.74rem;
+  font-weight: 750;
+}
+
+.baraja-spotify-playlist-details {
+  margin-top: 0.8rem;
+}
+
+.baraja-spotify-playlist-details > summary {
+  color: var(--creator-accent);
+}
+
+@media (max-width: 640px) {
+  .baraja-music-creator-app .baraja-count-options {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .baraja-playlist-detail > summary {
+    align-items: start;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+}
