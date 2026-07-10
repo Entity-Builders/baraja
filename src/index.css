@@ -21828,17 +21828,70 @@ body:has(.baraja-editorial-home),
   background: var(--creator-secondary);
 }
 
-.baraja-playlist-modal-grid article .baraja-spotify-playlist-embed {
-  grid-column: 1 / -1;
-  margin: 0 0.76rem 0.76rem;
+.baraja-playlist-modal-pane {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.baraja-playlist-modal-grid,
+.baraja-spotify-user-playlists {
+  min-height: 0;
+  flex: 1 1 auto;
 }
 
 .baraja-spotify-user-playlist-actions {
   justify-content: flex-end;
 }
 
-.baraja-spotify-user-playlists article .baraja-spotify-playlist-embed {
-  grid-column: 1 / -1;
+.baraja-playlist-selector-preview {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0.85rem clamp(0.9rem, 2vw, 1.25rem) 0;
+  padding: 0.7rem;
+  border: 1px solid var(--creator-line);
+  border-radius: 8px;
+  background: #171717;
+}
+
+.baraja-playlist-selector-preview > header {
+  min-height: 34px;
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.baraja-playlist-selector-preview > header strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--creator-ink);
+  font-size: 0.88rem;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.baraja-playlist-selector-preview > header button {
+  width: auto;
+  height: 32px;
+  min-height: 32px;
+  flex: 0 0 auto;
+  border: 1px solid var(--creator-line);
+  border-radius: 6px;
+  color: var(--creator-muted);
+  background: transparent;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 850;
+  padding: 0 0.6rem;
+  cursor: pointer;
+}
+
+.baraja-playlist-selector-preview > header button:hover {
+  border-color: rgba(176, 240, 0, 0.52);
+  color: var(--creator-ink);
 }
 
 .baraja-spotify-playlist-embed {
@@ -21877,5 +21930,13 @@ body:has(.baraja-editorial-home),
 
   .baraja-spotify-user-playlist-actions button {
     flex: 1 1 8rem;
+  }
+
+  .baraja-playlist-selector-preview {
+    margin: 0.75rem 0.9rem 0;
+  }
+
+  .baraja-spotify-playlist-embed iframe {
+    height: 352px;
   }
 }

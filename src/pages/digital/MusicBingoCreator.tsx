@@ -663,6 +663,18 @@ function getPickerItemId(item: PlaylistCatalogPickerItem): string {
   return item.kind === 'theme' ? item.theme.id : item.collection.id;
 }
 
+function getPickerItemTitle(item: PlaylistCatalogPickerItem): string {
+  return item.kind === 'theme'
+    ? item.theme.playlist?.title ?? item.theme.title
+    : item.collection.title;
+}
+
+function getPickerItemSpotifyUrl(item: PlaylistCatalogPickerItem): string {
+  return item.kind === 'theme'
+    ? item.theme.playlist?.url ?? ''
+    : item.collection.spotifyUrl ?? '';
+}
+
 function formatPlaylistBoardSizes(boardSizes: MusicBingoBoardSize[]): string {
   return boardSizes.map((boardSize) => `${boardSize}x${boardSize}`).join(' / ');
 }
@@ -2246,6 +2258,26 @@ function SpotifyPlaylistEmbed({
   );
 }
 
+function SpotifyPlaylistSelectorPreview({
+  playlistUrl,
+  playlistName,
+  onClose,
+}: {
+  playlistUrl: string;
+  playlistName: string;
+  onClose: () => void;
+}) {
+  return (
+    <section className="baraja-playlist-selector-preview" aria-label={`Escuchar ${playlistName}`}>
+      <header>
+        <strong>{playlistName}</strong>
+        <button type="button" onClick={onClose}>Ocultar escucha</button>
+      </header>
+      <SpotifyPlaylistEmbed playlistUrl={playlistUrl} playlistName={playlistName} />
+    </section>
+  );
+}
+
 function SpotifyImportNotice({
   state,
   spotifyConnectHref,
@@ -2429,6 +2461,9 @@ function PlaylistCatalogModal({
 }) {
   const [previewedPlaylistUrl, setPreviewedPlaylistUrl] = useState<string | null>(null);
   const canPreviewDraftPlaylist = Boolean(parseSpotifyPlaylistId(playlistUrlDraft));
+  const previewedCatalogItem = previewedPlaylistUrl
+    ? items.find((candidate) => getPickerItemSpotifyUrl(candidate) === previewedPlaylistUrl) ?? null
+    : null;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -2513,14 +2548,20 @@ function PlaylistCatalogModal({
               <p className="baraja-spotify-user-playlists-summary">Actualizando catalogo Baraja...</p>
             ) : null}
 
+            {previewedCatalogItem ? (
+              <SpotifyPlaylistSelectorPreview
+                playlistUrl={previewedPlaylistUrl ?? ''}
+                playlistName={getPickerItemTitle(previewedCatalogItem)}
+                onClose={() => setPreviewedPlaylistUrl(null)}
+              />
+            ) : null}
+
             {items.length > 0 ? (
               <div className="baraja-playlist-modal-grid">
                 {items.map((candidate) => {
                   const id = getPickerItemId(candidate);
                   const isTheme = candidate.kind === 'theme';
-                  const title = isTheme
-                    ? candidate.theme.playlist?.title ?? candidate.theme.title
-                    : candidate.collection.title;
+                  const title = getPickerItemTitle(candidate);
                   const subtitle = isTheme
                     ? candidate.theme.title
                     : candidate.collection.genreLabel;
@@ -2547,9 +2588,7 @@ function PlaylistCatalogModal({
                   const coverImageUrl = isTheme
                     ? candidate.theme.playlist?.coverImageUrl ?? candidate.theme.songs[0]?.artworkUrl ?? null
                     : candidate.collection.coverImageUrl ?? candidate.collection.tracks[0]?.imageUrl ?? null;
-                  const playlistUrl = isTheme
-                    ? candidate.theme.playlist?.url ?? ''
-                    : candidate.collection.spotifyUrl ?? '';
+                  const playlistUrl = getPickerItemSpotifyUrl(candidate);
                   const canPreviewPlaylist = Boolean(parseSpotifyPlaylistId(playlistUrl));
 
                   return (
@@ -2587,16 +2626,13 @@ function PlaylistCatalogModal({
                         </div>
                         <p>{summary}</p>
                         <div className="baraja-playlist-modal-card-actions">
-                          {canPreviewPlaylist ? (
+                          {canPreviewPlaylist && previewedPlaylistUrl !== playlistUrl ? (
                             <button
                               type="button"
                               className="baraja-playlist-listen"
-                              aria-pressed={previewedPlaylistUrl === playlistUrl}
-                              onClick={() => setPreviewedPlaylistUrl((current) => (
-                                current === playlistUrl ? null : playlistUrl
-                              ))}
+                              onClick={() => setPreviewedPlaylistUrl(playlistUrl)}
                             >
-                              {previewedPlaylistUrl === playlistUrl ? 'Ocultar escucha' : 'Escuchar'}
+                              Escuchar
                             </button>
                           ) : null}
                           <button type="button" onClick={() => onSelectItem(candidate)}>
@@ -2605,9 +2641,6 @@ function PlaylistCatalogModal({
                           </button>
                         </div>
                       </div>
-                      {canPreviewPlaylist && previewedPlaylistUrl === playlistUrl ? (
-                        <SpotifyPlaylistEmbed playlistUrl={playlistUrl} playlistName={title} />
-                      ) : null}
                     </article>
                   );
                 })}
@@ -2747,6 +2780,9 @@ function SpotifyUserPlaylistsPane({
   const musicBingoPlaylists = getMusicBingoSpotifyPlaylists(state.playlists);
   const visiblePlaylists = musicBingoPlaylists.length > 0 ? musicBingoPlaylists : state.playlists;
   const showingMusicBingoOnly = musicBingoPlaylists.length > 0;
+  const previewedPlaylist = previewedPlaylistUrl
+    ? visiblePlaylists.find((playlist) => playlist.spotifyUrl === previewedPlaylistUrl) ?? null
+    : null;
 
   return (
     <section className="baraja-playlist-modal-pane" role="tabpanel">
@@ -2755,6 +2791,13 @@ function SpotifyUserPlaylistsPane({
 	          ? `Mostrando ${visiblePlaylists.length} playlists de bingo musical de tu cuenta.`
 	          : 'No encontramos playlists Baraja Bingo; mostramos todas las playlists legibles de tu cuenta.'}
       </p>
+      {previewedPlaylist ? (
+        <SpotifyPlaylistSelectorPreview
+          playlistUrl={previewedPlaylist.spotifyUrl}
+          playlistName={previewedPlaylist.name}
+          onClose={() => onTogglePreview(previewedPlaylist.spotifyUrl)}
+        />
+      ) : null}
       <div className="baraja-spotify-user-playlists" aria-label="Tus playlists de Spotify">
         {visiblePlaylists.map((playlist) => {
           const canPreviewPlaylist = playlist.isPublic === true && Boolean(parseSpotifyPlaylistId(playlist.spotifyUrl));
@@ -2781,14 +2824,13 @@ function SpotifyUserPlaylistsPane({
               {playlist.description ? <p>{truncatePlaylistDescription(stripHtmlText(playlist.description))}</p> : null}
             </div>
             <div className="baraja-spotify-user-playlist-actions">
-              {canPreviewPlaylist ? (
+              {canPreviewPlaylist && previewedPlaylistUrl !== playlist.spotifyUrl ? (
                 <button
                   type="button"
                   className="baraja-playlist-listen"
-                  aria-pressed={previewedPlaylistUrl === playlist.spotifyUrl}
                   onClick={() => onTogglePreview(playlist.spotifyUrl)}
                 >
-                  {previewedPlaylistUrl === playlist.spotifyUrl ? 'Ocultar escucha' : 'Escuchar'}
+                  Escuchar
                 </button>
               ) : null}
               <button type="button" onClick={() => onSelectPlaylist(playlist)}>
@@ -2796,9 +2838,6 @@ function SpotifyUserPlaylistsPane({
                 <span aria-hidden="true">&gt;</span>
               </button>
             </div>
-            {canPreviewPlaylist && previewedPlaylistUrl === playlist.spotifyUrl ? (
-              <SpotifyPlaylistEmbed playlistUrl={playlist.spotifyUrl} playlistName={playlist.name} />
-            ) : null}
           </article>
           );
         })}
