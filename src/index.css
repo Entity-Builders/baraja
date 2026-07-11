@@ -22418,3 +22418,86 @@ body:has(.baraja-editorial-home),
     display: none;
   }
 }
+
+/* Connected Spotify playlists use the same scan-first selection pattern. */
+.baraja-spotify-user-playlists {
+  grid-auto-rows: max-content;
+  gap: 0.6rem;
+  padding: 0.8rem clamp(0.9rem, 2vw, 1.25rem);
+}
+
+.baraja-spotify-user-playlists article {
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 0;
+  min-height: 88px;
+  align-items: stretch;
+  overflow: hidden;
+  padding: 0;
+}
+
+.baraja-spotify-user-playlist-art {
+  width: 72px;
+  height: auto;
+  min-height: 0;
+  border: 0;
+  border-right: 1px solid var(--creator-line);
+  border-radius: 0;
+}
+
+.baraja-spotify-user-playlists article .baraja-playlist-modal-card-actions {
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+}
+
+.baraja-spotify-user-playlists article .baraja-playlist-modal-card-actions button {
+  min-height: 38px;
+  white-space: nowrap;
+}
+
+.baraja-spotify-user-playlists article .baraja-playlist-listen {
+  display: inline-flex;
+  gap: 0.36rem;
+  align-items: center;
+  border: 1px solid var(--creator-line);
+  color: var(--creator-ink);
+  background: var(--creator-secondary);
+}
+
+.baraja-spotify-user-playlists article .baraja-playlist-listen .baraja-spotify-logo {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.baraja-spotify-user-playlists article .baraja-playlist-use {
+  color: var(--creator-accent-ink);
+  background: var(--creator-accent);
+}
+
+@media (max-width: 760px) {
+  .baraja-spotify-user-playlists article {
+    grid-template-columns: 56px minmax(0, 1fr);
+    min-height: 136px;
+  }
+
+  .baraja-spotify-user-playlist-art {
+    width: 56px;
+    min-height: 56px;
+  }
+
+  .baraja-spotify-user-playlists article .baraja-playlist-modal-card-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .baraja-spotify-user-playlists article .baraja-playlist-modal-card-actions button {
+    width: 100%;
+    justify-content: center;
+    padding-inline: 0.45rem;
+    font-size: 0.72rem;
+  }
+
+  .baraja-spotify-user-playlists article .baraja-playlist-use > span {
+    display: none;
+  }
+}

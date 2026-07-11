@@ -2800,8 +2800,8 @@ function SpotifyUserPlaylistsPane({
     <section className="baraja-playlist-modal-pane" role="tabpanel">
       <p className="baraja-spotify-user-playlists-summary">
         {showingMusicBingoOnly
-	          ? `Mostrando ${visiblePlaylists.length} playlists de bingo musical de tu cuenta.`
-	          : 'No encontramos playlists Baraja Bingo; mostramos todas las playlists legibles de tu cuenta.'}
+	          ? `${visiblePlaylists.length} playlists listas para usar.`
+	          : 'Tus playlists disponibles.'}
       </p>
       {previewedPlaylist ? (
         <SpotifyPlaylistSelectorPreview
@@ -2813,42 +2813,50 @@ function SpotifyUserPlaylistsPane({
       <div className="baraja-spotify-user-playlists" aria-label="Tus playlists de Spotify">
         {visiblePlaylists.map((playlist) => {
           const canPreviewPlaylist = playlist.isPublic === true && Boolean(parseSpotifyPlaylistId(playlist.spotifyUrl));
+          const isPreviewing = previewedPlaylistUrl === playlist.spotifyUrl;
+          const sourceLabel = playlist.isCollaborative ? 'Playlist colaborativa' : 'Tu Spotify';
+          const songCountLabel = playlist.totalTracks === null
+            ? null
+            : `${playlist.totalTracks} canciones`;
 
           return (
-          <article key={playlist.id}>
-            <div className="baraja-spotify-user-playlist-art" aria-hidden="true">
+          <article className="baraja-spotify-user-playlist-row" key={playlist.id}>
+            <div className="baraja-playlist-modal-art baraja-spotify-user-playlist-art" aria-hidden="true">
               {playlist.coverImageUrl ? (
                 <img src={playlist.coverImageUrl} alt="" loading="lazy" decoding="async" />
               ) : (
                 <i>{getPlaylistInitials(playlist.name)}</i>
               )}
             </div>
-            <div className="baraja-spotify-user-playlist-copy">
-              <div className="baraja-playlist-modal-card-head">
+            <div className="baraja-playlist-modal-card-content">
+              <div className="baraja-playlist-modal-card-copy">
+                <small>{sourceLabel}</small>
                 <strong>{playlist.name}</strong>
-                <small>{playlist.ownerDisplayName ?? 'Tu Spotify'}</small>
+                {songCountLabel ? <span>{songCountLabel}</span> : null}
               </div>
-              <div className="baraja-playlist-modal-meta" aria-label="Datos de playlist">
-                <span>{playlist.totalTracks ?? '-'} canciones</span>
-                <span>{playlist.isCollaborative ? 'Colaborativa' : 'Propia'}</span>
-                <span>{playlist.isPublic ? 'Publica' : 'Privada'}</span>
-              </div>
-              {playlist.description ? <p>{truncatePlaylistDescription(stripHtmlText(playlist.description))}</p> : null}
-            </div>
-            <div className="baraja-spotify-user-playlist-actions">
-              {canPreviewPlaylist && previewedPlaylistUrl !== playlist.spotifyUrl ? (
+              <div className="baraja-playlist-modal-card-actions">
+              {canPreviewPlaylist ? (
                 <button
                   type="button"
                   className="baraja-playlist-listen"
+                  aria-label={`${isPreviewing ? 'Ocultar' : 'Escuchar'} ${playlist.name} en Spotify`}
+                  aria-pressed={isPreviewing}
                   onClick={() => onTogglePreview(playlist.spotifyUrl)}
                 >
-                  Escuchar
+                  <SpotifyLogoMark />
+                  {isPreviewing ? 'Ocultar audio' : 'Escuchar'}
                 </button>
               ) : null}
-              <button type="button" onClick={() => onSelectPlaylist(playlist)}>
+              <button
+                type="button"
+                className="baraja-playlist-use"
+                aria-label={`Usar ${playlist.name} para el bingo`}
+                onClick={() => onSelectPlaylist(playlist)}
+              >
                 Usar playlist
                 <span aria-hidden="true">&gt;</span>
               </button>
+              </div>
             </div>
           </article>
           );
@@ -2856,14 +2864,6 @@ function SpotifyUserPlaylistsPane({
       </div>
     </section>
   );
-}
-
-function stripHtmlText(value: string): string {
-  return value.replace(/<[^>]*>/g, '').trim();
-}
-
-function truncatePlaylistDescription(value: string): string {
-  return value.length > 96 ? `${value.slice(0, 93).trim()}...` : value;
 }
 
 function getPlaylistInitials(name: string): string {
