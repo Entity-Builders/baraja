@@ -1873,8 +1873,6 @@ export default function MusicBingoCreator() {
                 <CreatorStepHeading
                   step="1"
                   title="Música"
-                  summary={wizardStep > 1 ? activePlaylistSummary.title : undefined}
-                  onEdit={wizardStep > 1 ? reopenRepertoireStep : undefined}
                 />
 
                 {wizardStep === 1 ? (
@@ -1910,7 +1908,12 @@ export default function MusicBingoCreator() {
                       </button>
                     ) : null}
                   </>
-                ) : null}
+                ) : (
+                  <SelectedPlaylistSummary
+                    activePlaylist={activePlaylistSummary}
+                    onEdit={reopenRepertoireStep}
+                  />
+                )}
               </section>
 
               {wizardStep > 1 ? (
@@ -2197,6 +2200,34 @@ function CreatorStepHeading({
           Editar
         </button>
       ) : null}
+    </div>
+  );
+}
+
+function SelectedPlaylistSummary({
+  activePlaylist,
+  onEdit,
+}: {
+  activePlaylist: ActivePlaylistSummary;
+  onEdit: () => void;
+}) {
+  return (
+    <div className="baraja-selected-playlist-summary">
+      <div className="baraja-selected-playlist-art" aria-hidden="true">
+        {activePlaylist.coverImageUrl ? (
+          <img src={activePlaylist.coverImageUrl} alt="" loading="eager" decoding="async" />
+        ) : (
+          <i>{activePlaylist.fallbackInitials}</i>
+        )}
+      </div>
+      <div className="baraja-selected-playlist-copy">
+        <span>Playlist seleccionada</span>
+        <strong>{activePlaylist.title}</strong>
+        <small>{activePlaylist.eyebrow} · {activePlaylist.meta}</small>
+      </div>
+      <button type="button" onClick={onEdit}>
+        Cambiar
+      </button>
     </div>
   );
 }
