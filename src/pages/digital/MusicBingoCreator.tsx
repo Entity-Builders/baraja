@@ -2524,7 +2524,7 @@ function PlaylistCatalogModal({
         <header>
           <div>
 	            <h2>Elegí la música</h2>
-	            <p>Elegí una colección Baraja, una playlist de Spotify o una URL.</p>
+	            <p>Elegí una colección Baraja o usá una playlist propia.</p>
           </div>
           <button type="button" aria-label="Cerrar selector" onClick={onClose}>
             x
@@ -2548,7 +2548,7 @@ function PlaylistCatalogModal({
             className={activeTab === 'spotify' ? 'is-selected' : ''}
             onClick={() => onActiveTabChange('spotify')}
           >
-	            Mis playlists
+	            Mi Spotify
           </button>
           <button
             type="button"
@@ -2557,7 +2557,7 @@ function PlaylistCatalogModal({
             className={activeTab === 'url' ? 'is-selected' : ''}
             onClick={() => onActiveTabChange('url')}
           >
-	            Pegar enlace
+	            Pegar URL
           </button>
         </div>
 
@@ -2568,7 +2568,7 @@ function PlaylistCatalogModal({
               <input
                 value={search}
                 onChange={(event) => onSearchChange(event.target.value)}
-                placeholder="Buscar por titulo, ocasion o energia"
+                placeholder="Buscar por título o estilo"
                 autoFocus
               />
             </label>

@@ -22359,3 +22359,62 @@ body:has(.baraja-editorial-home),
     height: 152px;
   }
 }
+
+@media (max-width: 760px) {
+  .baraja-playlist-modal-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.35rem;
+    padding: 0.7rem 0.9rem;
+  }
+
+  .baraja-playlist-modal-tabs button {
+    min-width: 0;
+    min-height: 40px;
+    padding-inline: 0.3rem;
+    font-size: 0.72rem;
+    white-space: nowrap;
+  }
+
+  .baraja-playlist-modal-grid {
+    grid-auto-rows: max-content;
+  }
+
+  .baraja-playlist-modal-grid article {
+    grid-template-columns: 56px minmax(0, 1fr);
+    min-height: 136px;
+  }
+
+  .baraja-playlist-modal-art {
+    width: 56px;
+    min-height: 56px;
+  }
+
+  .baraja-playlist-modal-card-content {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.6rem;
+  }
+
+  .baraja-playlist-modal-card-copy strong {
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+
+  .baraja-playlist-modal-grid article .baraja-playlist-modal-card-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .baraja-playlist-modal-grid article .baraja-playlist-modal-card-actions button {
+    width: 100%;
+    justify-content: center;
+    padding-inline: 0.45rem;
+    font-size: 0.72rem;
+  }
+
+  .baraja-playlist-modal-grid article .baraja-playlist-modal-card-actions .baraja-playlist-use > span {
+    display: none;
+  }
+}
