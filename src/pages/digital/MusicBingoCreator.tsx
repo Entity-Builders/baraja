@@ -818,7 +818,7 @@ function buildActivePlaylistSummary(input: {
   const playlistId = parseSpotifyPlaylistId(input.playlistUrl);
   return {
     title: playlistId ? 'Playlist de Spotify' : 'Sin playlist seleccionada',
-    eyebrow: playlistId ? 'Importacion pendiente' : 'Elegir repertorio',
+    eyebrow: playlistId ? 'Importacion pendiente' : 'Elegir la música',
     meta: playlistId
       ? `Esperando metadata - ${input.connectionLabel}`
       : 'Elegi una coleccion Baraja o una playlist de Spotify.',
@@ -883,7 +883,7 @@ function getCheckoutUnavailableReason(input: {
 }): string {
   if (!input.canPreview) return 'Faltan canciones para armar el PDF.';
   if (!input.playlistFit.scenarioReady) {
-	    return `Para ${input.playlistFit.selectedCardCount} cartones, este repertorio necesita ${input.playlistFit.scenarioMinimum} canciones. Sumá ${input.playlistFit.songsNeededForScenario}, bajá cartones o usá un formato más chico.`;
+	    return `Para ${input.playlistFit.selectedCardCount} cartones, esta playlist necesita ${input.playlistFit.scenarioMinimum} canciones. Sumá ${input.playlistFit.songsNeededForScenario}, bajá cartones o usá un formato más chico.`;
   }
   if (input.priceMode === 'proposal') return 'Este caso necesita propuesta antes de pagar.';
   if (!input.isCuratedSelection && !input.hasSpotifyPlaylistId) {
@@ -1868,11 +1868,11 @@ export default function MusicBingoCreator() {
               <section
                 className={`baraja-creator-step ${wizardStep > 1 ? 'is-complete' : 'is-active'}`}
                 id="playlist-catalog"
-                aria-label="Repertorio"
+                aria-label="Música"
               >
                 <CreatorStepHeading
                   step="1"
-                  title="Repertorio"
+                  title="Música"
                   summary={wizardStep > 1 ? activePlaylistSummary.title : undefined}
                   onEdit={wizardStep > 1 ? reopenRepertoireStep : undefined}
                 />
@@ -1906,7 +1906,7 @@ export default function MusicBingoCreator() {
                         className="baraja-wizard-continue"
                         onClick={() => setWizardStep(2)}
                       >
-                        Continuar con este repertorio
+                        Continuar con esta playlist
                       </button>
                     ) : null}
                   </>
@@ -2163,7 +2163,7 @@ function PreviewFormatControls({
 
 function CreatorCheckoutPending({ step }: { step: CreatorWizardStep }) {
   const message = step === 1
-    ? 'Elegí el repertorio para continuar.'
+    ? 'Elegí la música para continuar.'
     : 'Confirmá la cantidad para ver tu bingo.';
 
   return (
@@ -2209,7 +2209,7 @@ function PlaylistUrlReview({
   onOpenSelector: () => void;
 }) {
   return (
-    <section className="baraja-playlist-url-review" aria-label="Repertorio del bingo">
+    <section className="baraja-playlist-url-review" aria-label="Música del bingo">
       <div className="baraja-playlist-active-row">
         <div className="baraja-playlist-active-art" aria-hidden="true">
           {activePlaylist.coverImageUrl ? (
@@ -2318,7 +2318,7 @@ function SpotifyImportNotice({
 	          Importamos {state.songCount} de {totalTrackCount} canciones.
 	          {' '}
 	          {connectedAccountCouldNotReadPlaylist ? (
-	            'Para completar el repertorio, usá una playlist creada por vos o agregate como colaborador.'
+	            'Para completar la playlist, usá una creada por vos o agregate como colaborador.'
 	          ) : canConnectSpotify ? (
 	            <>
 	              <a href={spotifyConnectHref}>Conectá Spotify</a> o pegá las canciones manualmente.
@@ -2492,11 +2492,11 @@ function PlaylistCatalogModal({
         className="baraja-playlist-modal"
         role="dialog"
         aria-modal="true"
-        aria-label="Selector rapido de repertorios"
+        aria-label="Selector rápido de playlists"
       >
         <header>
           <div>
-	            <h2>Elegir repertorio</h2>
+	            <h2>Elegí la música</h2>
 	            <p>Elegí una colección Baraja, una playlist de Spotify o una URL.</p>
           </div>
           <button type="button" aria-label="Cerrar selector" onClick={onClose}>
@@ -2537,7 +2537,7 @@ function PlaylistCatalogModal({
         {activeTab === 'baraja' ? (
           <section className="baraja-playlist-modal-pane" role="tabpanel">
             <label className="baraja-playlist-modal-search">
-              <span>Buscar repertorio</span>
+              <span>Buscar playlist</span>
               <input
                 value={search}
                 onChange={(event) => onSearchChange(event.target.value)}
@@ -2615,13 +2615,13 @@ function PlaylistCatalogModal({
                           <strong>{title}</strong>
                           <span>{subtitle}</span>
                         </div>
-                        <div className="baraja-playlist-modal-statline" aria-label="Resumen del repertorio">
+                        <div className="baraja-playlist-modal-statline" aria-label="Resumen de la playlist">
                           <strong>{songCount}</strong>
                           <span>canciones</span>
                           <i aria-hidden="true" />
                           <span>{boardSizeLabel}</span>
                         </div>
-                        <div className="baraja-playlist-modal-meta" aria-label="Datos del repertorio">
+                        <div className="baraja-playlist-modal-meta" aria-label="Datos de la playlist">
                           <span>{energyLabel}</span>
                           <span>{decadeOrGenreLabel}</span>
                           <span>{categoryLabel}</span>
@@ -2638,7 +2638,7 @@ function PlaylistCatalogModal({
                             </button>
                           ) : null}
                           <button type="button" onClick={() => onSelectItem(candidate)}>
-                            Usar repertorio
+                            Usar esta playlist
                             <span aria-hidden="true">&gt;</span>
                           </button>
                         </div>
@@ -2648,8 +2648,8 @@ function PlaylistCatalogModal({
                 })}
               </div>
             ) : (
-              <section className="baraja-playlist-modal-empty" aria-label="Sin repertorios">
-                <strong>No hay repertorios con esa busqueda.</strong>
+              <section className="baraja-playlist-modal-empty" aria-label="Sin playlists">
+                <strong>No hay playlists con esa búsqueda.</strong>
                 <p>Proba con rock, cumbia, pop, fiesta o nostalgia.</p>
               </section>
             )}

@@ -1,18 +1,21 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   MUSIC_BINGO_BAR_EVENT_OFFERING,
   MUSIC_BINGO_CAMPAIGN_LANDING,
-  MUSIC_BINGO_PREBUILT_OFFERINGS,
+  MUSIC_BINGO_MVP_THEMES,
   MUSIC_BINGO_PRODUCT,
   getMusicBingoSelfServePriceQuote,
   type ProductOffering,
 } from '@eb-packages/deck-engine';
 import { getBarajaInquiryHref } from '../../lib/digitalDeckCatalog';
 import { trackBarajaEvent } from '../../services/analytics';
+import {
+  fetchSyncedMusicBingoCatalog,
+  type SyncedMusicBingoCatalogCollection,
+} from './musicBingoCatalogApi';
 
 const CAMPAIGN_ID = MUSIC_BINGO_CAMPAIGN_LANDING.id;
-const PREBUILT_BINGOS = MUSIC_BINGO_PREBUILT_OFFERINGS;
 const CREATOR_ROUTE = '/bingo-musical/crear';
 const PLAYLIST_CREATOR_ROUTE = `${CREATOR_ROUTE}?entry=playlist`;
 const CATALOG_ROUTE = '/bingo-musical/catalogo';
@@ -22,14 +25,25 @@ const LANDING_TITLE = 'Bingo musical para imprimir en tu fiesta | Baraja';
 const LANDING_DESCRIPTION =
   'Elegí un tema o usá tu playlist y recibí un bingo musical listo para imprimir y jugar.';
 const LANDING_URL = 'https://baraja.cards/bingo-musical';
-const OFFER_COLLECTION_IDS: Record<string, string> = {
-  'rock-argentino-prebuilt': 'rock-argentino-esenciales',
-  'cumbia-retro-prebuilt': 'cumbia-cuarteto-argentina',
-  'hits-2000-prebuilt': 'pop-latino-2000s',
-};
-const PREBUILT_STARTING_PRICE = getMusicBingoSelfServePriceQuote(15, 'prebuilt');
-const PREBUILT_PARTY_PRICE = getMusicBingoSelfServePriceQuote(30, 'prebuilt');
 const PLAYLIST_STARTING_PRICE = getMusicBingoSelfServePriceQuote(15, 'playlist_own');
+
+interface HeroCollection {
+  id: string;
+  title: string;
+  categoryLabel: string;
+  songCount: number;
+  coverImageUrl: string | null;
+  creatorUrl: string;
+}
+
+const FALLBACK_HERO_COLLECTIONS: HeroCollection[] = MUSIC_BINGO_MVP_THEMES.map((theme) => ({
+  id: theme.id,
+  title: theme.title,
+  categoryLabel: theme.catalog.categoryLabel,
+  songCount: theme.songs.length,
+  coverImageUrl: theme.playlist?.coverImageUrl ?? theme.songs[0]?.artworkUrl ?? null,
+  creatorUrl: `${CREATOR_ROUTE}?entry=collection&tema=${encodeURIComponent(theme.id)}`,
+}));
 
 function applyMeta(name: string, content: string, attr: 'name' | 'property' = 'name') {
   if (typeof document === 'undefined') return;
@@ -59,13 +73,6 @@ function applyCanonicalUrl(href: string) {
 
 function buildOfferingMessage(offer: ProductOffering): string {
   return offer.messageLines.join('\n');
-}
-
-function getCreatorRouteForOffering(offer: ProductOffering): string {
-  const collectionId = OFFER_COLLECTION_IDS[offer.id];
-  return collectionId
-    ? `${CREATOR_ROUTE}?entry=collection&catalogCollectionId=${encodeURIComponent(collectionId)}`
-    : CREATOR_ROUTE;
 }
 
 function trackCampaignAction(offerId: string, offerType: string, source: string) {
@@ -100,7 +107,23 @@ function trackInquiry(offerId: string, offerType: string, source: string) {
   });
 }
 
+function syncedCollectionToHeroCollection(
+  collection: SyncedMusicBingoCatalogCollection
+): HeroCollection {
+  return {
+    id: collection.id,
+    title: collection.title,
+    categoryLabel: collection.categoryLabel,
+    songCount: collection.songCount,
+    coverImageUrl: collection.coverImageUrl ?? collection.tracks[0]?.imageUrl ?? null,
+    creatorUrl: `${CREATOR_ROUTE}?entry=collection&catalogCollectionId=${encodeURIComponent(collection.id)}`,
+  };
+}
+
 export default function MusicBingoLanding() {
+  const [heroCollections, setHeroCollections] = useState<HeroCollection[]>(FALLBACK_HERO_COLLECTIONS);
+  const collectionCarouselRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     document.title = LANDING_TITLE;
     applyMeta('description', LANDING_DESCRIPTION);
@@ -119,6 +142,29 @@ export default function MusicBingoLanding() {
     });
   }, []);
 
+  useEffect(() => {
+    const controller = new AbortController();
+
+    void fetchSyncedMusicBingoCatalog(controller.signal)
+      .then((collections) => {
+        if (!controller.signal.aborted && collections.length > 0) {
+          setHeroCollections(collections.map(syncedCollectionToHeroCollection));
+        }
+      })
+      .catch(() => {
+        // Keep the built-in playlists available if the catalog cannot be reached.
+      });
+
+    return () => controller.abort();
+  }, []);
+
+  function scrollCollections(direction: -1 | 1) {
+    collectionCarouselRef.current?.scrollBy({
+      left: direction * 292,
+      behavior: 'smooth',
+    });
+  }
+
   return (
     <main className="baraja-landing baraja-campaign">
       <MusicBingoNav />
@@ -126,54 +172,73 @@ export default function MusicBingoLanding() {
         <div className="baraja-campaign-hero-copy">
           <p className="baraja-kicker">Bingo musical</p>
           <h1>
-            Una ronda para <span>poner a todos a jugar.</span>
+            Elegí una colección <span>o usá tu playlist.</span>
           </h1>
           <p className="baraja-lead">
-            Elegí la música y prepará una ronda para compartir con tu gente.
-            Recibís un juego listo para imprimir.
+            Las playlists Baraja se acomodan a la cantidad de cartones que elijas para que el
+            juego sea fluido, rápido y quede listo para usar.
           </p>
-          <div className="baraja-actions">
-            <a
-              href="#colecciones"
-              className="baraja-button baraja-button-primary"
-              onClick={() =>
-                trackCampaignAction(
-                  PREBUILT_BINGOS[0]?.id ?? CREATOR_OFFER_ID,
-                  PREBUILT_BINGOS[0]?.analyticsOfferType ?? CREATOR_OFFER_TYPE,
-                  'hero_collections'
-                )
-              }
-            >
-              Elegir un tema
-            </a>
+
+          <section className="baraja-hero-collections" id="colecciones" aria-label="Colecciones Baraja">
+            <div className="baraja-hero-collections-heading">
+              <div className="baraja-hero-collections-controls" aria-label="Mover colecciones">
+                <button
+                  type="button"
+                  aria-label="Ver colecciones anteriores"
+                  title="Ver colecciones anteriores"
+                  onClick={() => scrollCollections(-1)}
+                >
+                  &larr;
+                </button>
+                <button
+                  type="button"
+                  aria-label="Ver más colecciones"
+                  title="Ver más colecciones"
+                  onClick={() => scrollCollections(1)}
+                >
+                  &rarr;
+                </button>
+              </div>
+            </div>
+            <div className="baraja-hero-collections-track" ref={collectionCarouselRef}>
+              {heroCollections.map((collection) => (
+                <Link
+                  key={collection.id}
+                  to={collection.creatorUrl}
+                  className="baraja-hero-collection-card"
+                  onClick={() =>
+                    trackCreatorPath(
+                      'hero_collection_carousel',
+                      collection.id,
+                      'curated_music_bingo_collection'
+                    )
+                  }
+                >
+                  <div className="baraja-hero-collection-image">
+                    {collection.coverImageUrl ? (
+                      <img src={collection.coverImageUrl} alt="" />
+                    ) : null}
+                    <span>{collection.categoryLabel}</span>
+                  </div>
+                  <div>
+                    <strong>{collection.title}</strong>
+                    <small>{collection.songCount} canciones</small>
+                    <b>Elegir esta colección</b>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+
+          <div className="baraja-campaign-hero-playlist-path">
+            <p>¿Ya tenés una playlist?</p>
             <Link
               to={PLAYLIST_CREATOR_ROUTE}
               className="baraja-button baraja-button-outline"
               onClick={() => trackCreatorPath('hero_playlist')}
             >
-              Usar mi playlist
+              Crear con mi playlist
             </Link>
-          </div>
-          <div className="baraja-hero-price-grid" aria-label="Precios con una colección Baraja">
-            <article>
-              <span>Para probar</span>
-              <strong>Desde {PREBUILT_STARTING_PRICE?.label ?? 'consultar'}</strong>
-              <small>15 cartones con una colección</small>
-            </article>
-            <article>
-              <span>Para una fiesta</span>
-              <strong>Desde {PREBUILT_PARTY_PRICE?.label ?? 'consultar'}</strong>
-              <small>30 cartones con una colección</small>
-            </article>
-          </div>
-          <p className="baraja-hero-price-note">
-            Con una playlist de Spotify, desde{' '}
-            {PLAYLIST_STARTING_PRICE?.label ?? 'consultar'} por 15 cartones.
-          </p>
-          <div className="baraja-hero-pill-row" aria-label="Incluye">
-            <span>Ves cómo queda antes de pagar</span>
-            <span>Elegís cuántos cartones</span>
-            <span>PDF listo para imprimir</span>
           </div>
         </div>
         <MusicBingoPreview />
@@ -188,7 +253,7 @@ export default function MusicBingoLanding() {
           <article>
             <span>1</span>
             <h3>Elegí la música</h3>
-            <p>Un tema que tu gente conozca o tu propia playlist.</p>
+            <p>Elegí una colección Baraja o usá tu playlist.</p>
           </article>
           <article>
             <span>2</span>
@@ -200,46 +265,6 @@ export default function MusicBingoLanding() {
             <h3>Pagá e imprimí</h3>
             <p>Con el pago confirmado recibís el juego listo para conducir la ronda.</p>
           </article>
-        </div>
-      </section>
-
-      <section className="baraja-campaign-section" id="colecciones">
-        <div className="baraja-section-header">
-          <p className="baraja-kicker">Elegí por la música</p>
-          <h2>Un tema que tu gente conozca.</h2>
-          <p>Colecciones listas para armar la ronda sin preparar una playlist.</p>
-        </div>
-        <div className="baraja-campaign-offer-grid">
-          {PREBUILT_BINGOS.map((offer) => (
-            <article className="baraja-campaign-offer" key={offer.id}>
-              <div>
-                <p>{offer.tags.join(' / ')}</p>
-                <h3>{offer.title}</h3>
-                <span>{offer.audience}</span>
-              </div>
-              <p>{offer.description}</p>
-              <div className="baraja-campaign-song-list" aria-label={`Ejemplos para ${offer.title}`}>
-                {offer.sampleItems.map((song) => (
-                  <span key={song}>{song}</span>
-                ))}
-              </div>
-              <div className="baraja-campaign-offer-actions">
-                <Link
-                  to={getCreatorRouteForOffering(offer)}
-                  className="baraja-button baraja-button-primary"
-                  onClick={() =>
-                    trackCreatorPath(
-                      `collection_${offer.id}`,
-                      offer.id,
-                      offer.analyticsOfferType
-                    )
-                  }
-                >
-                  Abrir y revisar
-                </Link>
-              </div>
-            </article>
-          ))}
         </div>
       </section>
 

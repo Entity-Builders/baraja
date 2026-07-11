@@ -18958,6 +18958,161 @@ body::before {
   line-height: 1.65;
 }
 
+.baraja-campaign .baraja-hero-collections {
+  margin-top: 1.35rem;
+}
+
+.baraja-campaign .baraja-hero-collections-heading {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-bottom: 0.65rem;
+}
+
+.baraja-campaign .baraja-campaign-hero-playlist-path > p {
+  margin: 0;
+  color: var(--bingo-text);
+  font-size: 0.84rem;
+  font-weight: 900;
+  line-height: 1.35;
+}
+
+.baraja-campaign .baraja-hero-collections-controls {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.4rem;
+}
+
+.baraja-campaign .baraja-hero-collections-controls button {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  padding: 0;
+  color: var(--bingo-text);
+  border: 1px solid var(--bingo-line-strong);
+  border-radius: 6px;
+  background: var(--bingo-surface);
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.baraja-campaign .baraja-hero-collections-controls button:hover {
+  color: var(--bingo-accent-ink);
+  border-color: var(--bingo-accent);
+  background: var(--bingo-accent);
+}
+
+.baraja-campaign .baraja-hero-collections-track {
+  display: grid;
+  grid-auto-columns: minmax(214px, 250px);
+  grid-auto-flow: column;
+  gap: 0.65rem;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  padding-bottom: 0.45rem;
+  scroll-behavior: smooth;
+  scroll-snap-type: inline mandatory;
+  scrollbar-color: var(--bingo-line-strong) transparent;
+  scrollbar-width: thin;
+}
+
+.baraja-campaign .baraja-hero-collection-card {
+  display: grid;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--bingo-text);
+  border: 1px solid var(--bingo-line);
+  border-radius: 8px;
+  background: var(--bingo-surface);
+  scroll-snap-align: start;
+  text-decoration: none;
+}
+
+.baraja-campaign .baraja-hero-collection-card:hover {
+  color: var(--bingo-text);
+  border-color: rgba(176, 240, 0, 0.62);
+  background: var(--bingo-raised);
+}
+
+.baraja-campaign .baraja-hero-collection-card:focus-visible,
+.baraja-campaign .baraja-hero-collections-controls button:focus-visible {
+  outline: 2px solid var(--bingo-accent);
+  outline-offset: 3px;
+}
+
+.baraja-campaign .baraja-hero-collection-image {
+  position: relative;
+  height: 104px;
+  overflow: hidden;
+  background: var(--bingo-field);
+}
+
+.baraja-campaign .baraja-hero-collection-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.baraja-campaign .baraja-hero-collection-image span {
+  position: absolute;
+  left: 0.55rem;
+  bottom: 0.55rem;
+  max-width: calc(100% - 1.1rem);
+  padding: 0.28rem 0.46rem;
+  color: var(--bingo-accent-ink);
+  border-radius: 4px;
+  background: var(--bingo-accent);
+  font-size: 0.64rem;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.baraja-campaign .baraja-hero-collection-card > div:last-child {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.72rem;
+}
+
+.baraja-campaign .baraja-hero-collection-card strong {
+  color: var(--bingo-text);
+  font-family: 'Barlow Condensed', var(--baraja-display), sans-serif;
+  font-size: 1.35rem;
+  font-weight: 900;
+  line-height: 0.95;
+  text-transform: uppercase;
+}
+
+.baraja-campaign .baraja-hero-collection-card small {
+  color: var(--bingo-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.baraja-campaign .baraja-hero-collection-card b {
+  margin-top: 0.16rem;
+  color: var(--bingo-accent);
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.baraja-campaign .baraja-campaign-hero-playlist-path {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+
+.baraja-campaign .baraja-campaign-hero-playlist-path .baraja-button {
+  min-height: 40px;
+}
+
 .baraja-campaign .baraja-actions,
 .baraja-campaign .baraja-creator-bridge-actions,
 .baraja-campaign .baraja-campaign-inline-actions {
@@ -19597,6 +19752,19 @@ body:has(.baraja-music-creator-app),
     width: 100%;
     max-width: 100%;
     margin-inline: 0;
+  }
+
+  .baraja-campaign .baraja-hero-collections-track {
+    grid-auto-columns: minmax(75vw, 280px);
+  }
+
+  .baraja-campaign .baraja-campaign-hero-playlist-path {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .baraja-campaign .baraja-campaign-hero-playlist-path .baraja-button {
+    width: 100%;
   }
 
   .baraja-campaign .baraja-hero-pill-row {

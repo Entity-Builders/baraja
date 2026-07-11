@@ -240,7 +240,7 @@ export default function MusicBingoCatalog() {
       <section className="baraja-music-catalog-hero">
         <div>
           <p className="baraja-kicker">Catálogo</p>
-          <h1>Repertorios para bingo musical</h1>
+          <h1>Playlists para bingo musical</h1>
           <p>Elegi una lista y arma un PDF imprimible en el creador.</p>
         </div>
         <div className="baraja-music-catalog-actions">
@@ -250,7 +250,7 @@ export default function MusicBingoCatalog() {
         </div>
       </section>
 
-      <section className="baraja-music-catalog-browser" id="repertorios">
+      <section className="baraja-music-catalog-browser" id="playlists">
         <div className="baraja-music-catalog-controls">
           <label>
             <span>Buscar</span>
@@ -283,9 +283,9 @@ export default function MusicBingoCatalog() {
 
 	        <p className="baraja-music-catalog-count">
 	          {catalogStatus === 'loading'
-	            ? 'Cargando repertorios...'
+	            ? 'Cargando playlists...'
 	            : filteredItems.length === catalogItems.length
-	              ? `${catalogItems.length} repertorios`
+	              ? `${catalogItems.length} playlists`
 	              : `${filteredItems.length} de ${catalogItems.length}`}
 	        </p>
 
@@ -341,7 +341,7 @@ function CatalogNav() {
       <div className="baraja-nav-links">
         <Link to="/bingo-musical">Bingo musical</Link>
         <Link to={CREATOR_ROUTE}>Creador</Link>
-        <a href="#repertorios">Repertorios</a>
+        <a href="#playlists">Playlists</a>
       </div>
     </nav>
   );
@@ -395,7 +395,7 @@ function CatalogThemeCard({
             className="baraja-button baraja-button-primary"
             onClick={onSelect}
           >
-            Armar bingo con este repertorio
+            Armar bingo con esta playlist
           </Link>
           {item.spotifyUrl ? (
             <a href={item.spotifyUrl} target="_blank" rel="noreferrer">

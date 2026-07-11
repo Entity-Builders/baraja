@@ -15,7 +15,7 @@ export function FrameLibraryGallery({ activePreview, frames, loading, onSelectFr
         <h2 style={{ margin: 0, fontSize: '1.25rem', fontFamily: 'var(--font-serif)', color: 'var(--color-gold)' }}>
           📚 Librería de Frames Guardados
         </h2>
-        <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>{frames.length} frames en tu repertorio</span>
+        <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>{frames.length} frames en tu biblioteca</span>
       </div>
 
       {loading ? (

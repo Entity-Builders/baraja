@@ -156,7 +156,7 @@ export default function MusicBingoSpotifySeed() {
         <p className="baraja-kicker">Spotify seed</p>
         <h1>Crear playlist propia</h1>
         <p>
-          Herramienta interna para crear repertorios oficiales de Baraja desde
+          Herramienta interna para crear playlists oficiales de Baraja desde
           listas copy/paste. La playlist queda en la cuenta de Spotify conectada.
         </p>
       </section>
