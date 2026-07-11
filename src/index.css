@@ -22220,3 +22220,142 @@ body:has(.baraja-editorial-home),
     height: 352px;
   }
 }
+
+/* BMAD UX pass: make collection selection scannable before showing detail. */
+.baraja-playlist-modal-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.6rem;
+  padding: 0.8rem clamp(0.9rem, 2vw, 1.25rem);
+}
+
+.baraja-playlist-modal-grid article {
+  grid-template-columns: 72px minmax(0, 1fr);
+  min-height: 88px;
+  align-items: stretch;
+}
+
+.baraja-playlist-modal-art {
+  width: 72px;
+  min-height: 0;
+  height: auto;
+  padding: 0;
+  border-right: 1px solid var(--creator-line);
+  border-radius: 0;
+}
+
+.baraja-playlist-modal-art::after {
+  display: none;
+}
+
+.baraja-playlist-modal-card-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.8rem;
+  align-items: center;
+  min-width: 0;
+  padding: 0.65rem 0.72rem;
+}
+
+.baraja-playlist-modal-grid article > .baraja-playlist-modal-card-content {
+  grid-template-rows: none;
+}
+
+.baraja-playlist-modal-card-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.14rem;
+}
+
+.baraja-playlist-modal-card-copy small {
+  color: var(--creator-accent);
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1.15;
+  text-transform: uppercase;
+}
+
+.baraja-playlist-modal-card-copy strong {
+  overflow: hidden;
+  color: var(--creator-ink);
+  font-size: 1.02rem;
+  font-weight: 900;
+  line-height: 1.12;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.baraja-playlist-modal-card-copy > span {
+  overflow: hidden;
+  color: var(--creator-muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.baraja-playlist-modal-grid article .baraja-playlist-modal-card-actions {
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+}
+
+.baraja-playlist-modal-grid article .baraja-playlist-modal-card-actions button {
+  min-height: 38px;
+  white-space: nowrap;
+}
+
+.baraja-playlist-modal-grid article .baraja-playlist-modal-card-actions .baraja-playlist-listen {
+  display: inline-flex;
+  gap: 0.36rem;
+  align-items: center;
+  color: var(--creator-ink);
+}
+
+.baraja-playlist-modal-grid article .baraja-playlist-modal-card-actions .baraja-playlist-listen .baraja-spotify-logo {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.baraja-playlist-modal-grid article .baraja-playlist-modal-card-actions .baraja-playlist-use {
+  color: var(--creator-accent-ink);
+  background: var(--creator-accent);
+}
+
+@media (max-width: 640px) {
+  .baraja-playlist-modal-grid {
+    grid-auto-rows: max-content;
+  }
+
+  .baraja-playlist-modal-grid article {
+    grid-template-columns: 56px minmax(0, 1fr);
+    min-height: 136px;
+  }
+
+  .baraja-playlist-modal-art {
+    width: 56px;
+    min-height: 56px;
+  }
+
+  .baraja-playlist-modal-card-content {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.6rem;
+  }
+
+  .baraja-playlist-modal-grid article .baraja-playlist-modal-card-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .baraja-playlist-modal-grid article .baraja-playlist-modal-card-actions button {
+    width: 100%;
+    justify-content: center;
+    padding-inline: 0.45rem;
+    font-size: 0.72rem;
+  }
+
+  .baraja-spotify-playlist-embed iframe {
+    height: 152px;
+  }
+}

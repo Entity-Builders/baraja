@@ -676,10 +676,6 @@ function getPickerItemSpotifyUrl(item: PlaylistCatalogPickerItem): string {
     : item.collection.spotifyUrl ?? '';
 }
 
-function formatPlaylistBoardSizes(boardSizes: MusicBingoBoardSize[]): string {
-  return boardSizes.map((boardSize) => `${boardSize}x${boardSize}`).join(' / ');
-}
-
 function getPickerItemSearchText(item: PlaylistCatalogPickerItem): string {
   if (item.kind === 'theme') {
     const theme = item.theme;
@@ -2595,34 +2591,21 @@ function PlaylistCatalogModal({
                   const id = getPickerItemId(candidate);
                   const isTheme = candidate.kind === 'theme';
                   const title = getPickerItemTitle(candidate);
-                  const subtitle = isTheme
-                    ? candidate.theme.title
-                    : candidate.collection.genreLabel;
-                  const summary = isTheme
-                    ? candidate.theme.summary
-                    : candidate.collection.description;
                   const categoryLabel = isTheme
                     ? candidate.theme.catalog.categoryLabel
                     : candidate.collection.categoryLabel;
                   const energyLabel = isTheme
                     ? candidate.theme.catalog.energyLabel
                     : candidate.collection.energyLabel;
-                  const decadeOrGenreLabel = isTheme
-                    ? candidate.theme.catalog.decadeLabel ?? candidate.theme.catalog.genreLabel
-                    : candidate.collection.decadeLabel ?? candidate.collection.genreLabel;
                   const songCount = isTheme
                     ? candidate.theme.songs.length
                     : candidate.collection.songCount;
-                  const boardSizeLabel = formatPlaylistBoardSizes(
-                    isTheme
-                      ? candidate.theme.catalog.supportedBoardSizes
-                      : candidate.collection.supportedBoardSizes
-                  );
                   const coverImageUrl = isTheme
                     ? candidate.theme.playlist?.coverImageUrl ?? candidate.theme.songs[0]?.artworkUrl ?? null
                     : candidate.collection.coverImageUrl ?? candidate.collection.tracks[0]?.imageUrl ?? null;
                   const playlistUrl = getPickerItemSpotifyUrl(candidate);
                   const canPreviewPlaylist = Boolean(parseSpotifyPlaylistId(playlistUrl));
+                  const isPreviewing = previewedPlaylistUrl === playlistUrl;
 
                   return (
                     <article
@@ -2638,37 +2621,33 @@ function PlaylistCatalogModal({
                             decoding="async"
                           />
                         ) : null}
-                        <span>{categoryLabel}</span>
                       </div>
-                      <div>
-                        <div className="baraja-playlist-modal-card-head">
+                      <div className="baraja-playlist-modal-card-content">
+                        <div className="baraja-playlist-modal-card-copy">
                           <small>{categoryLabel}</small>
                           <strong>{title}</strong>
-                          <span>{subtitle}</span>
+                          <span>{songCount} canciones · {energyLabel}</span>
                         </div>
-                        <div className="baraja-playlist-modal-statline" aria-label="Resumen de la playlist">
-                          <strong>{songCount}</strong>
-                          <span>canciones</span>
-                          <i aria-hidden="true" />
-                          <span>{boardSizeLabel}</span>
-                        </div>
-                        <div className="baraja-playlist-modal-meta" aria-label="Datos de la playlist">
-                          <span>{energyLabel}</span>
-                          <span>{decadeOrGenreLabel}</span>
-                          <span>{categoryLabel}</span>
-                        </div>
-                        <p>{summary}</p>
                         <div className="baraja-playlist-modal-card-actions">
-                          {canPreviewPlaylist && previewedPlaylistUrl !== playlistUrl ? (
+                          {canPreviewPlaylist ? (
                             <button
                               type="button"
                               className="baraja-playlist-listen"
-                              onClick={() => setPreviewedPlaylistUrl(playlistUrl)}
+                              aria-label={`${isPreviewing ? 'Ocultar' : 'Escuchar'} ${title} en Spotify`}
+                              aria-pressed={isPreviewing}
+                              onClick={() => setPreviewedPlaylistUrl((current) => (
+                                current === playlistUrl ? null : playlistUrl
+                              ))}
                             >
-                              Escuchar
+                              <SpotifyLogoMark />
+                              {isPreviewing ? 'Ocultar audio' : 'Escuchar'}
                             </button>
                           ) : null}
-                          <button type="button" onClick={() => onSelectItem(candidate)}>
+                          <button
+                            type="button"
+                            className="baraja-playlist-use"
+                            onClick={() => onSelectItem(candidate)}
+                          >
                             Usar esta playlist
                             <span aria-hidden="true">&gt;</span>
                           </button>
