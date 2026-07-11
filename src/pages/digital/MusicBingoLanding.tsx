@@ -262,8 +262,11 @@ export default function MusicBingoLanding() {
           </article>
           <article>
             <span>3</span>
-            <h3>Pagá e imprimí</h3>
-            <p>Con el pago confirmado recibís el juego listo para conducir la ronda.</p>
+            <h3>Todo listo para la ronda</h3>
+            <p>
+              Recibís los cartones, la hoja de control, las reglas y una guía con ideas para
+              conducir el juego.
+            </p>
           </article>
         </div>
       </section>
