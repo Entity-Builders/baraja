@@ -268,7 +268,7 @@ export default function MusicBingoLanding() {
         </div>
       </section>
 
-      <section className="baraja-campaign-section baraja-campaign-paths" id="playlist">
+      <section className="baraja-campaign-section baraja-campaign-paths is-single" id="playlist">
         <article>
           <p className="baraja-kicker">Con tu música</p>
           <h2>Tu playlist, una ronda lista.</h2>
@@ -288,18 +288,6 @@ export default function MusicBingoLanding() {
             >
               Usar mi playlist
             </Link>
-          </div>
-        </article>
-        <article>
-          <p className="baraja-kicker">Qué recibís</p>
-          <h2>Un juego listo para imprimir.</h2>
-          <p>
-            Cartones únicos, control de canciones, reglas y una guía breve para conducir la ronda.
-          </p>
-          <div className="baraja-final-points">
-            <span>PDF listo para imprimir</span>
-            <span>Control de canciones</span>
-            <span>Reglas y guía de juego</span>
           </div>
         </article>
       </section>

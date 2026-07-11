@@ -19467,6 +19467,10 @@ body::before {
   gap: 1rem;
 }
 
+.baraja-campaign .baraja-campaign-paths.is-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .baraja-campaign .baraja-campaign-paths article,
 .baraja-campaign .baraja-campaign-step-grid article {
   padding: clamp(1rem, 2vw, 1.25rem);
