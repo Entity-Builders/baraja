@@ -1,4 +1,4 @@
-import type { CardType } from '@eb-packages/deck-engine';
+import type { CardType } from '@entity-builders/deck-engine';
 import { getEditionBySlug } from '../../../../lib/editions';
 
 export const INSPIRATION_CHIPS = [

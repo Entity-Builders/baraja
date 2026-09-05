@@ -1,4 +1,4 @@
-import { LAYOUT_PRESETS, type BarajaTemplateMetadata, type CardLayout } from '@eb-packages/deck-engine';
+import { LAYOUT_PRESETS, type BarajaTemplateMetadata, type CardLayout } from '@entity-builders/deck-engine';
 import { labelStyle, sectionStyle } from '../../frameGeneratorStyles';
 
 const MANUAL_LAYOUT_ZONES: Array<{ key: keyof CardLayout; label: string }> = [

@@ -1,4 +1,4 @@
-import type { CardFace } from '@eb-packages/deck-engine';
+import type { CardFace } from '@entity-builders/deck-engine';
 
 export interface StoredSessionSnapshot {
   selectedCardId: string | null;

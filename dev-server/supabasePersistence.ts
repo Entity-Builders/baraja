@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { RawDeckContent } from '@eb-packages/deck-engine';
+import type { RawDeckContent } from '@entity-builders/deck-engine';
 import { getEnvValue, getFirstNonEmpty } from './env';
 
 const CMS_SUPABASE_URL = getEnvValue('VITE_SUPABASE_URL') ?? 'http://127.0.0.1:54321';

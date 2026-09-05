@@ -4,7 +4,7 @@ import {
   type BarajaTemplateMetadata,
   type CardType,
   type DeckId,
-} from '@eb-packages/deck-engine';
+} from '@entity-builders/deck-engine';
 import { DECK_EDITIONS, type DeckEdition } from '../../../lib/editions';
 import type { GeneratedFrame, LibraryFrame, TypographySuggestion } from '../frameGeneratorTypes';
 

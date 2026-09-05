@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { RawDeckContent } from '@eb-packages/deck-engine';
+import type { RawDeckContent } from '@entity-builders/deck-engine';
 import type { Template } from '@pdfme/common';
 import {
   SavedConfigRepository,

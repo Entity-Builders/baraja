@@ -4,7 +4,7 @@ import {
   getPreviewCards,
   type Card,
   type DeckSchema,
-} from '@eb-packages/deck-engine';
+} from '@entity-builders/deck-engine';
 import { CardCanvas } from '../../components/cards/CardCanvas';
 import {
   FEATURED_DIGITAL_DECK,

@@ -29,12 +29,12 @@
     "db:seed:supabase:prod": "BARAJA_DB_TARGET=production tsx scripts/seed_decks.ts"
   },
   "dependencies": {
-    "@eb-packages/analytics": "*",
-    "@eb-packages/app-registry": "workspace:*",
-    "@eb-packages/billing-core": "workspace:*",
-    "@eb-packages/deck-engine": "*",
-    "@eb-packages/spotify-service": "workspace:*",
-    "@eb-packages/ui-web": "workspace:*",
+    "@entity-builders/analytics": "*",
+    "@entity-builders/app-registry": "workspace:*",
+    "@entity-builders/billing-core": "workspace:*",
+    "@entity-builders/deck-engine": "*",
+    "@entity-builders/spotify-service": "workspace:*",
+    "@entity-builders/ui-web": "workspace:*",
     "@pdfme/common": "^6.0.6",
     "@pdfme/generator": "^6.0.6",
     "@pdfme/schemas": "^6.0.6",

@@ -1,5 +1,5 @@
 import { Link, useParams } from 'react-router-dom';
-import { EbWhatsAppButton } from '@eb-packages/ui-web';
+import { EbWhatsAppButton } from '@entity-builders/ui-web';
 import {
   FEATURED_DIGITAL_DECK,
   findDigitalDeck,

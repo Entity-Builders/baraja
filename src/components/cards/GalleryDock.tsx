@@ -1,5 +1,5 @@
 // src/components/admin/GalleryDock.tsx
-import type { Card } from '@eb-packages/deck-engine';
+import type { Card } from '@entity-builders/deck-engine';
 import styles from './GalleryDock.module.css';
 
 interface GalleryDockProps {

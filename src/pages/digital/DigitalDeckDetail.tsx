@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { EbWhatsAppButton } from '@eb-packages/ui-web';
+import { EbWhatsAppButton } from '@entity-builders/ui-web';
 import {
   flipCardFace,
   getPreviewCards,
   type Card,
   type CardFace,
   type DeckSchema,
-} from '@eb-packages/deck-engine';
+} from '@entity-builders/deck-engine';
 import {
   getDeckCatalogBreadcrumb,
   getDeckCatalogFacet,

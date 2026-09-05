@@ -1,7 +1,7 @@
 import { generate } from '@pdfme/generator';
 import type { Template, Schema } from '@pdfme/common';
-import type { DeckSchema } from '@eb-packages/deck-engine';
-import { getCardQrUrl, shouldRenderPrintableQr } from '@eb-packages/deck-engine';
+import type { DeckSchema } from '@entity-builders/deck-engine';
+import { getCardQrUrl, shouldRenderPrintableQr } from '@entity-builders/deck-engine';
 import { getTemplateForDeck, createFlujoBTemplate, buildPdfmeFonts, pdfmePlugins } from './pdfmeConfig';
 import type { PdfTypographyHints } from './pdfmeConfig';
 import { getFrameDataUri, getFrameTypography } from './cardFrame';

@@ -4,7 +4,7 @@ import type {
   DeckCatalogCategoryId,
   DeckCatalogCollectionDefinition,
   DeckCatalogCollectionId,
-} from '@eb-packages/deck-engine';
+} from '@entity-builders/deck-engine';
 import type { DeckType, TriviaDifficulty } from '../generationPayload';
 import type { GenerationPreset } from '../generationPresets';
 import { GenerationCatalogIntentFields } from '../GenerationCatalogIntentFields';

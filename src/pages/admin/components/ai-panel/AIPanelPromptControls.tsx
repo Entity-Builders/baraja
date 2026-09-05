@@ -1,4 +1,4 @@
-import type { BarajaTemplateMetadata, CardType } from '@eb-packages/deck-engine';
+import type { BarajaTemplateMetadata, CardType } from '@entity-builders/deck-engine';
 import { CARD_TYPES, INSPIRATION_CHIPS } from './aiPanelConfig';
 import {
   aiPanelDetailsStyle,

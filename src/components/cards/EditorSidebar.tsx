@@ -1,6 +1,6 @@
 // src/components/admin/EditorSidebar.tsx
 import React, { useState } from 'react';
-import type { Card } from '@eb-packages/deck-engine';
+import type { Card } from '@entity-builders/deck-engine';
 import styles from './EditorSidebar.module.css';
 
 interface EditorSidebarProps {

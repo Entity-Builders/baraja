@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { EbWhatsAppButton } from '@eb-packages/ui-web';
-import { getPrintableAccess } from '@eb-packages/deck-engine';
+import { EbWhatsAppButton } from '@entity-builders/ui-web';
+import { getPrintableAccess } from '@entity-builders/deck-engine';
 import { findDigitalDeck, getDeckInquiryHref } from '../../lib/digitalDeckCatalog';
 import { trackBarajaEvent } from '../../services/analytics';
 

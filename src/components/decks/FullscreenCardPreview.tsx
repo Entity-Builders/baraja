@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { Card, DeckSchema } from '@eb-packages/deck-engine';
+import type { Card, DeckSchema } from '@entity-builders/deck-engine';
 import { CardCanvas } from '../cards/CardCanvas';
 
 export type FullscreenPreviewMode = 'front' | 'back' | 'both';

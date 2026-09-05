@@ -1,6 +1,6 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import type { Card, DeckSchema, RawDeckContent } from '@eb-packages/deck-engine';
+import type { Card, DeckSchema, RawDeckContent } from '@entity-builders/deck-engine';
 import { useDeck } from '../../hooks/useDeck';
 
 import { EditorSidebar } from '../../components/cards/EditorSidebar';

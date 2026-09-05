@@ -26,8 +26,8 @@ import {
   type MusicBingoPrintPack,
   type MusicBingoSong,
   type MusicBingoTheme,
-} from '@eb-packages/deck-engine';
-import { parseSpotifyPlaylistId } from '@eb-packages/spotify-service';
+} from '@entity-builders/deck-engine';
+import { parseSpotifyPlaylistId } from '@entity-builders/spotify-service';
 import { BrandIcon } from '../../components/BrandIcon';
 import { getBarajaInquiryHref } from '../../lib/digitalDeckCatalog';
 import { getBarajaAcquisitionContext } from '../../lib/acquisitionAttribution';

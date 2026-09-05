@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import type { Card, DeckSchema } from '@eb-packages/deck-engine';
+import type { Card, DeckSchema } from '@entity-builders/deck-engine';
 import { CardCanvas } from '../../../components/cards/CardCanvas';
 import {
   getCardPublicationReadiness,

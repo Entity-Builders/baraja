@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { readEntityCheckoutReturnFromUrl, type EntityCheckoutReturnState } from '@eb-packages/billing-core';
+import { readEntityCheckoutReturnFromUrl, type EntityCheckoutReturnState } from '@entity-builders/billing-core';
 import { BrandIcon } from '../../components/BrandIcon';
 import { getBarajaInquiryHref } from '../../lib/digitalDeckCatalog';
 import { trackBarajaEvent } from '../../services/analytics';

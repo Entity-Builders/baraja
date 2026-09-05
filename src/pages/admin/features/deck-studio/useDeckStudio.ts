@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Template } from '@pdfme/common';
 import { SupabaseDeckRepository } from '../../../../lib/deckRepository';
 import { persistAdminEditionUpdates } from '../../../../lib/adminDeckPersistence';
-import type { DeckSchema, RawDeckContent } from '@eb-packages/deck-engine';
+import type { DeckSchema, RawDeckContent } from '@entity-builders/deck-engine';
 import {
   getTemplateForDeck,
   createDefaultCardTemplate,
@@ -465,7 +465,7 @@ export function useDeckStudio() {
     const rawDeck = decks.find(d => d.id === deckId || d.slug === deckId);
     if (!rawDeck) return;
 
-    const { resolveDeck } = await import('@eb-packages/deck-engine');
+    const { resolveDeck } = await import('@entity-builders/deck-engine');
     const deck = resolveDeck(rawDeck);
     const template = getTemplateForDeck(deck);
     const reverseModel = getDeckReverseModel(deck, template);
@@ -804,7 +804,7 @@ export function useDeckStudio() {
     );
     if (!confirmed) return;
 
-    const { resolveDeck } = await import('@eb-packages/deck-engine');
+    const { resolveDeck } = await import('@entity-builders/deck-engine');
     const { width, height } = getTemplateDimensions(activeTemplate);
     const editableTemplate = createDefaultCardTemplate(width, height);
     const editablePlacements = normalizeFieldPlacements(null);

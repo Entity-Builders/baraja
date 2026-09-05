@@ -3,7 +3,7 @@ import type {
   DeckLegacyFullBackReference,
   DeckReverseModel,
   DeckSchema,
-} from '@eb-packages/deck-engine';
+} from '@entity-builders/deck-engine';
 import type { Schema, Template } from '@pdfme/common';
 import { CARD_FIELD_KEYS } from './cardFieldPlacements';
 

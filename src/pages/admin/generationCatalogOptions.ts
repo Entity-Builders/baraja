@@ -3,7 +3,7 @@ import {
   DECK_CATALOG_COLLECTIONS,
   type DeckCatalogCategoryId,
   type DeckCatalogCollectionId,
-} from '@eb-packages/deck-engine';
+} from '@entity-builders/deck-engine';
 
 export function getGenerationCatalogCollections() {
   return Object.values(DECK_CATALOG_COLLECTIONS).filter(

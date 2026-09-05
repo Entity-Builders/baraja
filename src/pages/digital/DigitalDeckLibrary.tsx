@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { EbWhatsAppButton } from '@eb-packages/ui-web';
+import { EbWhatsAppButton } from '@entity-builders/ui-web';
 import {
   getPreviewCards,
   type Card,
   type DeckSchema,
-} from '@eb-packages/deck-engine';
+} from '@entity-builders/deck-engine';
 import {
   DIGITAL_DECKS,
   FEATURED_DIGITAL_DECK,

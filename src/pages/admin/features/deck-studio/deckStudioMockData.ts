@@ -3,7 +3,7 @@ import {
   getCardQrUrl,
   shouldRenderPrintableQr,
   type DeckSchema,
-} from '@eb-packages/deck-engine';
+} from '@entity-builders/deck-engine';
 import { getFrameDataUri } from '../../../../lib/cardFrame';
 import { coverCropToJpeg } from '../../../../lib/PrintEngine';
 import {

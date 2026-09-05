@@ -1,4 +1,4 @@
-import type { Card, CardFace, DeckSchema } from '@eb-packages/deck-engine';
+import type { Card, CardFace, DeckSchema } from '@entity-builders/deck-engine';
 import { CardCanvas } from '../../../components/cards/CardCanvas';
 
 export function SessionCard({

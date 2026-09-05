@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import type { RawDeckContent } from '@eb-packages/deck-engine';
+import type { RawDeckContent } from '@entity-builders/deck-engine';
 import { getEditionBySlug } from '../../../lib/editions';
 import {
   calculateTuckBoxDimensions,

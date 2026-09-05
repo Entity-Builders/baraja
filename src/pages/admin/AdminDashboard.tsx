@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getDeckCatalogFacet, type DeckSchema } from '@eb-packages/deck-engine';
+import { getDeckCatalogFacet, type DeckSchema } from '@entity-builders/deck-engine';
 import { useAllDecks } from '../../hooks/useAllDecks';
 import { getDeckPublicationReadiness } from '../../lib/deckPublicationReadiness';
 

@@ -1,4 +1,4 @@
-import type { Card, DeckSchema } from '@eb-packages/deck-engine';
+import type { Card, DeckSchema } from '@entity-builders/deck-engine';
 import { getEditionBySlug } from './editions';
 
 type BackFieldKey = 'when_to_use' | 'phrase' | 'instruction' | 'answer' | 'fun_fact';

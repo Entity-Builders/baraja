@@ -1,4 +1,4 @@
-import type { DeckSchema } from '@eb-packages/deck-engine';
+import type { DeckSchema } from '@entity-builders/deck-engine';
 import { getDeckCatalogFacet } from './digitalDeckCatalog';
 
 export const CATALOG_FILTERS = [

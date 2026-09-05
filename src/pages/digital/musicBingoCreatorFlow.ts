@@ -1,4 +1,4 @@
-import type { MusicBingoCreatorSongSource } from '@eb-packages/deck-engine';
+import type { MusicBingoCreatorSongSource } from '@entity-builders/deck-engine';
 import type { BarajaMusicBingoCheckoutSource } from '../../services/musicBingoCheckout';
 
 export type MusicBingoCreatorEntry = 'chooser' | 'collection' | 'playlist';

@@ -1,5 +1,5 @@
-import { RAW_DECKS } from '@eb-packages/deck-engine';
-import type { Card, RawDeckContent } from '@eb-packages/deck-engine';
+import { RAW_DECKS } from '@entity-builders/deck-engine';
+import type { Card, RawDeckContent } from '@entity-builders/deck-engine';
 
 function sqlString(value: unknown): string {
   if (value === null || value === undefined) {

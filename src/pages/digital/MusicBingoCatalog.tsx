@@ -4,7 +4,7 @@ import {
   MUSIC_BINGO_MVP_THEMES,
   type MusicBingoBoardSize,
   type MusicBingoTheme,
-} from '@eb-packages/deck-engine';
+} from '@entity-builders/deck-engine';
 import { trackBarajaEvent } from '../../services/analytics';
 import {
   fetchSyncedMusicBingoCatalog,

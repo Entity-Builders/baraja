@@ -1,7 +1,7 @@
 // src/components/cards/CameraPreview.tsx
 // Premium camera preview with gyroscope-driven card tilt + holographic shine.
 import { useState, useRef, useEffect, useCallback } from 'react';
-import type { Card, DeckSchema } from '@eb-packages/deck-engine';
+import type { Card, DeckSchema } from '@entity-builders/deck-engine';
 import { CardCanvas } from './CardCanvas';
 import styles from './CameraPreview.module.css';
 

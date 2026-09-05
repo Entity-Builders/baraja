@@ -3,8 +3,8 @@
 // ============================================================
 
 import { useState, useEffect } from 'react';
-import { DECKS, resolveDeck } from '@eb-packages/deck-engine';
-import type { DeckSchema } from '@eb-packages/deck-engine';
+import { DECKS, resolveDeck } from '@entity-builders/deck-engine';
+import type { DeckSchema } from '@entity-builders/deck-engine';
 import { SupabaseDeckRepository } from '../lib/deckRepository';
 
 const repo = new SupabaseDeckRepository();

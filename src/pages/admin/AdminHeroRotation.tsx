@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { DeckSchema } from '@eb-packages/deck-engine';
+import type { DeckSchema } from '@entity-builders/deck-engine';
 import { DIGITAL_DECKS } from '../../lib/digitalDeckCatalog';
 import {
   DEFAULT_HERO_ROTATION_SLOTS,

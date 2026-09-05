@@ -9,12 +9,12 @@ import {
   type DeckCatalogCollectionId,
   type DeckCatalogBreadcrumbItem,
   type DeckSchema,
-} from '@eb-packages/deck-engine';
+} from '@entity-builders/deck-engine';
 import {
   buildEntityBuildersWhatsappUrl,
   getEntityBuildersAppWhatsappOrFallback,
   type EntityBuildersAppWhatsappConfig,
-} from '@eb-packages/app-registry';
+} from '@entity-builders/app-registry';
 
 export const BARAJA_APP_ID = 'baraja';
 export const BARAJA_WHATSAPP_CONTACT =

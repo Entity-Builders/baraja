@@ -1,6 +1,6 @@
 // src/components/admin/GalleryHero.tsx
 import { useState } from 'react';
-import type { Card, DeckSchema } from '@eb-packages/deck-engine';
+import type { Card, DeckSchema } from '@entity-builders/deck-engine';
 import { CardCanvas } from './CardCanvas';
 import { CameraPreview } from './CameraPreview';
 import styles from './GalleryHero.module.css';

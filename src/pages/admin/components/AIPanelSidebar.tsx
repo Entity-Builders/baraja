@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import type { RawDeckContent } from '@eb-packages/deck-engine';
+import type { RawDeckContent } from '@entity-builders/deck-engine';
 import {
   buildMasterTemplatePrompt,
   buildArtDirectorMetaPrompt,
   buildStructuralConstraints,
   type BarajaTemplateMetadata,
   type CardType,
-} from '@eb-packages/deck-engine';
+} from '@entity-builders/deck-engine';
 import { DECK_EDITIONS, getEditionBySlug } from '../../../lib/editions';
 import { coverCropToJpeg } from '../../../lib/PrintEngine';
 import { AIPanelFrameGallery } from './ai-panel/AIPanelFrameGallery';

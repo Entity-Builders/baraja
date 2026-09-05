@@ -1,4 +1,4 @@
-import { EbWhatsAppButton } from '@eb-packages/ui-web';
+import { EbWhatsAppButton } from '@entity-builders/ui-web';
 import type { CSSProperties } from 'react';
 import { PublicShowcase } from '../components/cards/PublicShowcase';
 import { RelatedDecksSection } from '../components/decks/RelatedDecksSection';

@@ -4,7 +4,7 @@ import type {
   DeckCatalogCategoryId,
   DeckCatalogCollectionDefinition,
   DeckCatalogCollectionId,
-} from '@eb-packages/deck-engine';
+} from '@entity-builders/deck-engine';
 
 interface GenerationCatalogIntentFieldsProps {
   buyerSentence: string;

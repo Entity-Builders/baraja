@@ -2,7 +2,7 @@ import {
   getPreviewCards,
   type Card,
   type DeckSchema,
-} from '@eb-packages/deck-engine';
+} from '@entity-builders/deck-engine';
 
 export const HERO_ROTATION_STORAGE_KEY = 'baraja:landing:giro:v2';
 export const HERO_ROTATION_CONFIG_EVENT = 'baraja:giro-config-updated';

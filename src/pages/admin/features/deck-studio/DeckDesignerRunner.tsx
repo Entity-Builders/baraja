@@ -1,7 +1,7 @@
 import { useCallback, useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { Designer } from '@pdfme/ui';
 import type { Schema, Template } from '@pdfme/common';
-import type { RawDeckContent } from '@eb-packages/deck-engine';
+import type { RawDeckContent } from '@entity-builders/deck-engine';
 import { buildPdfmeFonts, pdfmePlugins } from '../../../../lib/pdfmeConfig';
 import { PdfmeTemplatePreview } from '../../../../components/cards/PdfmeTemplatePreview';
 import { normalizeTemplateFieldAliases } from '../../../../lib/cardFieldPlacements';

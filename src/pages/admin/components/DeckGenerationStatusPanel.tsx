@@ -1,4 +1,4 @@
-import type { RawDeckContent } from '@eb-packages/deck-engine';
+import type { RawDeckContent } from '@entity-builders/deck-engine';
 import type { FieldPlacementMap } from '../../../lib/cardFieldPlacements';
 import type { SavedConfigRow } from '../../../lib/deckRepository';
 import { formatDate } from '../../../lib/formatters';

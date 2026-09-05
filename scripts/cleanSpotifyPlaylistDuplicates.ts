@@ -3,7 +3,7 @@ import {
   type SpotifyCredentials,
   type SpotifyPlaylistDuplicateCleanupResult,
   type SpotifyPlaylistDuplicateMatchMode,
-} from '@eb-packages/spotify-service';
+} from '@entity-builders/spotify-service';
 import dotenv from 'dotenv';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

@@ -4,8 +4,8 @@
 // BACK: High-res PNG frame with AI-typography-aware text content
 import { useMemo, useEffect, useState } from 'react';
 import type { CSSProperties, KeyboardEvent } from 'react';
-import type { Card, DeckSchema } from '@eb-packages/deck-engine';
-import { getCardQrUrl, shouldRenderPrintableQr } from '@eb-packages/deck-engine';
+import type { Card, DeckSchema } from '@entity-builders/deck-engine';
+import { getCardQrUrl, shouldRenderPrintableQr } from '@entity-builders/deck-engine';
 import { getFrameUrl, getFrameTheme, getFrameTypography, loadGoogleFonts } from '../../lib/cardFrame';
 import { resolveReadableSchemaColorOverrides } from '../../lib/cardReadability';
 import {

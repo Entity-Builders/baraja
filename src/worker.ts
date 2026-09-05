@@ -12,7 +12,7 @@ import {
   resolveSpotifyPlaylist,
   type SpotifyCredentials,
   type SpotifyPlaylistData,
-} from '@eb-packages/spotify-service';
+} from '@entity-builders/spotify-service';
 
 interface Env {
   ASSETS: { fetch: typeof fetch };

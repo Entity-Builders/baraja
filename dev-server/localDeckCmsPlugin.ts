@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import path from 'node:path';
-import type { DeckSchema, RawDeckContent } from '@eb-packages/deck-engine';
+import type { DeckSchema, RawDeckContent } from '@entity-builders/deck-engine';
 import type { Plugin, ViteDevServer } from 'vite';
 import { getDeckPublicationReadiness } from '../src/lib/deckPublicationReadiness';
 import { fitTypographyHintsToContent } from '../src/lib/typographyFit';

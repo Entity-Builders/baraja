@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { getPreviewCards, type DeckSchema } from '@eb-packages/deck-engine';
+import { getPreviewCards, type DeckSchema } from '@entity-builders/deck-engine';
 import {
   FEATURED_DIGITAL_DECK,
   getDeckAudienceBadges,

@@ -4,7 +4,7 @@
  */
 import type { Template, Font, Schema } from '@pdfme/common';
 import { text, image, barcodes, rectangle, svg, line, ellipse } from '@pdfme/schemas';
-import type { DeckSchema } from '@eb-packages/deck-engine';
+import type { DeckSchema } from '@entity-builders/deck-engine';
 import { FONT_REGISTRY } from './fontRegistry';
 import { getFrameTypography, getFrameTheme } from './cardFrame';
 import {

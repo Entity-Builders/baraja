@@ -3,7 +3,7 @@ import {
   DECK_CATALOG_COLLECTIONS,
   type DeckCatalogCategoryId,
   type DeckCatalogCollectionId,
-} from '@eb-packages/deck-engine';
+} from '@entity-builders/deck-engine';
 import type { EnrichedItem } from './generationResponseParsers';
 
 export type DeckType = 'trivia' | 'introspection' | 'party' | 'custom';

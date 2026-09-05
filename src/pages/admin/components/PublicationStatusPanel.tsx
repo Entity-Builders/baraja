@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import type { Card, DeckSchema } from '@eb-packages/deck-engine';
+import type { Card, DeckSchema } from '@entity-builders/deck-engine';
 import { getDeckPublicationReadiness } from '../../../lib/deckPublicationReadiness';
 import { formatCurrencyAmount } from '../../../lib/formatters';
 

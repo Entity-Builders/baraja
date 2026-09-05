@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { getMusicBingoPriceQuote } from '@eb-packages/deck-engine';
+import { getMusicBingoPriceQuote } from '@entity-builders/deck-engine';
 import {
   getCuratedCatalogOfferingId,
   getMusicBingoCheckoutSource,

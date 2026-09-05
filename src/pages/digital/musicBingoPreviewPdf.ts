@@ -1,4 +1,4 @@
-import type { GeneratedMusicBingoCard } from '@eb-packages/deck-engine';
+import type { GeneratedMusicBingoCard } from '@entity-builders/deck-engine';
 
 const A4_WIDTH = 595.28;
 const A4_HEIGHT = 841.89;

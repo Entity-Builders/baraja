@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import type { Card, DeckSchema } from '@eb-packages/deck-engine';
+import type { Card, DeckSchema } from '@entity-builders/deck-engine';
 
 interface SessionGalleryProps {
   activeDeck: DeckSchema;

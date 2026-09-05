@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { PRINT_SPECS } from '@eb-packages/deck-engine';
-import type { DeckSchema } from '@eb-packages/deck-engine';
+import { PRINT_SPECS } from '@entity-builders/deck-engine';
+import type { DeckSchema } from '@entity-builders/deck-engine';
 import { Link } from 'react-router-dom';
 import { CardCanvas } from '../cards/CardCanvas';
 import { SupabaseDeckRepository, DesignTemplateRepository } from '../../lib/deckRepository';
@@ -263,7 +263,7 @@ export function DeckSettingsModal({ deck, onClose }: DeckSettingsModalProps) {
             <div style={{ transform: 'scale(1.2)' }}>
               <CardCanvas
                 deck={liveDeck}
-                card={sampleCard as unknown as import('@eb-packages/deck-engine').Card}
+                card={sampleCard as unknown as import('@entity-builders/deck-engine').Card}
                 flipped={flipped}
                 onFlip={() => setFlipped(!flipped)}
               />

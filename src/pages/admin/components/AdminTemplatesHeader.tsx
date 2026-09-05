@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import type { RawDeckContent } from '@eb-packages/deck-engine';
+import type { RawDeckContent } from '@entity-builders/deck-engine';
 import type { SavedConfigRow } from '../../../lib/deckRepository';
 import { CardNavigator } from '../features/deck-studio/CardNavigator';
 

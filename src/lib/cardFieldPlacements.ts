@@ -3,7 +3,7 @@ import type {
   CardFieldPlacement,
   CardFieldPlacementKey,
   DeckDesign,
-} from '@eb-packages/deck-engine';
+} from '@entity-builders/deck-engine';
 import type { Schema, Template } from '@pdfme/common';
 
 export type FieldPlacementMap = Record<CardFieldPlacementKey, CardFieldPlacement>;

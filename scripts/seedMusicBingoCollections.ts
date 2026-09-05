@@ -6,11 +6,11 @@ import {
   type SpotifyPlaylistData,
   type SpotifyPlaylistSeedResult,
   type SpotifyPlaylistSeedTrackMatch,
-} from '@eb-packages/spotify-service';
+} from '@entity-builders/spotify-service';
 import {
   getMusicBingoUsableSongPool,
   type MusicBingoSong,
-} from '@eb-packages/deck-engine';
+} from '@entity-builders/deck-engine';
 import dotenv from 'dotenv';
 import { spawnSync } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';

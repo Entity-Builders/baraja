@@ -1,5 +1,5 @@
 import type { DragEventHandler, PointerEventHandler } from 'react';
-import type { Card, CardFace, DeckSchema } from '@eb-packages/deck-engine';
+import type { Card, CardFace, DeckSchema } from '@entity-builders/deck-engine';
 import { SessionControls } from './DigitalDeckSessionControls';
 import { SessionGallery } from './DigitalDeckSessionGallery';
 import { SessionStage } from './DigitalDeckSessionStage';

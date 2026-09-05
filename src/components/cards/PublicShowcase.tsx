@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import type { Card } from '@eb-packages/deck-engine';
-import type { DeckSchema } from '@eb-packages/deck-engine';
+import type { Card } from '@entity-builders/deck-engine';
+import type { DeckSchema } from '@entity-builders/deck-engine';
 import { CardCanvas } from './CardCanvas';
 
 interface PublicShowcaseProps {

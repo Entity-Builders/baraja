@@ -1,4 +1,4 @@
-import type { Card, RawDeckContent } from '@eb-packages/deck-engine';
+import type { Card, RawDeckContent } from '@entity-builders/deck-engine';
 import { SupabaseDeckRepository } from './deckRepository';
 
 const localDeckRepo = new SupabaseDeckRepository();

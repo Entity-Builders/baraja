@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   type DeckCatalogCategoryId,
   type DeckCatalogCollectionId,
-} from '@eb-packages/deck-engine';
+} from '@entity-builders/deck-engine';
 import {
   getFallbackCatalogCategory,
   getGenerationCatalogCategories,

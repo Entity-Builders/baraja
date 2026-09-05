@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { DeckSchema, RawDeckContent } from '@eb-packages/deck-engine';
+import type { DeckSchema, RawDeckContent } from '@entity-builders/deck-engine';
 import { ASSETS_DIR, CONTENT_DIR } from './paths';
 import { cleanOptionalString, isRecord } from './contentUtils';
 import { saveEditionToSupabase } from './supabasePersistence';

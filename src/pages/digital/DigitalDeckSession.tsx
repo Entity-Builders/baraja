@@ -7,7 +7,7 @@ import {
   shuffleCards,
   type Card,
   type CardFace,
-} from '@eb-packages/deck-engine';
+} from '@entity-builders/deck-engine';
 import { trackBarajaEvent } from '../../services/analytics';
 import { usePwaStatus } from '../../hooks/usePwaStatus';
 import { useDeck } from '../../hooks/useDeck';

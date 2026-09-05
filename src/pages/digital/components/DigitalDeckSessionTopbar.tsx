@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import type { Card, CardFace, DeckSchema } from '@eb-packages/deck-engine';
+import type { Card, CardFace, DeckSchema } from '@entity-builders/deck-engine';
 
 export function SessionTopbar({
   activeDeck,

@@ -5,7 +5,7 @@ import type {
   MusicBingoEventRuleProfile,
   MusicBingoPlaylistFitReport,
   MusicBingoPlaylistReference,
-} from '@eb-packages/deck-engine';
+} from '@entity-builders/deck-engine';
 import type { BarajaAcquisitionContext } from '../lib/acquisitionAttribution';
 
 export type BarajaMusicBingoCheckoutSource =

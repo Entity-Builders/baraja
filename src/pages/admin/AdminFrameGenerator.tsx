@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { setFrameTheme, setFrameTypography, setActiveDeckId } from '../../lib/cardFrame';
 import { Link } from 'react-router-dom';
-import { buildMasterTemplatePrompt, buildArtDirectorMetaPrompt, buildStructuralConstraints, type BarajaTemplateMetadata, type CardLayout, type CardType, type DeckId } from '@eb-packages/deck-engine';
+import { buildMasterTemplatePrompt, buildArtDirectorMetaPrompt, buildStructuralConstraints, type BarajaTemplateMetadata, type CardLayout, type CardType, type DeckId } from '@entity-builders/deck-engine';
 import { DECK_EDITIONS } from '../../lib/editions';
 import { SupabaseDeckRepository } from '../../lib/deckRepository';
 import { createDefaultCardTemplate } from '../../lib/pdfmeConfig';

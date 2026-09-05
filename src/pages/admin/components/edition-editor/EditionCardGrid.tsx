@@ -1,4 +1,4 @@
-import type { Card, DeckSchema } from '@eb-packages/deck-engine';
+import type { Card, DeckSchema } from '@entity-builders/deck-engine';
 import { CardCanvas } from '../../../../components/cards/CardCanvas';
 import type { CardViewMode } from './editionEditorTypes';
 

@@ -1,4 +1,4 @@
-import { Analytics, PostHogProvider } from '@eb-packages/analytics';
+import { Analytics, PostHogProvider } from '@entity-builders/analytics';
 import { getInstallPlatform, getViewportOrientation, isPwaStandalone } from '../lib/pwa';
 import { toBarajaAcquisitionAnalyticsProperties, getBarajaAcquisitionContext } from '../lib/acquisitionAttribution';
 

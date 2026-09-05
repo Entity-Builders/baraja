@@ -2,7 +2,7 @@ import {
   getMusicBingoUsableSongPool,
   type MusicBingoBoardSize,
   type MusicBingoSong,
-} from '@eb-packages/deck-engine';
+} from '@entity-builders/deck-engine';
 
 export interface SyncedMusicBingoCatalogTrack {
   id: string | null;

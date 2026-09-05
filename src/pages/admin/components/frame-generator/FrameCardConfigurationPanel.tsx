@@ -1,4 +1,4 @@
-import { DECKS, type BarajaTemplateMetadata, type CardType, type DeckId } from '@eb-packages/deck-engine';
+import { DECKS, type BarajaTemplateMetadata, type CardType, type DeckId } from '@entity-builders/deck-engine';
 import { inputStyle, labelStyle, sectionStyle, selectStyle } from '../../frameGeneratorStyles';
 
 interface FrameCardConfigurationPanelProps {

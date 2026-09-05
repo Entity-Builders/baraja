@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { DECKS, RAW_DECKS } from '@eb-packages/deck-engine';
+import { DECKS, RAW_DECKS } from '@entity-builders/deck-engine';
 import type {
   Card,
   DeckMetadata,
@@ -8,7 +8,7 @@ import type {
   DigitalDeckConfig,
   IDeckRepository,
   RawDeckContent,
-} from '@eb-packages/deck-engine';
+} from '@entity-builders/deck-engine';
 
 const viteEnv = (import.meta as unknown as {
   env?: Record<string, string | undefined>;

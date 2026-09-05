@@ -1,5 +1,5 @@
 import { Link, useParams } from 'react-router-dom';
-import { getPreviewCards } from '@eb-packages/deck-engine';
+import { getPreviewCards } from '@entity-builders/deck-engine';
 import { findDigitalDeck } from '../../lib/digitalDeckCatalog';
 
 export default function DigitalAppPreviewLimit() {

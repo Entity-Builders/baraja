@@ -1,4 +1,4 @@
-import type { RawDeckContent } from '@eb-packages/deck-engine';
+import type { RawDeckContent } from '@entity-builders/deck-engine';
 import { cleanOptionalString } from './contentUtils';
 
 type RawDigitalConfig = NonNullable<RawDeckContent['digital']>;

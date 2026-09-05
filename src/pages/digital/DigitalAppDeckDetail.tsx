@@ -1,6 +1,6 @@
 import { Link, Navigate, useParams } from 'react-router-dom';
-import { EbWhatsAppButton } from '@eb-packages/ui-web';
-import { getPreviewCards } from '@eb-packages/deck-engine';
+import { EbWhatsAppButton } from '@entity-builders/ui-web';
+import { getPreviewCards } from '@entity-builders/deck-engine';
 import {
   findDigitalDeck,
   getDeckInquiryHref,

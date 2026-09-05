@@ -1,5 +1,5 @@
 import type { Schema, Template } from '@pdfme/common';
-import type { DeckSchema } from '@eb-packages/deck-engine';
+import type { DeckSchema } from '@entity-builders/deck-engine';
 import { applyReadableSchemaColors } from '../../../../lib/cardReadability';
 import {
   applyFieldPlacementsToTemplate,

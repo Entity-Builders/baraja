@@ -1,4 +1,4 @@
-import type { BarajaTemplateMetadata, CardType, DeckId } from '@eb-packages/deck-engine';
+import type { BarajaTemplateMetadata, CardType, DeckId } from '@entity-builders/deck-engine';
 import { FrameCardConfigurationPanel } from './FrameCardConfigurationPanel';
 import { FrameDimensionControls, type DimensionPreset } from './FrameDimensionControls';
 import { FrameFaceSelector } from './FrameFaceSelector';

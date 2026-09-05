@@ -1,4 +1,4 @@
-import { EbWhatsAppButton } from '@eb-packages/ui-web';
+import { EbWhatsAppButton } from '@entity-builders/ui-web';
 import { useAllDecks } from '../hooks/useAllDecks';
 import {
   getBarajaGeneralInquiryMessage,

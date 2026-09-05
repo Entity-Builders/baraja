@@ -10,7 +10,7 @@ import {
   MUSIC_BINGO_DEMO_SONGS,
   MUSIC_BINGO_PRODUCT,
   type MusicBingoCell,
-} from '@eb-packages/deck-engine';
+} from '@entity-builders/deck-engine';
 import { getBarajaInquiryHref } from '../../lib/digitalDeckCatalog';
 import { trackBarajaEvent } from '../../services/analytics';
 

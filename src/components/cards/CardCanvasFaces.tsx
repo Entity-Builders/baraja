@@ -1,6 +1,6 @@
 import { QRCodeSVG } from 'qrcode.react';
 import type { Template } from '@pdfme/common';
-import type { Card, DeckSchema } from '@eb-packages/deck-engine';
+import type { Card, DeckSchema } from '@entity-builders/deck-engine';
 import {
   getCardFieldText,
   type CardFieldDefinition,

@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom';
-import { EbWhatsAppButton } from '@eb-packages/ui-web';
+import { EbWhatsAppButton } from '@entity-builders/ui-web';
 import {
   getPreviewCards,
   type Card,
   type DeckSchema,
-} from '@eb-packages/deck-engine';
+} from '@entity-builders/deck-engine';
 import { CardCanvas } from '../../../components/cards/CardCanvas';
 import {
   getDeckCatalogFacet,
